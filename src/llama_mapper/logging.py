@@ -9,7 +9,7 @@ import logging
 import logging.config
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import structlog
 from structlog.types import FilteringBoundLogger
@@ -18,66 +18,95 @@ from structlog.types import FilteringBoundLogger
 class PrivacyFilter(logging.Filter):
     """
     Filter that prevents logging of sensitive data.
-    
+
     Blocks any log records that might contain raw detector inputs
     or other sensitive information.
     """
-    
+
     SENSITIVE_KEYS = {
-        "raw_input", "detector_input", "content", "text", "message_content",
-        "user_input", "prompt", "response_text", "raw_output", "original_text"
+        "raw_input",
+        "detector_input",
+        "content",
+        "text",
+        "message_content",
+        "user_input",
+        "prompt",
+        "response_text",
+        "raw_output",
+        "original_text",
     }
-    
+
     def filter(self, record: logging.LogRecord) -> bool:
         """
         Filter log records to prevent sensitive data logging.
-        
+
         Args:
             record: Log record to filter
-            
+
         Returns:
             True if record should be logged, False otherwise
         """
         # Check message for sensitive content
-        if hasattr(record, 'msg') and isinstance(record.msg, str):
+        if hasattr(record, "msg") and isinstance(record.msg, str):
             msg_lower = record.msg.lower()
             if any(key in msg_lower for key in self.SENSITIVE_KEYS):
                 return False
-        
+
         # Check extra fields for sensitive keys
-        if hasattr(record, '__dict__'):
+        if hasattr(record, "__dict__"):
             for key in record.__dict__.keys():
                 if key.lower() in self.SENSITIVE_KEYS:
                     return False
-        
+
         return True
 
 
 class MetadataOnlyProcessor:
     """
     Structlog processor that ensures only metadata is logged.
-    
+
     Removes any fields that might contain sensitive data and
     ensures compliance with privacy-first logging requirements.
     """
-    
+
     ALLOWED_FIELDS = {
-        "timestamp", "level", "logger", "event", "tenant_id", "detector_type",
-        "taxonomy_label", "confidence", "fallback_used", "schema_valid",
-        "latency_ms", "request_id", "session_id", "user_id", "trace_id",
-        "span_id", "version", "component", "operation", "status_code",
-        "error_type", "error_code", "retry_count", "batch_size"
+        "timestamp",
+        "level",
+        "logger",
+        "event",
+        "tenant_id",
+        "detector_type",
+        "taxonomy_label",
+        "confidence",
+        "fallback_used",
+        "schema_valid",
+        "latency_ms",
+        "request_id",
+        "session_id",
+        "user_id",
+        "trace_id",
+        "span_id",
+        "version",
+        "component",
+        "operation",
+        "status_code",
+        "error_type",
+        "error_code",
+        "retry_count",
+        "batch_size",
     }
-    
-    def __call__(self, logger: FilteringBoundLogger, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+
+    def __call__(
+        self, logger: FilteringBoundLogger, method_name: str, event_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Process log event to ensure only metadata is included.
-        
+
         Args:
             logger: Structlog logger instance
             method_name: Log method name (info, error, etc.)
             event_dict: Event dictionary to process
-            
+
         Returns:
             Filtered event dictionary with only allowed fields
         """
@@ -90,16 +119,16 @@ class MetadataOnlyProcessor:
                     filtered_dict[key] = self._sanitize_message(value)
                 else:
                     filtered_dict[key] = value
-        
+
         return filtered_dict
-    
+
     def _sanitize_message(self, message: str) -> str:
         """
         Sanitize log message to remove potential sensitive content.
-        
+
         Args:
             message: Original log message
-            
+
         Returns:
             Sanitized message
         """
@@ -114,12 +143,12 @@ class MetadataOnlyProcessor:
             ("token", "[TOKEN_REDACTED]"),
             ("key", "[KEY_REDACTED]"),
         ]
-        
+
         sanitized = message.lower()
         for pattern, replacement in sensitive_patterns:
             if pattern in sanitized:
                 return f"Sensitive content detected: {replacement}"
-        
+
         return message
 
 
@@ -127,11 +156,11 @@ def setup_logging(
     log_level: str = "INFO",
     log_format: str = "json",
     log_file: Optional[str] = None,
-    enable_privacy_filter: bool = True
+    enable_privacy_filter: bool = True,
 ) -> None:
     """
     Set up privacy-first logging configuration.
-    
+
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         log_format: Log format (json, console)
@@ -144,39 +173,36 @@ def setup_logging(
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
     ]
-    
+
     if enable_privacy_filter:
         processors.append(MetadataOnlyProcessor())
-    
+
     if log_format == "json":
-        processors.extend([
-            structlog.processors.dict_tracebacks,
-            structlog.processors.JSONRenderer()
-        ])
+        processors.extend(
+            [structlog.processors.dict_tracebacks, structlog.processors.JSONRenderer()]
+        )
     else:
-        processors.extend([
-            structlog.dev.ConsoleRenderer(colors=True)
-        ])
-    
+        processors.extend([structlog.dev.ConsoleRenderer(colors=True)])
+
     structlog.configure(
-        processors=processors,
+        processors=processors,  # type: ignore[arg-type]
         wrapper_class=structlog.make_filtering_bound_logger(
             logging.getLogger().getEffectiveLevel()
         ),
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure standard logging
-    handlers = []
-    
+    handlers: list[logging.Handler] = []
+
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(getattr(logging, log_level.upper()))
-    
+
     if enable_privacy_filter:
         console_handler.addFilter(PrivacyFilter())
-    
+
     if log_format == "json":
         console_formatter = logging.Formatter(
             '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
@@ -184,37 +210,37 @@ def setup_logging(
         )
     else:
         console_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
-    
+
     console_handler.setFormatter(console_formatter)
     handlers.append(console_handler)
-    
+
     # File handler (if specified)
     if log_file:
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         file_handler = logging.FileHandler(log_path)
         file_handler.setLevel(getattr(logging, log_level.upper()))
-        
+
         if enable_privacy_filter:
             file_handler.addFilter(PrivacyFilter())
-        
+
         file_formatter = logging.Formatter(
             '{"timestamp": "%(asctime)s", "level": "%(levelname)s", '
             '"logger": "%(name)s", "message": "%(message)s"}'
         )
         file_handler.setFormatter(file_formatter)
         handlers.append(file_handler)
-    
+
     # Configure root logger
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
         handlers=handlers,
-        format='%(message)s'
+        format="%(message)s",
     )
-    
+
     # Set specific logger levels
     logging.getLogger("uvicorn").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.WARNING)
@@ -225,14 +251,14 @@ def setup_logging(
 def get_logger(name: str) -> FilteringBoundLogger:
     """
     Get a privacy-aware structured logger.
-    
+
     Args:
         name: Logger name (typically __name__)
-        
+
     Returns:
         Configured structlog logger
     """
-    return structlog.get_logger(name)
+    return cast(FilteringBoundLogger, structlog.get_logger(name))
 
 
 def log_metadata_only(
@@ -245,13 +271,13 @@ def log_metadata_only(
     fallback_used: bool = False,
     schema_valid: bool = True,
     latency_ms: Optional[float] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> None:
     """
     Log metadata-only information for audit and monitoring.
-    
+
     This function ensures that only metadata is logged, never raw content.
-    
+
     Args:
         logger: Structlog logger instance
         event: Event description
@@ -274,14 +300,15 @@ def log_metadata_only(
         "schema_valid": schema_valid,
         "latency_ms": latency_ms,
     }
-    
+
     # Add additional metadata (will be filtered by MetadataOnlyProcessor)
     metadata.update(kwargs)
-    
+
     # Remove None values
     metadata = {k: v for k, v in metadata.items() if v is not None}
-    
-    logger.info(**metadata)
+
+    event_msg = str(metadata.pop("event", "event"))
+    logger.info(event_msg, **metadata)
 
 
 # Example usage and testing functions
@@ -289,7 +316,7 @@ def test_privacy_filter() -> None:
     """Test privacy filter functionality."""
     setup_logging(enable_privacy_filter=True)
     logger = get_logger(__name__)
-    
+
     # These should be logged (metadata only)
     log_metadata_only(
         logger,
@@ -300,12 +327,12 @@ def test_privacy_filter() -> None:
         confidence=0.85,
         fallback_used=False,
         schema_valid=True,
-        latency_ms=120.5
+        latency_ms=120.5,
     )
-    
+
     # This should be filtered out
     logger.info("Processing raw input", raw_input="This is sensitive content")
-    
+
     # This should be sanitized
     logger.info("Detected email pattern in content")
 

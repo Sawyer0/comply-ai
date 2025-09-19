@@ -1,21 +1,24 @@
 """
 Integration tests for rate limiting headers and 429 behavior.
 """
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock
 from fastapi.testclient import TestClient
 
 from src.llama_mapper.api.mapper import create_app
 from src.llama_mapper.config.manager import RateLimitConfig, RateLimitEndpointConfig
-from src.llama_mapper.serving import JSONValidator, FallbackMapper
 from src.llama_mapper.monitoring.metrics_collector import MetricsCollector
+from src.llama_mapper.serving import FallbackMapper, JSONValidator
 
 
 @pytest.fixture
 def mock_model_server():
     server = Mock()
     # Return valid JSON that matches schema structure expected by JSONValidator.parse_output
-    server.generate_mapping = AsyncMock(return_value='{"taxonomy": ["HARM.SPEECH.Toxicity"], "scores": {"HARM.SPEECH.Toxicity": 0.95}, "confidence": 0.95}')
+    server.generate_mapping = AsyncMock(
+        return_value='{"taxonomy": ["HARM.SPEECH.Toxicity"], "scores": {"HARM.SPEECH.Toxicity": 0.95}, "confidence": 0.95}'
+    )
     server.health_check = AsyncMock(return_value=True)
     return server
 
@@ -24,12 +27,14 @@ def mock_model_server():
 def mock_json_validator():
     validator = Mock(spec=JSONValidator)
     validator.validate.return_value = (True, None)
+
     class _Parsed:
         taxonomy = ["HARM.SPEECH.Toxicity"]
         scores = {"HARM.SPEECH.Toxicity": 0.95}
         confidence = 0.95
         provenance = None
         notes = None
+
     validator.parse_output.return_value = _Parsed()
     return validator
 
@@ -63,22 +68,29 @@ def rate_limited_config_manager():
         window_seconds=60,
         endpoints={
             "map": RateLimitEndpointConfig(api_key_limit=2, tenant_limit=2, ip_limit=2),
-            "map_batch": RateLimitEndpointConfig(api_key_limit=2, tenant_limit=2, ip_limit=2)
-        }
+            "map_batch": RateLimitEndpointConfig(
+                api_key_limit=2, tenant_limit=2, ip_limit=2
+            ),
+        },
     )
     cfg.rate_limit = rl
     return cfg
 
 
 @pytest.fixture
-def test_app(mock_model_server, mock_json_validator, mock_fallback_mapper, rate_limited_config_manager):
+def test_app(
+    mock_model_server,
+    mock_json_validator,
+    mock_fallback_mapper,
+    rate_limited_config_manager,
+):
     metrics = MetricsCollector()
     app = create_app(
         model_server=mock_model_server,
         json_validator=mock_json_validator,
         fallback_mapper=mock_fallback_mapper,
         config_manager=rate_limited_config_manager,
-        metrics_collector=metrics
+        metrics_collector=metrics,
     )
     return TestClient(app)
 

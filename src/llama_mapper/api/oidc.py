@@ -12,7 +12,9 @@ from typing import Any, Dict, Optional
 class OIDCProvider:
     """Stub OIDC provider interface (not implemented)."""
 
-    def __init__(self, issuer_url: str, client_id: str, audience: Optional[str] = None) -> None:
+    def __init__(
+        self, issuer_url: str, client_id: str, audience: Optional[str] = None
+    ) -> None:
         self.issuer_url = issuer_url
         self.client_id = client_id
         self.audience = audience

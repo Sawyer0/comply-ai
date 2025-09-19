@@ -7,12 +7,8 @@ Exports:
   remap detector mappings, with rollback support and validation.
 """
 
+from .taxonomy_migrator import MigrationPlan, MigrationReport, TaxonomyMigrator
 from .version_manager import VersionManager, VersionSnapshot
-from .taxonomy_migrator import (
-    TaxonomyMigrator,
-    MigrationPlan,
-    MigrationReport,
-)
 
 __all__ = [
     "VersionManager",
