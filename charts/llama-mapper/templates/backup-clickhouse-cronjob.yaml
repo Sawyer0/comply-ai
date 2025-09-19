@@ -1,0 +1,52 @@
+{{- if and .Values.backups.enabled .Values.backups.clickhouse.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-ch-backup
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  schedule: "{{ .Values.backups.clickhouse.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: clickhouse-backup
+              image: "{{ .Values.backups.clickhouse.image }}"
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: CLICKHOUSE_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ required "backups.clickhouse.passwordSecretRef is required" .Values.backups.clickhouse.passwordSecretRef | quote }}
+                      key: CLICKHOUSE_PASSWORD
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
+                      key: aws_access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
+                      key: aws_secret_access_key
+                - name: AWS_REGION
+                  value: "{{ .Values.backups.s3.region }}"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TS=$(date -u +%Y%m%dT%H%M%SZ)
+                  DEST_PREFIX="{{ .Values.backups.s3.prefix }}/clickhouse/{{ include "llama-mapper.fullname" . }}/$TS"
+                  echo "Starting ClickHouse backup at $TS"
+                  # Requires ClickHouse server to allow BACKUP TO S3; adjust as needed for your environment.
+                  QUERY="BACKUP DATABASE {{ .Values.backups.clickhouse.database }} TO S3('s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}','${DEST_PREFIX}', '${AWS_ACCESS_KEY_ID}', '${AWS_SECRET_ACCESS_KEY}', '', 'region={{ .Values.backups.s3.region }}')"
+                  clickhouse-client --host {{ .Values.backups.clickhouse.host }} --port {{ .Values.backups.clickhouse.port }} --user {{ .Values.backups.clickhouse.user }} --password "${CLICKHOUSE_PASSWORD}" --query "$QUERY"
+                  echo "Backup requested; verify on S3 s3://{{ .Values.backups.s3.bucket }}/${DEST_PREFIX}"
+{{- end }}

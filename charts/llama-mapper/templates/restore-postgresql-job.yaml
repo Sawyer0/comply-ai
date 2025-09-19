@@ -1,0 +1,49 @@
+{{- if and .Values.restore.enabled (eq .Values.restore.type "postgresql") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-pg-restore
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "llama-mapper.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: pg-restore
+          image: "{{ .Values.restore.image.postgresql }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "restore.postgresql.passwordSecretRef is required" .Values.restore.postgresql.passwordSecretRef | quote }}
+                  key: PGPASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
+                  key: aws_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
+                  key: aws_secret_access_key
+            - name: AWS_REGION
+              value: "{{ .Values.backups.s3.region }}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              SNAP="{{ required "restore.snapshot is required" .Values.restore.snapshot }}"
+              SRC="s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}/$SNAP"
+              echo "Downloading $SRC"
+              aws s3 cp "$SRC" /tmp/restore.sql.gz
+              echo "Restoring into {{ .Values.restore.postgresql.database }}"
+              gunzip -c /tmp/restore.sql.gz | psql -h {{ .Values.restore.postgresql.host }} -p {{ .Values.restore.postgresql.port }} -U {{ .Values.restore.postgresql.user }} -d {{ .Values.restore.postgresql.database }}
+              echo "Restore complete"
+{{- end }}

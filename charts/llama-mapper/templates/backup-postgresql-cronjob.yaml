@@ -1,0 +1,53 @@
+{{- if and .Values.backups.enabled .Values.backups.postgresql.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-pg-backup
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  schedule: "{{ .Values.backups.postgresql.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-backup
+              image: "{{ .Values.backups.postgresql.image }}"
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ required "backups.postgresql.passwordSecretRef is required" .Values.backups.postgresql.passwordSecretRef | quote }}
+                      key: PGPASSWORD
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
+                      key: aws_access_key_id
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
+                      key: aws_secret_access_key
+                - name: AWS_REGION
+                  value: "{{ .Values.backups.s3.region }}"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  TS=$(date -u +%Y%m%dT%H%M%SZ)
+                  FILE="/tmp/${TS}.sql.gz"
+                  echo "Starting PostgreSQL backup at $TS"
+                  pg_dump -h {{ .Values.backups.postgresql.host }} -p {{ .Values.backups.postgresql.port }} -U {{ .Values.backups.postgresql.user }} -d {{ .Values.backups.postgresql.database }} | gzip > "$FILE"
+                  DEST="s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}/{{ .Values.backups.s3.prefix }}/postgresql/{{ include "llama-mapper.fullname" . }}/$TS.sql.gz"
+                  echo "Uploading to $DEST"
+                  aws s3 cp "$FILE" "$DEST"
+                  echo "Backup completed"
+{{- end }}

@@ -210,3 +210,7 @@ Endpoints
 - Service port: 8000
 - Health: GET /health
 - Metrics: GET /metrics (Prometheus exposition), GET /metrics/summary, GET /metrics/alerts
+
+## Runbooks
+- Backups & DR: docs/runbook/backup-restore.md
+- Migrations & rollback: docs/runbook/migrations.md

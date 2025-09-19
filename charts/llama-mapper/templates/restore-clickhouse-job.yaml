@@ -1,0 +1,47 @@
+{{- if and .Values.restore.enabled (eq .Values.restore.type "clickhouse") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-ch-restore
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "llama-mapper.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: clickhouse-restore
+          image: "{{ .Values.restore.image.clickhouse }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "restore.clickhouse.passwordSecretRef is required" .Values.restore.clickhouse.passwordSecretRef | quote }}
+                  key: CLICKHOUSE_PASSWORD
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
+                  key: aws_access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
+                  key: aws_secret_access_key
+            - name: AWS_REGION
+              value: "{{ .Values.backups.s3.region }}"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              SNAP_PREFIX="{{ required "restore.snapshot is required" .Values.restore.snapshot }}" # e.g., backups/llama-mapper/clickhouse/release/20250101T000000Z
+              echo "Starting restore from s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}/${SNAP_PREFIX}"
+              QUERY="RESTORE DATABASE {{ .Values.restore.clickhouse.database }} FROM S3('s3://{{ .Values.backups.s3.bucket }}','${SNAP_PREFIX}', '${AWS_ACCESS_KEY_ID}', '${AWS_SECRET_ACCESS_KEY}', '', 'region={{ .Values.backups.s3.region }}')"
+              clickhouse-client --host {{ .Values.restore.clickhouse.host }} --port {{ .Values.restore.clickhouse.port }} --user {{ .Values.restore.clickhouse.user }} --password "${CLICKHOUSE_PASSWORD}" --query "$QUERY"
+              echo "Restore requested"
+{{- end }}

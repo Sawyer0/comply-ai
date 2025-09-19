@@ -120,3 +120,53 @@ ingress:
         - path: /
           pathType: Prefix
   tls: []
+
+# Backup and restore configuration
+backups:
+  enabled: false
+  s3:
+    bucket: ""
+    prefix: "backups/llama-mapper"
+    region: "us-east-1"
+    # Optionally reference AWS credentials via Kubernetes Secret
+    awsAccessKeyIdSecretRef: ""   # name of Secret with key: aws_access_key_id
+    awsSecretAccessKeySecretRef: "" # name of Secret with key: aws_secret_access_key
+  postgresql:
+    enabled: false
+    schedule: "0 2 * * *" # daily at 02:00
+    image: ghcr.io/your-org/pg-backup:latest
+    host: "postgres"
+    port: 5432
+    database: "llama_mapper"
+    user: "postgres"
+    passwordSecretRef: "" # name of Secret with key: PGPASSWORD
+  clickhouse:
+    enabled: false
+    schedule: "30 2 * * *" # daily at 02:30
+    image: clickhouse/clickhouse-server:23.8
+    host: "clickhouse"
+    port: 9000
+    database: "mapper"
+    user: "default"
+    passwordSecretRef: "" # name of Secret with key: CLICKHOUSE_PASSWORD
+
+restore:
+  enabled: false
+  # Choose one of: postgresql or clickhouse
+  type: "postgresql"
+  snapshot: "" # path under s3://<bucket>/<prefix>/... to restore
+  image:
+    postgresql: ghcr.io/your-org/pg-backup:latest
+    clickhouse: clickhouse/clickhouse-server:23.8
+  postgresql:
+    host: "postgres"
+    port: 5432
+    database: "llama_mapper"
+    user: "postgres"
+    passwordSecretRef: "" # name of Secret with key: PGPASSWORD
+  clickhouse:
+    host: "clickhouse"
+    port: 9000
+    database: "mapper"
+    user: "default"
+    passwordSecretRef: "" # name of Secret with key: CLICKHOUSE_PASSWORD
