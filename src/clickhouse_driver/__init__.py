@@ -3,6 +3,7 @@
 
 from typing import Any
 
+
 class Client:  # type: ignore
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass

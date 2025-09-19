@@ -5,6 +5,7 @@ SecretsManager abstraction with Vault and AWS Secrets Manager backends.
 - Supports least-privilege access and optional rotation hooks
 - Emits audit logs without exposing secret contents
 """
+
 from __future__ import annotations
 
 import json
@@ -100,7 +101,9 @@ class VaultSecretsBackend:
         try:
             import hvac  # type: ignore
         except ModuleNotFoundError as e:  # pragma: no cover
-            raise RuntimeError("hvac is not installed; install to use Vault backend") from e
+            raise RuntimeError(
+                "hvac is not installed; install to use Vault backend"
+            ) from e
 
         self._client = hvac.Client(url=settings.security.encryption_key_id or settings.security.api_key_header)  # type: ignore[arg-type]
         # The settings.security.vault_url/token are not present in Settings; allow env vars
@@ -108,7 +111,9 @@ class VaultSecretsBackend:
         token = os.getenv("VAULT_TOKEN")
         if url:
             self._client = hvac.Client(url=url, token=token)
-        if not getattr(self._client, "is_authenticated", lambda: True)():  # pragma: no cover
+        if not getattr(
+            self._client, "is_authenticated", lambda: True
+        )():  # pragma: no cover
             raise RuntimeError("Vault authentication failed")
 
     def get_secret(self, ref: SecretRef) -> str:
@@ -158,8 +163,16 @@ class SecretsManager:
         else:
             self._backend = EnvSecretsBackend()
 
-    def get(self, name: str, *, version: Optional[str] = None, tenant_id: Optional[str] = None) -> str:
-        return self._backend.get_secret(SecretRef(name=name, version=version, tenant_id=tenant_id))
+    def get(
+        self,
+        name: str,
+        *,
+        version: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+    ) -> str:
+        return self._backend.get_secret(
+            SecretRef(name=name, version=version, tenant_id=tenant_id)
+        )
 
     def put(self, name: str, value: str, *, tenant_id: Optional[str] = None) -> None:
         self._backend.put_secret(SecretRef(name=name, tenant_id=tenant_id), value)

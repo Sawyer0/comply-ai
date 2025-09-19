@@ -1,6 +1,7 @@
 """
 Tests for BYOK verification (S3 SSE-KMS) and PII redaction utilities.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -28,11 +29,12 @@ async def test_s3_put_uses_kms_when_kms_key_id_set():
     )
     settings = Settings(storage=storage_cfg)
 
-    with patch("boto3.Session") as mock_session, patch(
-        "asyncpg.create_pool"
-    ) as mock_pool, patch.object(StorageManager, "_create_postgresql_tables"), patch.object(
-        StorageManager, "_init_encryption"
-    ) as mock_init_enc:
+    with (
+        patch("boto3.Session") as mock_session,
+        patch("asyncpg.create_pool") as mock_pool,
+        patch.object(StorageManager, "_create_postgresql_tables"),
+        patch.object(StorageManager, "_init_encryption") as mock_init_enc,
+    ):
         # Mock KMS client for _init_encryption (not executed due to patch)
         mock_s3_client = MagicMock()
         mock_s3_client.head_bucket.return_value = None
@@ -50,7 +52,9 @@ async def test_s3_put_uses_kms_when_kms_key_id_set():
             mapped_data='{"taxonomy": ["PII.Contact.Email"], "confidence": 0.9}',
             model_version="v1",
             metadata={"detector": "d", "tenant_id": "t"},
-            timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+            timestamp=__import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc
+            ),
         )
 
         await mgr.store_record(rec)
@@ -69,7 +73,10 @@ def test_redaction_masks_common_pii():
 
     data = {
         "prompt": "User said: my card 4111 1111 1111 1111",
-        "meta": {"ip": "192.168.1.1", "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.x.y"},
+        "meta": {
+            "ip": "192.168.1.1",
+            "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.x.y",
+        },
     }
     red_dict = redact_dict(data)
     assert red_dict["prompt"] == "[REDACTED]"

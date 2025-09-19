@@ -140,7 +140,9 @@ class ReportGenerator:
         try:
             # Import WeasyPrint (optional dependency)
             from weasyprint import CSS, HTML  # type: ignore[import-not-found]
-            from weasyprint.text.fonts import FontConfiguration  # type: ignore[import-not-found]
+            from weasyprint.text.fonts import (
+                FontConfiguration,  # type: ignore[import-not-found]
+            )
         except ImportError:
             raise ImportError(
                 "WeasyPrint is required for PDF generation. Install with: pip install weasyprint"
@@ -179,7 +181,8 @@ class ReportGenerator:
         pdf_bytes = cast(
             bytes,
             html_doc.write_pdf(
-                stylesheets=[css_content] if css_content else None, font_config=font_config
+                stylesheets=[css_content] if css_content else None,
+                font_config=font_config,
             ),
         )
 
@@ -417,9 +420,11 @@ class ReportGenerator:
                     detector_type=record_dict["detector_type"],
                     taxonomy_hit=record_dict["taxonomy_hit"],
                     confidence_score=record_dict["confidence_score"],
-                    timestamp=datetime.fromisoformat(record_dict["timestamp"])
-                    if isinstance(record_dict["timestamp"], str)
-                    else record_dict["timestamp"],
+                    timestamp=(
+                        datetime.fromisoformat(record_dict["timestamp"])
+                        if isinstance(record_dict["timestamp"], str)
+                        else record_dict["timestamp"]
+                    ),
                     model_version=record_dict["model_version"],
                     mapping_method=record_dict["mapping_method"],
                     framework_mappings=record_dict.get("framework_mappings", []),
@@ -448,9 +453,11 @@ class ReportGenerator:
                     canonical_label=lineage_dict["canonical_label"],
                     confidence_score=lineage_dict["confidence_score"],
                     mapping_method=lineage_dict["mapping_method"],
-                    timestamp=datetime.fromisoformat(lineage_dict["timestamp"])
-                    if isinstance(lineage_dict["timestamp"], str)
-                    else lineage_dict["timestamp"],
+                    timestamp=(
+                        datetime.fromisoformat(lineage_dict["timestamp"])
+                        if isinstance(lineage_dict["timestamp"], str)
+                        else lineage_dict["timestamp"]
+                    ),
                     model_version=lineage_dict.get("model_version"),
                     tenant_id=lineage_dict.get("tenant_id"),
                 )

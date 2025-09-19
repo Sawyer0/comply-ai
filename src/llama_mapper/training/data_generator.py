@@ -11,7 +11,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, Set, TextIO
+from typing import Any, Dict, List, Optional, Set, TextIO, Tuple, Union
 
 from ..data.detectors import DetectorConfigLoader, DetectorMapping
 from ..data.taxonomy import Taxonomy, TaxonomyLoader
@@ -1615,15 +1615,15 @@ class DatasetValidator:
         # Calculate coverage statistics
         coverage_analysis["coverage_statistics"] = {
             "detector_coverage_percentage": (
-                len(used_detectors) / len(available_detectors) * 100
-            )
-            if available_detectors
-            else 0,
+                (len(used_detectors) / len(available_detectors) * 100)
+                if available_detectors
+                else 0
+            ),
             "taxonomy_coverage_percentage": (
-                len(used_labels) / len(all_taxonomy_labels) * 100
-            )
-            if all_taxonomy_labels
-            else 0,
+                (len(used_labels) / len(all_taxonomy_labels) * 100)
+                if all_taxonomy_labels
+                else 0
+            ),
             "total_detectors": len(available_detectors),
             "covered_detectors": len(used_detectors),
             "total_taxonomy_labels": len(all_taxonomy_labels),
@@ -1809,7 +1809,9 @@ class DatasetValidator:
             cv = (std_dev / mean_val) if mean_val > 0 else float("inf")
 
             # Convert to balance score (0-100, higher is better)
-            balance_score: float = float(max(0.0, 100.0 - (cv * 50.0)))  # Scale CV to 0-100 range
+            balance_score: float = float(
+                max(0.0, 100.0 - (cv * 50.0))
+            )  # Scale CV to 0-100 range
             return balance_score
 
         return {
@@ -1830,7 +1832,9 @@ class DatasetValidator:
         }
 
         # Check mapping consistency (same detector label should map to same canonical label)
-        detector_label_mappings: Dict[Tuple[str, str], Set[str]] = {}  # (detector, detector_label) -> canonical_labels
+        detector_label_mappings: Dict[Tuple[str, str], Set[str]] = (
+            {}
+        )  # (detector, detector_label) -> canonical_labels
 
         for i, example in enumerate(examples):
             detector = example.metadata.get("detector", "unknown")
@@ -1967,7 +1971,12 @@ class DatasetValidator:
         scores.append(quality_score)
 
         # Calculate weighted average
-        weights: List[float] = [0.3, 0.3, 0.25, 0.15]  # Format, taxonomy, coverage, quality
+        weights: List[float] = [
+            0.3,
+            0.3,
+            0.25,
+            0.15,
+        ]  # Format, taxonomy, coverage, quality
         overall_score = sum(score * weight for score, weight in zip(scores, weights))
 
         return min(100.0, max(0.0, overall_score))
@@ -1986,7 +1995,12 @@ class DatasetValidator:
             self.load_dependencies()
         assert self._taxonomy is not None
 
-        validation: Dict[str, Any] = {"valid": True, "errors": [], "warnings": [], "details": {}}
+        validation: Dict[str, Any] = {
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+            "details": {},
+        }
 
         # Validate instruction
         if not example.instruction or not isinstance(example.instruction, str):
@@ -2069,7 +2083,9 @@ class DatasetValidator:
 
         logger.info(f"Validation report exported to {output_path}")
 
-    def _write_text_report(self, validation_report: Dict[str, Any], file: TextIO) -> None:
+    def _write_text_report(
+        self, validation_report: Dict[str, Any], file: TextIO
+    ) -> None:
         """Write validation report in text format."""
         file.write("TRAINING DATASET VALIDATION REPORT\n")
         file.write("=" * 50 + "\n\n")

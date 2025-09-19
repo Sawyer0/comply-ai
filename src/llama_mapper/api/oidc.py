@@ -4,6 +4,7 @@ OIDC integration stub for future use.
 This module defines a minimal interface for an OIDC provider to enable
 future migration from API key auth to token-based auth.
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional

@@ -411,9 +411,9 @@ class AuditTrailManager:
             "unmapped_taxonomy_labels": list(unmapped_labels),
             "total_mapped_labels": len(mapped_labels),
             "total_taxonomy_labels": len(all_labels),
-            "mapping_coverage_percentage": (len(mapped_labels) / len(all_labels)) * 100
-            if all_labels
-            else 0,
+            "mapping_coverage_percentage": (
+                (len(mapped_labels) / len(all_labels)) * 100 if all_labels else 0
+            ),
         }
 
     def _get_framework_mappings_for_label(self, taxonomy_label: str) -> List[str]:
@@ -519,10 +519,10 @@ class AuditTrailManager:
                     "total_incidents": len(framework_incidents),
                     "resolved_incidents": len(framework_resolved),
                     "coverage_percentage": (
-                        len(framework_resolved) / len(framework_incidents) * 100
-                    )
-                    if framework_incidents
-                    else 100,
+                        (len(framework_resolved) / len(framework_incidents) * 100)
+                        if framework_incidents
+                        else 100
+                    ),
                 }
 
         return CoverageMetrics(
@@ -598,7 +598,9 @@ class AuditTrailManager:
         # Count records per detector
         detector_counts: Dict[str, int] = defaultdict(int)
         detector_confidence_scores: Dict[str, List[float]] = defaultdict(list)
-        detector_methods: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        detector_methods: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: defaultdict(int)
+        )
 
         for record in audit_records:
             detector_counts[record.detector_type] += 1
@@ -657,10 +659,10 @@ class AuditTrailManager:
                 "covered_labels": len(covered_in_category),
                 "uncovered_labels": len(uncovered_in_category),
                 "coverage_percentage": (
-                    len(covered_in_category) / len(category_labels) * 100
-                )
-                if category_labels
-                else 100,
+                    (len(covered_in_category) / len(category_labels) * 100)
+                    if category_labels
+                    else 100
+                ),
             }
 
         return breakdown

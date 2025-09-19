@@ -8,6 +8,7 @@ with proper tokenizer configuration and support for quantization options.
 from typing import Any, Optional, Tuple
 
 import structlog
+
 try:
     import torch  # type: ignore
 except Exception:  # torch is an optional dependency at runtime
@@ -32,11 +33,15 @@ except Exception:
             self.lora_dropout = lora_dropout
             self.bias = bias
             self.task_type = task_type
+
     class PeftModel:  # type: ignore
         def __init__(self, *args: object, **kwargs: object) -> None:
             pass
+
     def get_peft_model(model: "PreTrainedModel", lora_config: "LoraConfig") -> "PreTrainedModel":  # type: ignore
         return model
+
+
 try:
     from transformers import (  # type: ignore
         AutoModelForCausalLM,
@@ -49,10 +54,13 @@ except Exception:
     # Minimal transformer stubs for tests that don't exercise model loading
     class PreTrainedModel:  # type: ignore
         config: Any = type("cfg", (), {"vocab_size": 0})()
+
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def resize_token_embeddings(self, *args: Any, **kwargs: Any) -> None:
             pass
+
     class PreTrainedTokenizer:  # type: ignore
         pad_token: Optional[str] = None
         pad_token_id: Optional[int] = None
@@ -60,21 +68,27 @@ except Exception:
         eos_token_id: Optional[int] = None
         padding_side: str = "right"
         vocab_size: int = 0
+
         def save_pretrained(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def __len__(self) -> int:
             return self.vocab_size
+
     class BitsAndBytesConfig:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
+
     class AutoModelForCausalLM:  # type: ignore
         @classmethod
         def from_pretrained(cls, *args: Any, **kwargs: Any) -> PreTrainedModel:
             return PreTrainedModel()
+
     class AutoTokenizer:  # type: ignore
         @classmethod
         def from_pretrained(cls, *args: Any, **kwargs: Any) -> PreTrainedTokenizer:
             return PreTrainedTokenizer()
+
 
 logger = structlog.get_logger(__name__)
 
@@ -139,9 +153,9 @@ class ModelLoader:
         elif self.quantization_bits == 4:
             return BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16
-                if self.use_fp16
-                else torch.float32,
+                bnb_4bit_compute_dtype=(
+                    torch.float16 if self.use_fp16 else torch.float32
+                ),
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
             )
@@ -217,9 +231,11 @@ class ModelLoader:
             "Model loaded successfully",
             model_type=type(model).__name__,
             device_map=getattr(model, "hf_device_map", "unknown"),
-            memory_footprint_mb=model.get_memory_footprint() / 1024 / 1024
-            if hasattr(model, "get_memory_footprint")
-            else "unknown",
+            memory_footprint_mb=(
+                model.get_memory_footprint() / 1024 / 1024
+                if hasattr(model, "get_memory_footprint")
+                else "unknown"
+            ),
         )
 
         return model

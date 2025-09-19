@@ -5,6 +5,7 @@ API authentication and idempotency utilities for FastAPI.
 - Optional tenant header requirement
 - Simple in-memory idempotency cache for POST endpoints
 """
+
 from __future__ import annotations
 
 import time

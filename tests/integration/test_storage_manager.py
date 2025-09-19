@@ -57,11 +57,13 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_initialization_postgresql(self, settings):
         """Test StorageManager initialization with PostgreSQL."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ) as mock_create_tables:
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(
+                StorageManager, "_create_postgresql_tables"
+            ) as mock_create_tables,
+        ):
             # Mock S3 client
             mock_s3_client = MagicMock()
             mock_s3_client.head_bucket.return_value = None
@@ -83,11 +85,13 @@ class TestStorageManager:
         storage_config.db_port = 9000
         settings = Settings(storage=storage_config)
 
-        with patch("boto3.Session") as mock_session, patch(
-            "clickhouse_driver.Client"
-        ) as mock_client, patch.object(
-            StorageManager, "_create_clickhouse_tables"
-        ) as mock_create_tables:
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("clickhouse_driver.Client") as mock_client,
+            patch.object(
+                StorageManager, "_create_clickhouse_tables"
+            ) as mock_create_tables,
+        ):
             # Mock S3 client
             mock_s3_client = MagicMock()
             mock_s3_client.head_bucket.return_value = None
@@ -105,12 +109,11 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_store_record_postgresql(self, settings, sample_record):
         """Test storing a record with PostgreSQL backend."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ), patch.object(
-            StorageManager, "_init_encryption"
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+            patch.object(StorageManager, "_init_encryption"),
         ):
             # Mock S3 client
             mock_s3_client = MagicMock()
@@ -142,12 +145,11 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_retrieve_record_from_database(self, settings, sample_record):
         """Test retrieving a record from the database."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ), patch.object(
-            StorageManager, "_init_encryption"
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+            patch.object(StorageManager, "_init_encryption"),
         ):
             # Mock S3 client
             mock_s3_client = MagicMock()
@@ -184,12 +186,11 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_cleanup_expired_records(self, settings):
         """Test cleanup of expired records."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ), patch.object(
-            StorageManager, "_init_encryption"
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+            patch.object(StorageManager, "_init_encryption"),
         ):
             # Mock S3 client
             mock_s3_client = MagicMock()
@@ -218,9 +219,11 @@ class TestStorageManager:
         storage_config.kms_key_id = "arn:aws:kms:us-east-1:123456789012:key/test-key"
         settings = Settings(storage=storage_config)
 
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(StorageManager, "_create_postgresql_tables"):
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+        ):
             # Mock KMS client
             mock_kms_client = MagicMock()
             mock_kms_client.generate_data_key.return_value = {
@@ -249,12 +252,11 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_worm_policy_setup(self, settings):
         """Test WORM policy configuration."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ), patch.object(
-            StorageManager, "_init_encryption"
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+            patch.object(StorageManager, "_init_encryption"),
         ):
             # Mock S3 client
             mock_s3_client = MagicMock()
@@ -291,9 +293,10 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_error_handling_database_failure(self, settings):
         """Test error handling when database initialization fails."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool:
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+        ):
             # Mock S3 client (successful)
             mock_s3_client = MagicMock()
             mock_s3_client.head_bucket.return_value = None
@@ -310,12 +313,11 @@ class TestStorageManager:
     @pytest.mark.asyncio
     async def test_close_connections(self, settings):
         """Test proper cleanup of connections."""
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ), patch.object(
-            StorageManager, "_init_encryption"
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(StorageManager, "_create_postgresql_tables"),
+            patch.object(StorageManager, "_init_encryption"),
         ):
             # Mock S3 client
             mock_s3_client = MagicMock()

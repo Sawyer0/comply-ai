@@ -1,6 +1,7 @@
 """
 Abstract model server interface with implementations for vLLM and TGI.
 """
+
 import asyncio
 import json
 import logging
@@ -30,7 +31,9 @@ class GenerationConfig:
 class ModelServer(ABC):
     """Abstract base class for model serving backends."""
 
-    def __init__(self, model_path: str, generation_config: Optional[GenerationConfig] = None) -> None:
+    def __init__(
+        self, model_path: str, generation_config: Optional[GenerationConfig] = None
+    ) -> None:
         self.model_path = model_path
         self.generation_config = generation_config or GenerationConfig()
         self.is_loaded = False
@@ -136,7 +139,10 @@ class VLLMModelServer(ModelServer):
     async def load_model(self) -> None:
         """Load the model using vLLM."""
         try:
-            from vllm import AsyncEngineArgs, AsyncLLMEngine  # type: ignore[import-not-found]
+            from vllm import (  # type: ignore[import-not-found]
+                AsyncEngineArgs,
+                AsyncLLMEngine,
+            )
 
             logger.info(f"Loading model {self.model_path} with vLLM")
 
@@ -166,7 +172,9 @@ class VLLMModelServer(ModelServer):
             await self.load_model()
 
         try:
-            from vllm.sampling_params import SamplingParams  # type: ignore[import-not-found]
+            from vllm.sampling_params import (
+                SamplingParams,  # type: ignore[import-not-found]
+            )
 
             # Override generation config with any provided kwargs
             config = self.generation_config
@@ -326,7 +334,10 @@ class TGIModelServer(ModelServer):
 
 
 def create_model_server(
-    backend: str, model_path: str, generation_config: Optional[GenerationConfig] = None, **kwargs: Any
+    backend: str,
+    model_path: str,
+    generation_config: Optional[GenerationConfig] = None,
+    **kwargs: Any,
 ) -> ModelServer:
     """
     Factory function to create the appropriate model server.

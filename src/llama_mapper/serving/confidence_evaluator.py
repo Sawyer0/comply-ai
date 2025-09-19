@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+
 try:
     import torch  # type: ignore
 except Exception:  # torch is an optional dependency at runtime
@@ -22,9 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 try:
-    from sklearn.isotonic import IsotonicRegression as _IsoType  # type: ignore[import-not-found]
+    from sklearn.isotonic import (
+        IsotonicRegression as _IsoType,  # type: ignore[import-not-found]
+    )
 except Exception:
     _IsoType = Any  # type: ignore[assignment]
+
 
 class ConfidenceCalibrator:
     """
@@ -443,7 +447,9 @@ class ConfidenceEvaluator:
         calibrated_correct = (calibrated_pred == labels).astype(float)
 
         # Expected Calibration Error (ECE)
-        def compute_ece(confidences: np.ndarray, correct: np.ndarray, n_bins: int = 10) -> float:
+        def compute_ece(
+            confidences: np.ndarray, correct: np.ndarray, n_bins: int = 10
+        ) -> float:
             bin_boundaries = np.linspace(0, 1, n_bins + 1)
             bin_lowers = bin_boundaries[:-1]
             bin_uppers = bin_boundaries[1:]
@@ -486,8 +492,8 @@ class ConfidenceEvaluator:
         return {
             "threshold": self.threshold,
             "calibration_enabled": self.calibration_enabled,
-            "calibrator_trained": self.calibrator.is_calibrated
-            if self.calibrator
-            else False,
+            "calibrator_trained": (
+                self.calibrator.is_calibrated if self.calibrator else False
+            ),
             "calibration_method": self.calibrator.method if self.calibrator else None,
         }

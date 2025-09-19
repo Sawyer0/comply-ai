@@ -1,6 +1,7 @@
 """
 Unit tests for SecretsManager backends (AWS, Vault, Env).
 """
+
 from __future__ import annotations
 
 import json
@@ -24,7 +25,7 @@ def test_aws_secrets_backend_get_secret():
 
     with patch("boto3.Session") as mock_session:
         mock_client = MagicMock()
-        mock_client.get_secret_value.return_value = {"SecretString": "{\"k\": \"v\"}"}
+        mock_client.get_secret_value.return_value = {"SecretString": '{"k": "v"}'}
         mock_session.return_value.client.return_value = mock_client
 
         sm = SecretsManager(settings)
