@@ -8,6 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
+  LLAMA_MAPPER_MODEL_VERSION: "mapper-lora@v0.0.0-ci"
 
 jobs:
   quality-gates:
@@ -53,6 +54,56 @@ jobs:
       run: |
         mypy src/llama_mapper/
         
+    - name: Enforce version snapshot via CLI
+      run: |
+        python - <<'PY'
+        import json, subprocess, sys
+        out = subprocess.check_output([sys.executable, "-m", "llama_mapper.cli", "versions", "show"])
+        snap = json.loads(out.decode())
+        assert 'taxonomy' in snap and isinstance(snap['taxonomy'], dict), "taxonomy info missing"
+        assert 'frameworks' in snap and isinstance(snap['frameworks'], dict), "frameworks info missing"
+        # If version keys exist, they must be non-empty strings
+        if 'version' in snap['taxonomy']:
+            assert isinstance(snap['taxonomy']['version'], str) and snap['taxonomy']['version'], "taxonomy.version empty"
+        if 'version' in snap['frameworks']:
+            assert isinstance(snap['frameworks']['version'], str) and snap['frameworks']['version'], "frameworks.version empty"
+        # Force non-unknown model version (CI sets LLAMA_MAPPER_MODEL_VERSION)
+        assert snap.get('model_version', '') and snap['model_version'] != 'unknown', 'model_version must be set and not "unknown" in CI'
+        print("Version snapshot OK")
+        with open('version-snapshot.json', 'w', encoding='utf-8') as f:
+            json.dump(snap, f, indent=2)
+        PY
+
+    - name: Upload version snapshot
+      uses: actions/upload-artifact@v3
+      with:
+        name: version-snapshot
+        path: version-snapshot.json
+
+    - name: Comment PR with version snapshot
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const snap = JSON.parse(fs.readFileSync('version-snapshot.json', 'utf8'));
+            let body = `### 🔖 Version Snapshot (CI)\n`;
+            body += `- Model: ${snap.model_version || 'unknown'}\n`;
+            if (snap.taxonomy) body += `- Taxonomy: ${snap.taxonomy.version || 'n/a'} (${snap.taxonomy.file_path || ''})\n`;
+            if (snap.frameworks) body += `- Frameworks: ${snap.frameworks.version || 'n/a'} (${snap.frameworks.file_path || ''})\n`;
+            const detectors = snap.detectors ? Object.keys(snap.detectors).length : 0;
+            body += `- Detectors loaded: ${detectors}\n`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+          } catch (e) {
+            core.warning('Failed to comment version snapshot: ' + e.message);
+          }
+
     - name: Run unit tests
       run: |
         pytest tests/ -v --cov=src/llama_mapper --cov-report=xml --cov-report=term-missing

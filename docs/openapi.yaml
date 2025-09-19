@@ -1,0 +1,256 @@
+openapi: 3.0.3
+info:
+  title: Llama Mapper API
+  version: 1.0.0
+  description: |
+    AI safety detector output normalization service.
+    This specification documents the public /map endpoints, authentication,
+    idempotency, and error semantics.
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://mapper.example.com
+    description: Production
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  parameters:
+    TenantHeader:
+      name: X-Tenant-ID
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Tenant identifier for multi-tenancy. If auth requires tenant header, this must be provided.
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Provide to guarantee idempotent POST behavior. Server will cache results for a short TTL.
+  schemas:
+    Provenance:
+      type: object
+      properties:
+        vendor:
+          type: string
+          nullable: true
+        detector:
+          type: string
+          nullable: true
+        detector_version:
+          type: string
+          nullable: true
+        raw_ref:
+          type: string
+          nullable: true
+          description: Pointer/ID to the raw event in Splunk/Datadog/S3
+        route:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        tenant_id:
+          type: string
+          nullable: true
+        ts:
+          type: string
+          format: date-time
+          nullable: true
+    PolicyContext:
+      type: object
+      properties:
+        expected_detectors:
+          type: array
+          items:
+            type: string
+          nullable: true
+        environment:
+          type: string
+          nullable: true
+          pattern: ^(dev|stage|prod)$
+    DetectorRequest:
+      type: object
+      required: [detector, output]
+      properties:
+        detector:
+          type: string
+          description: Name of the detector that produced the output
+        output:
+          type: string
+          description: Raw output from the detector
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        tenant_id:
+          type: string
+          nullable: true
+          description: Tenant identifier for multi-tenancy
+    BatchDetectorRequest:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/DetectorRequest'
+    MappingResponse:
+      type: object
+      required: [taxonomy, scores, confidence]
+      properties:
+        taxonomy:
+          type: array
+          items:
+            type: string
+          description: Canonical taxonomy labels
+        scores:
+          type: object
+          additionalProperties:
+            type: number
+            format: float
+          description: Map of taxonomy labels to normalized scores [0,1]
+        confidence:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Model-calibrated confidence in the mapping
+        notes:
+          type: string
+          maxLength: 500
+          nullable: true
+        provenance:
+          $ref: '#/components/schemas/Provenance'
+        policy_context:
+          $ref: '#/components/schemas/PolicyContext'
+    BatchMappingResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MappingResponse'
+        errors:
+          type: array
+          nullable: true
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              error:
+                type: string
+              detector:
+                type: string
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+          nullable: true
+        request_id:
+          type: string
+          nullable: true
+paths:
+  /map:
+    post:
+      summary: Map detector output to canonical taxonomy
+      operationId: mapDetectorOutput
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectorRequest'
+      responses:
+        '200':
+          description: Mapping succeeded
+          headers:
+            X-Request-ID:
+              description: Request correlation ID
+              schema:
+                type: string
+            Idempotency-Key:
+              description: Echoed if provided
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingResponse'
+        '400':
+          description: Bad request (e.g., missing required tenant header)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized (missing/invalid API key)
+        '403':
+          description: Forbidden (insufficient scope or tenant mismatch)
+        '422':
+          description: Validation error
+        '429':
+          description: Too Many Requests (rate limited)
+        '500':
+          description: Internal server error
+  /map/batch:
+    post:
+      summary: Batch map detector outputs to canonical taxonomy
+      operationId: mapDetectorOutputsBatch
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDetectorRequest'
+      responses:
+        '200':
+          description: Batch mapping succeeded
+          headers:
+            X-Request-ID:
+              description: Request correlation ID
+              schema:
+                type: string
+            Idempotency-Key:
+              description: Echoed if provided
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchMappingResponse'
+        '400':
+          description: Bad request (e.g., missing required tenant header)
+        '401':
+          description: Unauthorized (missing/invalid API key)
+        '403':
+          description: Forbidden (insufficient scope or tenant mismatch)
+        '422':
+          description: Validation error
+        '429':
+          description: Too Many Requests (rate limited)
+        '500':
+          description: Internal server error

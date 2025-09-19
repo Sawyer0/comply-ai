@@ -7,7 +7,7 @@ model parameters, and other system configurations.
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -86,10 +86,29 @@ class SecurityConfig(BaseModel):
     tenant_isolation: bool = Field(default=True, description="Enable tenant isolation")
     encryption_at_rest: bool = Field(default=True, description="Enable encryption at rest")
     
+    # API headers
+    api_key_header: str = Field(default="X-API-Key", description="API key header name")
+    tenant_header: str = Field(default="X-Tenant-ID", description="Tenant ID header name")
+
     # Secrets management
     secrets_backend: str = Field(default="vault", pattern="^(vault|aws)$", description="Secrets management backend")
     vault_url: Optional[str] = Field(default=None, description="Vault URL")
     vault_token: Optional[str] = Field(default=None, description="Vault token")
+
+
+class APIKeyInfo(BaseModel):
+    """API key metadata for authentication and RBAC."""
+    tenant_id: str = Field(..., description="Tenant ID associated with this API key")
+    scopes: List[str] = Field(default_factory=list, description="Granted scopes for this API key")
+    active: bool = Field(default=True, description="Whether the API key is active")
+
+
+class AuthConfig(BaseModel):
+    """Authentication configuration settings."""
+    enabled: bool = Field(default=False, description="Enable API authentication")
+    require_tenant_header: bool = Field(default=True, description="Require tenant header on requests")
+    api_keys: Dict[str, APIKeyInfo] = Field(default_factory=dict, description="Map of API key -> APIKeyInfo")
+    idempotency_cache_ttl_seconds: int = Field(default=600, ge=0, le=86400, description="TTL for idempotency cache")
 
 
 class MonitoringConfig(BaseModel):
@@ -176,6 +195,7 @@ class ConfigManager:
         self.storage = StorageConfig(**self._config_data.get("storage", {}))
         self.security = SecurityConfig(**self._config_data.get("security", {}))
         self.monitoring = MonitoringConfig(**self._config_data.get("monitoring", {}))
+        self.auth = AuthConfig(**self._config_data.get("auth", {}))
     
     def _create_default_config(self) -> None:
         """Create default configuration file."""
@@ -221,9 +241,17 @@ class ConfigManager:
                 "log_raw_inputs": False,
                 "tenant_isolation": True,
                 "encryption_at_rest": True,
+                "api_key_header": "X-API-Key",
+                "tenant_header": "X-Tenant-ID",
                 "secrets_backend": "vault",
                 "vault_url": None,
                 "vault_token": None
+            },
+            "auth": {
+                "enabled": False,
+                "require_tenant_header": True,
+                "api_keys": {},
+                "idempotency_cache_ttl_seconds": 600
             },
             "monitoring": {
                 "metrics_enabled": True,
@@ -280,6 +308,7 @@ class ConfigManager:
             "confidence": self.confidence.model_dump(),
             "storage": self.storage.model_dump(),
             "security": self.security.model_dump(),
+            "auth": self.auth.model_dump(),
             "monitoring": self.monitoring.model_dump(),
         }
     

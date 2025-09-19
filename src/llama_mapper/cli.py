@@ -2,8 +2,12 @@
 
 import click
 from pathlib import Path
+import secrets
+from datetime import datetime, timezone
 from .config import ConfigManager
+from .config.manager import APIKeyInfo
 from .logging import setup_logging, get_logger
+from .versioning import VersionManager, TaxonomyMigrator
 
 
 @click.group()
@@ -271,6 +275,199 @@ def check_coverage(ctx, golden_cases, environment, config):
         logger.error("Coverage check failed", error=str(e))
         click.echo(f"✗ Coverage check failed: {e}")
         ctx.exit(1)
+
+
+@main.group()
+@click.pass_context
+def auth(ctx):
+    """Authentication and API key management commands."""
+    pass
+
+
+@auth.command("rotate-key")
+@click.option('--tenant', required=True, help='Tenant ID to associate with the new key')
+@click.option('--scope', 'scopes', multiple=True, help='Scope to grant (repeat for multiple), e.g., map:write')
+@click.option('--revoke-old/--keep-old', default=True, help='Revoke existing keys for this tenant')
+@click.option('--print-key/--no-print-key', default=False, help='Print the new API key to stdout (be careful)')
+@click.pass_context
+def rotate_key(ctx, tenant, scopes, revoke_old, print_key):
+    """Generate a new API key for a tenant and optionally revoke old keys."""
+    config_manager: ConfigManager = ctx.obj['config']
+    logger = get_logger(__name__)
+
+    # Ensure auth section exists
+    auth_cfg = getattr(config_manager, 'auth', None)
+    if auth_cfg is None:
+        click.echo("✗ Auth configuration not available in ConfigManager")
+        ctx.exit(1)
+
+    if revoke_old:
+        for key, info in list(auth_cfg.api_keys.items()):
+            try:
+                if info.tenant_id == tenant and info.active:
+                    auth_cfg.api_keys[key] = APIKeyInfo(tenant_id=info.tenant_id, scopes=info.scopes, active=False)
+            except Exception:
+                # Backward compatibility if info is a dict
+                if isinstance(info, dict) and info.get('tenant_id') == tenant and info.get('active', True):
+                    info['active'] = False
+                    auth_cfg.api_keys[key] = APIKeyInfo(**info)
+
+    new_key = secrets.token_urlsafe(32)
+    granted_scopes = list(scopes) if scopes else ["map:write"]
+    auth_cfg.api_keys[new_key] = APIKeyInfo(tenant_id=tenant, scopes=granted_scopes, active=True)
+
+    # Persist
+    try:
+        config_manager.save_config()
+    except Exception as e:
+        logger.error("Failed to save config after key rotation", error=str(e))
+        click.echo(f"✗ Failed to save configuration: {e}")
+        ctx.exit(1)
+
+    logger.info(
+        "Rotated API key",
+        tenant=tenant,
+        scopes=granted_scopes,
+        revoked_old=revoke_old,
+        at=datetime.now(timezone.utc).isoformat(),
+    )
+    click.echo("✓ API key rotated successfully")
+    if print_key:
+        click.echo(f"New API Key: {new_key}")
+
+
+@main.group()
+def versions():
+    """Version management commands."""
+    pass
+
+
+@versions.command("show")
+@click.option('--data-dir', type=click.Path(exists=False), help='Directory with taxonomy/frameworks/detectors')
+@click.option('--registry', type=click.Path(exists=False), help='Path to model versions registry (versions.json)')
+def versions_show(data_dir, registry):
+    """Show current version snapshot as JSON."""
+    import json as _json
+    vm = VersionManager(data_dir, registry)
+    snap = vm.snapshot().to_dict()
+    click.echo(_json.dumps(snap, indent=2))
+
+
+@main.group()
+def taxonomy():
+    """Taxonomy migration commands."""
+    pass
+
+
+@taxonomy.command("migrate-plan")
+@click.option('--from-taxonomy', 'from_taxonomy', required=True, type=click.Path(exists=True), help='Path to old taxonomy.yaml')
+@click.option('--to-taxonomy', 'to_taxonomy', required=True, type=click.Path(exists=True), help='Path to new taxonomy.yaml')
+@click.option('--output', '-o', type=click.Path(), help='Path to write migration plan JSON')
+def taxonomy_migrate_plan(from_taxonomy, to_taxonomy, output):
+    """Compute a migration plan between taxonomy versions and optionally write it to a file."""
+    import json as _json
+    from pathlib import Path as _Path
+    migrator = TaxonomyMigrator(_Path(from_taxonomy), _Path(to_taxonomy))
+    plan = migrator.compute_plan()
+    summary = migrator.validate_plan_completeness(plan)
+    result = {"plan": {
+        "from_version": plan.from_version,
+        "to_version": plan.to_version,
+        "created_at": plan.created_at,
+        "label_map": plan.label_map,
+        "label_map_count": len(plan.label_map),
+        "unmapped_old_labels": plan.unmapped_old_labels,
+        "new_labels_without_source": plan.new_labels_without_source,
+    }, "summary": summary}
+    text = _json.dumps(result, indent=2)
+    if output:
+        with open(output, 'w', encoding='utf-8') as f:
+            f.write(text)
+        click.echo(f"✓ Migration plan written to {output}")
+    else:
+        click.echo(text)
+
+
+@taxonomy.command("migrate-apply")
+@click.option('--plan', 'plan_path', required=True, type=click.Path(exists=True), help='Migration plan JSON produced by migrate-plan')
+@click.option('--detectors-dir', required=True, type=click.Path(exists=True), help='Directory containing detector YAMLs')
+@click.option('--write-dir', type=click.Path(), help='Optional directory to write migrated detector YAMLs (dry-run if omitted)')
+def taxonomy_migrate_apply(plan_path, detectors_dir, write_dir):
+    """Apply a migration plan to detector YAMLs. Writes outputs to a separate directory if provided; otherwise prints a report (dry-run)."""
+    import json as _json
+    import yaml as _yaml
+    from pathlib import Path as _Path
+
+    # Load plan JSON
+    with open(plan_path, 'r', encoding='utf-8') as f:
+        data = _json.load(f)
+    plan_obj = data.get('plan') or {}
+    from .versioning import MigrationPlan as _MigrationPlan
+    plan = _MigrationPlan(
+        from_version=plan_obj.get('from_version', ''),
+        to_version=plan_obj.get('to_version', ''),
+        created_at=plan_obj.get('created_at', ''),
+        label_map=plan_obj.get('label_map', {}) if 'label_map' in plan_obj else {},
+        unmapped_old_labels=plan_obj.get('unmapped_old_labels', []),
+        new_labels_without_source=plan_obj.get('new_labels_without_source', []),
+    )
+
+    # Build in-memory detector mappings from files
+    det_dir = _Path(detectors_dir)
+    yaml_files = [p for p in det_dir.glob('*.yaml') if p.name not in {'taxonomy.yaml', 'frameworks.yaml'}]
+    detector_maps = {}
+    for yf in yaml_files:
+        with open(yf, 'r', encoding='utf-8') as f:
+            y = _yaml.safe_load(f)
+        if not isinstance(y, dict) or 'detector' not in y or 'maps' not in y:
+            continue
+        detector_maps[y['detector']] = y['maps']
+
+    # Apply plan
+    from .versioning import TaxonomyMigrator as _TaxonomyMigrator
+    # We do not need full migrator instance to apply; fake minimal structure
+    migrator = _TaxonomyMigrator(_Path('noop_old.yaml'), _Path('noop_new.yaml'))
+    # Bypass loader usage when applying; only plan is used
+    report = migrator.apply_to_detector_mappings(detector_maps, plan)
+
+    click.echo(_json.dumps({
+        "summary": {
+            "total_mappings": report.total_mappings,
+            "remapped": report.remapped,
+            "unchanged": report.unchanged,
+            "unknown_after_migration": report.unknown_after_migration,
+        },
+        "details": report.details,
+    }, indent=2))
+
+    # Optionally write new YAMLs
+    if write_dir:
+        out = _Path(write_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        for yf in yaml_files:
+            with open(yf, 'r', encoding='utf-8') as f:
+                y = _yaml.safe_load(f)
+            det = y.get('detector')
+            if det and det in detector_maps:
+                # Build new mapping by applying plan label_map
+                new_maps = {k: plan.label_map.get(v, v) for k, v in detector_maps[det].items()}
+                y['maps'] = new_maps
+                # Bump version minor (e.g., v1 -> v1.1) if present
+                ver = str(y.get('version', 'v1'))
+                if ver.startswith('v'):
+                    try:
+                        parts = ver[1:].split('.')
+                        if len(parts) == 1:
+                            y['version'] = f"v{int(parts[0]) + 1}"
+                        else:
+                            major = int(parts[0]); minor = int(parts[1]) if len(parts) > 1 else 0
+                            y['version'] = f"v{major}.{minor + 1}"
+                    except Exception:
+                        pass
+                out_file = out / yf.name
+                with open(out_file, 'w', encoding='utf-8') as f:
+                    _yaml.safe_dump(y, f, sort_keys=False)
+        click.echo(f"✓ Migrated detector YAMLs written to {out}")
 
 
 if __name__ == '__main__':

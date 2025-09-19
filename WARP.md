@@ -2,6 +2,22 @@
 
 This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
+## Document References
+
+### Important References
+- Requirements: `.kiro/specs/llama-mapper-fine-tuning/requirements.md`
+- Design: `.kiro/specs/llama-mapper-fine-tuning/design.md`
+- Tasks: `.kiro/specs/llama-mapper-fine-tuning/tasks.md`
+- Detectors Taxonomy: `.kiro/pillars-detectors/taxonomy.yaml`
+- Compliance Frameworks: `.kiro/pillars-detectors/frameworks.yaml`
+- Canonical Output Schema: `.kiro/pillars-detectors/schema.json`
+
+### Implementation Guidelines
+- The fine-tuned mapper must output strict JSON matching schema.json; fall back to rules when confidence <0.6.
+- Training data is generated from detector YAMLs and validated against taxonomy.yaml; LoRA hyperparams r=16, α=32, lr=2e-4.
+- Serving supports vLLM (GPU) and TGI (CPU); batch requests are supported; monitor schema-valid %, fallback %, and p95 latency.
+- Treat pillars-detectors as versioned configs; embed taxonomy/model/framework versions in reports and outputs.
+
 ## Core dev commands
 
 - Install (dev mode):
@@ -142,3 +158,55 @@ External data dependencies expected at runtime/tests (not included in the repo):
 - Prefer running the API via `python -m src.llama_mapper.api.main` rather than `mapper serve` (stub).
 - Many features require the external `pillars-detectors` data; set `LLAMA_MAPPER_*` paths (see `.env.example`) or place files accordingly.
 - Python 3.11+ is required by pyproject.
+
+## Containerization and deployment (Task 11)
+
+Docker image
+- Build (multi-stage Dockerfile at project root):
+  ```bash
+  docker build -t llama-mapper:0.1.0 .
+  ```
+- Run (CPU/TGI backend default):
+  ```bash
+  docker run --rm -p 8000:8000 \
+    -e LLAMA_MAPPER_SERVING__BACKEND=tgi \
+    -e LLAMA_MAPPER_TAXONOMY_PATH=/app/pillars-detectors/taxonomy.yaml \
+    -e LLAMA_MAPPER_FRAMEWORKS_PATH=/app/pillars-detectors/frameworks.yaml \
+    -e LLAMA_MAPPER_DETECTORS_PATH=/app/pillars-detectors \
+    -v $(pwd)/pillars-detectors:/app/pillars-detectors:ro \
+    llama-mapper:0.1.0
+  ```
+- Healthcheck: container exposes GET /health; Dockerfile defines a HEALTHCHECK probing http://127.0.0.1:8000/health.
+- Graceful shutdown: FastAPI registers a shutdown hook to close backend sessions (e.g., TGI HTTP client).
+
+Kubernetes via Helm
+- Chart path: `charts/llama-mapper`
+- Install (CPU/TGI profile):
+  ```bash
+  helm install mapper charts/llama-mapper \
+    --namespace comply --create-namespace \
+    --set image.repository=ghcr.io/your-org/llama-mapper \
+    --set image.tag=0.1.0 \
+    --set profile=tgi
+  ```
+- Install (GPU/vLLM profile) — requires GPU nodes and NVIDIA device plugin:
+  ```bash
+  helm install mapper charts/llama-mapper \
+    --namespace comply --create-namespace \
+    --set image.repository=ghcr.io/your-org/llama-mapper \
+    --set image.tag=0.1.0 \
+    --set profile=vllm \
+    --set nodeSelector."nvidia.com/gpu.present"=true
+  ```
+- Config options:
+  - External ConfigMaps: set `externalConfigMaps.enabled=true` and provide names under `externalConfigMaps.names` to mount detector taxonomy/configs at `/app/pillars-detectors`.
+  - Inline demo ConfigMaps: set `inlineConfigs.enabled=true` and populate `inlineConfigs.taxonomyYaml`, `frameworksYaml`, `schemaJson`, and `inlineConfigs.detectors`.
+  - Env overrides: use `.Values.env` (e.g., serving backend, paths) — `LLAMA_MAPPER_SERVING__BACKEND` auto-follows the selected `profile`.
+- Probes and autoscaling:
+  - Liveness/Readiness use `GET {{service}}/health` and are enabled by default.
+  - HPA is enabled by default using CPU utilization; tune under `.Values.autoscaling`.
+
+Endpoints
+- Service port: 8000
+- Health: GET /health
+- Metrics: GET /metrics (Prometheus exposition), GET /metrics/summary, GET /metrics/alerts

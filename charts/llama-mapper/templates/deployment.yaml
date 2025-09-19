@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "llama-mapper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "llama-mapper.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "llama-mapper.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: app
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          env:
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              {{- if .valueFromProfile }}
+              value: "{{ $.Values.profile }}"
+              {{- else }}
+              value: "{{ .value }}"
+              {{- end }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- if .Values.probes.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.failureThreshold }}
+          {{- end }}
+          volumeMounts:
+            - name: pillars-detectors
+              mountPath: /app/pillars-detectors
+          resources:
+            {{- if eq $.Values.profile "vllm" }}
+            {{- toYaml $.Values.resources.vllm | nindent 12 }}
+            {{- else }}
+            {{- toYaml $.Values.resources.tgi | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: pillars-detectors
+          {{- if .Values.externalConfigMaps.enabled }}
+          projected:
+            sources:
+              {{- range .Values.externalConfigMaps.names }}
+              - configMap:
+                  name: {{ . | quote }}
+              {{- end }}
+          {{- else if .Values.inlineConfigs.enabled }}
+          projected:
+            sources:
+              - configMap:
+                  name: {{ include "llama-mapper.fullname" . }}-taxonomy
+              - configMap:
+                  name: {{ include "llama-mapper.fullname" . }}-frameworks
+              - configMap:
+                  name: {{ include "llama-mapper.fullname" . }}-schema
+              {{- if .Values.inlineConfigs.detectors }}
+              - configMap:
+                  name: {{ include "llama-mapper.fullname" . }}-detectors
+              {{- end }}
+          {{- else }}
+          emptyDir: {} # no config provided; endpoints relying on external storage
+          {{- end }}
+      {{- if eq .Values.profile "vllm" }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
