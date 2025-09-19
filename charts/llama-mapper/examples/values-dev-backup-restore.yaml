@@ -1,0 +1,64 @@
+# Example dev overrides for backups and restore
+# Apply with:
+#   helm upgrade --install mapper charts/llama-mapper \
+#     --namespace dev --create-namespace \
+#     -f charts/llama-mapper/examples/values-dev-backup-restore.yaml
+#
+# Required Secrets (create in your namespace before enabling):
+#   kubectl create secret generic aws-creds \
+#     --from-literal=aws_access_key_id={{AWS_ACCESS_KEY_ID}} \
+#     --from-literal=aws_secret_access_key={{AWS_SECRET_ACCESS_KEY}}
+#   kubectl create secret generic pg-password \
+#     --from-literal=PGPASSWORD={{PGPASSWORD}}
+#   # Optional (if ClickHouse backup/restore is enabled):
+#   kubectl create secret generic clickhouse-password \
+#     --from-literal=CLICKHOUSE_PASSWORD={{CLICKHOUSE_PASSWORD}}
+
+profile: tgi
+
+backups:
+  enabled: true
+  s3:
+    bucket: my-dev-llama-mapper-archive
+    prefix: backups/llama-mapper
+    region: us-east-1
+    awsAccessKeyIdSecretRef: aws-creds
+    awsSecretAccessKeySecretRef: aws-creds
+  postgresql:
+    enabled: true
+    schedule: "0 2 * * *"  # daily 02:00 UTC
+    image: ghcr.io/your-org/pg-backup:latest
+    host: postgres            # service name or host
+    port: 5432
+    database: llama_mapper
+    user: postgres
+    passwordSecretRef: pg-password
+  clickhouse:
+    enabled: false            # flip to true if you run ClickHouse backups instead
+    schedule: "30 2 * * *"   # daily 02:30 UTC
+    image: clickhouse/clickhouse-server:23.8
+    host: clickhouse
+    port: 9000
+    database: mapper
+    user: default
+    passwordSecretRef: clickhouse-password
+
+restore:
+  enabled: false              # set true to run a one-off restore job
+  type: postgresql            # or clickhouse
+  snapshot: backups/llama-mapper/postgresql/mapper/20250101T000000Z.sql.gz
+  image:
+    postgresql: ghcr.io/your-org/pg-backup:latest
+    clickhouse: clickhouse/clickhouse-server:23.8
+  postgresql:
+    host: postgres
+    port: 5432
+    database: llama_mapper
+    user: postgres
+    passwordSecretRef: pg-password
+  clickhouse:
+    host: clickhouse
+    port: 9000
+    database: mapper
+    user: default
+    passwordSecretRef: clickhouse-password
