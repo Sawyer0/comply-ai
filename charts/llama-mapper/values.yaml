@@ -1,0 +1,122 @@
+# Default values for llama-mapper Helm chart.
+# These can be overridden via --set or -f custom-values.yaml
+
+image:
+  repository: ghcr.io/your-org/llama-mapper
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+profile: tgi # one of: tgi (CPU), vllm (GPU)
+
+service:
+  type: ClusterIP
+  port: 8000
+  annotations: {}
+
+# HTTP path probes
+probes:
+  enabled: true
+  path: /health
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+resources:
+  # Default CPU profile (TGI remote backend)
+  tgi:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  # GPU profile (vLLM in-process)
+  vllm:
+    requests:
+      cpu: "2"
+      memory: "8Gi"
+      nvidia.com/gpu: 1
+    limits:
+      cpu: "4"
+      memory: "16Gi"
+      nvidia.com/gpu: 1
+
+nodeSelector: {}
+# Example for GPU nodes:
+# nodeSelector:
+#   nvidia.com/gpu.present: "true"
+
+tolerations: []
+# - key: "nvidia.com/gpu"
+#   operator: "Exists"
+#   effect: "NoSchedule"
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Environment variables for the application
+env:
+  - name: LLAMA_MAPPER_SERVING__HOST
+    value: "0.0.0.0"
+  - name: LLAMA_MAPPER_SERVING__PORT
+    value: "8000"
+  - name: LLAMA_MAPPER_SERVING__BACKEND
+    valueFromProfile: true # when true, set value to profile (tgi or vllm)
+  - name: LLAMA_MAPPER_TAXONOMY_PATH
+    value: "/app/pillars-detectors/taxonomy.yaml"
+  - name: LLAMA_MAPPER_FRAMEWORKS_PATH
+    value: "/app/pillars-detectors/frameworks.yaml"
+  - name: LLAMA_MAPPER_DETECTORS_PATH
+    value: "/app/pillars-detectors"
+
+# External config map names containing the detector taxonomy/framework/schema
+# If provided, they will be mounted into /app/pillars-detectors
+externalConfigMaps:
+  enabled: false
+  names: []
+  # - pillars-detectors-taxonomy
+  # - pillars-detectors-frameworks
+  # - pillars-detectors-mappings
+
+# Optionally create ConfigMaps from inline content in values (for small demos)
+inlineConfigs:
+  enabled: false
+  taxonomyYaml: ""
+  frameworksYaml: ""
+  schemaJson: ""
+  # detectors is a dictionary of filename: content
+  detectors: {}
+
+serviceAccount:
+  create: true
+  name: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: llama-mapper.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []

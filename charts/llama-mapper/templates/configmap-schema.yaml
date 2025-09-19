@@ -1,0 +1,11 @@
+{{- if and .Values.inlineConfigs.enabled .Values.inlineConfigs.schemaJson }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-schema
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+data:
+  schema.json: |
+{{- .Values.inlineConfigs.schemaJson | nindent 4 }}
+{{- end }}

@@ -269,18 +269,18 @@
     - Support for coordinated version updates across components (VersionSnapshot aggregates taxonomy/frameworks/detectors/model; CLI supports migration plan/apply)
     - _Requirements: 7.5, 9.5_
 
-- [ ] 11. Create deployment and containerization
-  - [ ] 11.1 Build Docker image with multi-stage optimization
-    - Create production-ready image with Python 3.11, FastAPI, Hugging Face stack
-    - Implement health checks and graceful shutdown handling
-    - Optimize image size and security scanning
-    - _Requirements: 10.1, 10.2_
+- [x] 11. Create deployment and containerization
+- [x] 11.1 Build Docker image with multi-stage optimization
+   - Create production-ready image with Python 3.11, FastAPI, Hugging Face stack
+   - Implement health checks and graceful shutdown handling
+   - Optimize image size and security scanning
+   - _Requirements: 10.1, 10.2_
 
-  - [ ] 11.2 Create Helm chart for Kubernetes deployment
-    - Configure ConfigMaps for taxonomy and detector configurations
-    - Set up Secrets management for model weights and API keys
-    - Implement HPA and resource limits based on serving backend
-    - _Requirements: 10.2, 10.4_
+- [x] 11.2 Create Helm chart for Kubernetes deployment
+   - Configure ConfigMaps for taxonomy and detector configurations
+   - Set up Secrets management for model weights and API keys
+   - Implement HPA and resource limits based on serving backend
+   - _Requirements: 10.2, 10.4_
 
 - [x] 12. Define API contract and public interface
   - [x] 12.1 Create OpenAPI specification for /map endpoint

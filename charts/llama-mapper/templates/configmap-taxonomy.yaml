@@ -1,0 +1,11 @@
+{{- if and .Values.inlineConfigs.enabled .Values.inlineConfigs.taxonomyYaml }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-taxonomy
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+data:
+  taxonomy.yaml: |
+{{- .Values.inlineConfigs.taxonomyYaml | nindent 4 }}
+{{- end }}
