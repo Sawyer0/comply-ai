@@ -3,11 +3,19 @@ FastAPI application for the Llama Mapper service.
 """
 import logging
 import uuid
+import asyncio
 from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
+
+from .auth import (
+    build_api_key_auth,
+    IdempotencyCache,
+    build_idempotency_key,
+    AuthContext,
+)
 
 from .models import (
     DetectorRequest, 
@@ -22,6 +30,7 @@ from ..serving.json_validator import JSONValidator
 from ..serving.fallback_mapper import FallbackMapper
 from ..config.manager import ConfigManager
 from ..monitoring.metrics_collector import MetricsCollector
+from ..versioning import VersionManager
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +51,27 @@ class MapperAPI:
         self.fallback_mapper = fallback_mapper
         self.config_manager = config_manager
         self.metrics_collector = metrics_collector
+        self.version_manager = VersionManager()
         
         self.app = FastAPI(
             title="Llama Mapper API",
             description="AI safety detector output normalization service",
             version="1.0.0"
         )
+
+        # Idempotency cache
+        # Resolve idempotency TTL safely (handle mocks)
+        _ttl = 600
+        try:
+            _ttl_candidate = getattr(getattr(self.config_manager, 'auth', None), 'idempotency_cache_ttl_seconds', 600)
+            if isinstance(_ttl_candidate, int):
+                _ttl = _ttl_candidate
+        except Exception:
+            _ttl = 600
+        self._idempotency_cache = IdempotencyCache(ttl_seconds=_ttl)
+
+        # Auth dependency for mapping write operations
+        self._auth_map_write = build_api_key_auth(self.config_manager, required_scopes=["map:write"])        
         
         # Add CORS middleware
         self.app.add_middleware(
@@ -67,8 +91,30 @@ class MapperAPI:
             response.headers["X-Request-ID"] = request_id
             return response
         
+        # Graceful shutdown handler to close backend resources (e.g., TGI HTTP session)
+        @self.app.on_event("shutdown")
+        async def on_shutdown():
+            try:
+                close_fn = getattr(self.model_server, "close", None)
+                if close_fn:
+                    if asyncio.iscoroutinefunction(close_fn):
+                        await close_fn()
+                    else:
+                        close_fn()
+                logger.info("Shutdown complete: model server resources released")
+            except Exception as e:
+                logger.warning(f"Shutdown cleanup encountered an error: {e}")
+
         # Register routes
         self._register_routes()
+
+        # OpenAPI YAML endpoint (generated from FastAPI schema)
+        @self.app.get("/openapi.yaml", include_in_schema=False)
+        async def openapi_yaml():
+            import yaml  # type: ignore
+            from fastapi import Response as _Response
+            yaml_text = yaml.safe_dump(self.app.openapi(), sort_keys=False)
+            return _Response(content=yaml_text, media_type="application/yaml")
     
     def _register_routes(self):
         """Register API routes."""
@@ -100,10 +146,26 @@ class MapperAPI:
                 "timestamp": time.time()
             }
         
-        @self.app.post("/map", response_model=MappingResponse)
+        @self.app.post(
+            "/map",
+            response_model=MappingResponse,
+            summary="Map detector output to canonical taxonomy",
+            responses={
+                200: {"description": "Mapping succeeded", "headers": {"X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}}, "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}}}},
+                400: {"description": "Bad request (missing tenant header when required)"},
+                401: {"description": "Unauthorized (missing/invalid API key)"},
+                403: {"description": "Forbidden (insufficient scope or tenant mismatch)"},
+                422: {"description": "Validation error"},
+                429: {"description": "Too Many Requests (rate limited)"},
+                500: {"description": "Internal server error"},
+            },
+        )
         async def map_detector_output(
             request: DetectorRequest,
-            http_request: Request
+            http_request: Request,
+            response: Response,
+            auth: AuthContext = Depends(self._auth_map_write),
+            idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
         ) -> MappingResponse:
             """
             Map a single detector output to canonical taxonomy.
@@ -120,6 +182,23 @@ class MapperAPI:
             """
             request_id = getattr(http_request.state, 'request_id', 'unknown')
             start_time = time.time()
+
+            # Enforce tenant context if provided by auth
+            if auth and auth.tenant_id:
+                if request.tenant_id and request.tenant_id != auth.tenant_id:
+                    raise HTTPException(status_code=403, detail="Tenant mismatch between header and request body")
+                # Populate missing tenant_id from header
+                if not request.tenant_id:
+                    request.tenant_id = auth.tenant_id
+
+            # Idempotency check
+            cache_key = build_idempotency_key(auth.tenant_id if auth else None, "/map", idempotency_key)
+            if cache_key:
+                cached = self._idempotency_cache.get(cache_key)
+                if cached is not None:
+                    response.headers["X-Request-ID"] = request_id
+                    response.headers["Idempotency-Key"] = idempotency_key or ""
+                    return cached
             
             try:
                 logger.info(f"Processing mapping request {request_id} for detector {request.detector}")
@@ -132,6 +211,10 @@ class MapperAPI:
                 self.metrics_collector.record_request(request.detector, processing_time, True)
                 
                 logger.info(f"Successfully processed request {request_id} in {processing_time:.3f}s")
+                # Save idempotency result
+                if cache_key:
+                    self._idempotency_cache.set(cache_key, result)
+                    response.headers["Idempotency-Key"] = idempotency_key or ""
                 return result
                 
             except Exception as e:
@@ -145,10 +228,26 @@ class MapperAPI:
                     detail=f"Failed to process mapping request: {str(e)}"
                 )
         
-        @self.app.post("/map/batch", response_model=BatchMappingResponse)
+        @self.app.post(
+            "/map/batch",
+            response_model=BatchMappingResponse,
+            summary="Batch map detector outputs to canonical taxonomy",
+            responses={
+                200: {"description": "Batch mapping succeeded", "headers": {"X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}}, "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}}}},
+                400: {"description": "Bad request (missing tenant header when required)"},
+                401: {"description": "Unauthorized (missing/invalid API key)"},
+                403: {"description": "Forbidden (insufficient scope or tenant mismatch)"},
+                422: {"description": "Validation error"},
+                429: {"description": "Too Many Requests (rate limited)"},
+                500: {"description": "Internal server error"},
+            },
+        )
         async def map_detector_outputs_batch(
             request: BatchDetectorRequest,
-            http_request: Request
+            http_request: Request,
+            response: Response,
+            auth: AuthContext = Depends(self._auth_map_write),
+            idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
         ) -> BatchMappingResponse:
             """
             Map multiple detector outputs to canonical taxonomy.
@@ -162,7 +261,16 @@ class MapperAPI:
             """
             request_id = getattr(http_request.state, 'request_id', 'unknown')
             start_time = time.time()
-            
+
+            # Enforce tenant context if provided by auth
+            if auth and auth.tenant_id:
+                # Ensure all items belong to same tenant if tenant_id present in body
+                for i, single_request in enumerate(request.requests):
+                    if single_request.tenant_id and single_request.tenant_id != auth.tenant_id:
+                        raise HTTPException(status_code=403, detail=f"Tenant mismatch at index {i}")
+                    if not single_request.tenant_id:
+                        single_request.tenant_id = auth.tenant_id
+
             logger.info(f"Processing batch mapping request {request_id} with {len(request.requests)} items")
             
             results = []
@@ -187,6 +295,12 @@ class MapperAPI:
             self.metrics_collector.record_batch_request(len(request.requests))
             
             logger.info(f"Processed batch request {request_id} in {processing_time:.3f}s")
+
+            # Save idempotency result
+            cache_key = build_idempotency_key(auth.tenant_id if auth else None, "/map/batch", idempotency_key)
+            if cache_key:
+                self._idempotency_cache.set(cache_key, BatchMappingResponse(results=results, errors=errors if errors else None))
+                response.headers["Idempotency-Key"] = idempotency_key or ""
             
             return BatchMappingResponse(
                 results=results,
@@ -235,7 +349,10 @@ class MapperAPI:
                 if parsed_output.confidence >= confidence_threshold:
                     # Use model output
                     self.metrics_collector.record_model_success(request.detector)
+                    # Enrich provenance and notes with version tags
+                    self.version_manager.apply_to_provenance(provenance)
                     parsed_output.provenance = provenance
+                    parsed_output.notes = self.version_manager.annotate_notes_with_versions(parsed_output.notes)
                     return parsed_output
                 else:
                     # Confidence too low, use fallback
@@ -253,8 +370,12 @@ class MapperAPI:
         # Fall back to rule-based mapping
         logger.info(f"Using fallback mapping for detector {request.detector}")
         fallback_result = self.fallback_mapper.map(request.detector, request.output)
+        # Enrich provenance and notes with version tags
+        self.version_manager.apply_to_provenance(provenance)
         fallback_result.provenance = provenance
-        fallback_result.notes = "Generated using rule-based fallback mapping"
+        fallback_result.notes = self.version_manager.annotate_notes_with_versions(
+            "Generated using rule-based fallback mapping"
+        )
         
         self.metrics_collector.record_fallback_usage(request.detector, "model_error")
         return fallback_result

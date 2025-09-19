@@ -256,17 +256,17 @@
     - Include lineage from detector output to canonical label
     - _Requirements: 9.3, 7.4_
 
-- [ ] 10. Implement versioning and migration system
-  - [ ] 10.1 Create TaxonomyMigrator for version transitions
-    - Handle migration between taxonomy versions with automated label remapping
-    - Support for backward compatibility and rollback scenarios
-    - Validate migration completeness and data integrity
+- [x] 10. Implement versioning and migration system
+  - [x] 10.1 Create TaxonomyMigrator for version transitions
+    - Handle migration between taxonomy versions with automated label remapping (src/llama_mapper/versioning/taxonomy_migrator.py)
+    - Support for backward compatibility and rollback scenarios (plan.invert())
+    - Validate migration completeness and data integrity (validate_plan_completeness + MigrationReport)
     - _Requirements: 7.3_
 
-  - [ ] 10.2 Build version management for all components
-    - Track taxonomy version (2025.09), model version (mapper-lora@vX.Y.Z), frameworks version
-    - Embed version information in all outputs and reports
-    - Support for coordinated version updates across components
+  - [x] 10.2 Build version management for all components
+    - Track taxonomy version (2025.09), model version (mapper-lora@vX.Y.Z), frameworks version (src/llama_mapper/versioning/version_manager.py; CLI: `mapper versions show`)
+    - Embed version information in all outputs and reports (API enriches MappingResponse.provenance.model and notes with version tags; ReportGenerator already embeds)
+    - Support for coordinated version updates across components (VersionSnapshot aggregates taxonomy/frameworks/detectors/model; CLI supports migration plan/apply)
     - _Requirements: 7.5, 9.5_
 
 - [ ] 11. Create deployment and containerization
@@ -282,14 +282,14 @@
     - Implement HPA and resource limits based on serving backend
     - _Requirements: 10.2, 10.4_
 
-- [ ] 12. Define API contract and public interface
-  - [ ] 12.1 Create OpenAPI specification for /map endpoint
+- [x] 12. Define API contract and public interface
+  - [x] 12.1 Create OpenAPI specification for /map endpoint
     - Define request/response schemas for single and batch operations
     - Specify error codes, rate limits, and idempotency key handling
     - Document negative cases (schema validation errors, fallback triggered, tenant misconfig)
     - _Requirements: 10.3, 1.1_
 
-  - [ ] 12.2 Implement API authentication and RBAC
+  - [x] 12.2 Implement API authentication and RBAC
     - Add API key authentication with per-tenant scopes
     - Create token rotation script and leave OIDC stub for future
     - Implement tenant-scoped access controls and request validation

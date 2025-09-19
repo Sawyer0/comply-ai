@@ -1,0 +1,11 @@
+Llama Mapper has been deployed!
+
+To get the service URL:
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "llama-mapper.fullname" . }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  echo http://$SERVICE_IP:{{ .Values.service.port }}
+
+If using ClusterIP, you can port-forward:
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "llama-mapper.fullname" . }} 8000:{{ .Values.service.port }}
+
+Health endpoint:
+  curl http://localhost:8000/health

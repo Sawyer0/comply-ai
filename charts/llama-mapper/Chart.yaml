@@ -1,0 +1,21 @@
+apiVersion: v2
+name: llama-mapper
+description: Helm chart for deploying the Llama Mapper FastAPI service
+
+# Chart version (for chart changes)
+version: 0.1.0
+
+# App version (container image version)
+appVersion: "0.1.0"
+
+type: application
+
+keywords:
+  - fastapi
+  - llama
+  - compliance
+  - mapping
+
+maintainers:
+  - name: AI Safety Team
+    email: dawansawyer@gmail.com
