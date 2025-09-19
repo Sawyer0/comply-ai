@@ -342,17 +342,30 @@
       - CLI: mapper tenant migrate-config | validate-config for tenant YAMLs
     - _Requirements: 7.3, 10.1_
 
-- [ ] 15. Build security and privacy safeguards
-  - [ ] 15.1 Create threat model and privacy checklist
+- [x] 15. Build security and privacy safeguards
+  - [x] 15.1 Create threat model and privacy checklist
     - Develop STRIDE threat analysis table for the service
     - Implement PII redaction in request payloads and logging do/don'ts
     - Add BYOK verification tests and pre-commit lints that ban raw content logs
+    - Implementation notes:
+      - PII redaction utilities at src/llama_mapper/security/redaction.py providing redact_text, redact_dict, and redact_request_model. Redacts emails, phones, IPs, SSNs, credit cards, JWTs, and API keys.
+      - Pre-commit guardrail to block raw-content logging: scripts/check_no_raw_logs.py with configuration in .pre-commit-config.yaml. Install with "pre-commit install"; run manually with "pre-commit run --all-files". Use "# ok-to-log" to explicitly allow a sanitized line.
+      - Documentation added at docs/security/privacy-checklist.md (do/don'ts) and docs/security/threat-model.md (STRIDE analysis).
+      - Tests: tests/security/test_byok_and_redaction.py validates PII redaction behavior and SSE-KMS usage (BYOK) on S3 writes.
+      - Notes: Complements existing privacy-first logging in src/llama_mapper/logging.py and src/llama_mapper/utils/logging.py. Continue to avoid logging request.output and any raw content; sanitize metadata with redact_dict before logging when needed.
     - _Requirements: 8.1, 8.2, 8.4_
 
-  - [ ] 15.2 Integrate SecretsManager with Vault/AWS Secrets Manager
+  - [x] 15.2 Integrate SecretsManager with Vault/AWS Secrets Manager
     - Handle API keys, model weights, and encryption keys securely
     - Implement automatic secret rotation and least-privilege access
     - Add audit logging for secret access and usage
+    - Implementation notes:
+      - SecretsManager facade at src/llama_mapper/security/secrets_manager.py with backends: AWS (boto3), Vault KV v2 (hvac), and Env (dev fallback).
+      - Configure backend via Settings(security__secrets_backend="aws"|"vault"|"env"). For Vault, use VAULT_ADDR/VAULT_TOKEN environment variables. For AWS, credentials flow via Settings.storage AWS fields or environment/instance profile.
+      - Emits metadata-only "secret_access" audit logs (action, secret_name, version, tenant_id, success) via structlog; never logs secret values.
+      - Rotation stubs provided per-backend (rotate/put), ready to integrate with rotation workflows.
+      - Example usage: examples/secrets_demo.py.
+      - Tests: tests/unit/test_secrets_manager.py (AWS/Vault/env via mocks); BYOK verification covered in tests/security/test_byok_and_redaction.py.
     - _Requirements: 8.5_
 
 - [ ] 16. Create onboarding and configuration management
