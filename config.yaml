@@ -1,0 +1,78 @@
+# Llama Mapper Configuration
+# This file provides default configuration values that can be overridden by environment variables
+
+app_name: "llama-mapper"
+version: "0.1.0"
+environment: "development"
+debug: false
+
+# Model configuration
+model:
+  name: "meta-llama/Llama-2-7b-chat-hf"
+  temperature: 0.1
+  top_p: 0.9
+  max_new_tokens: 200
+  quantization: null
+
+# LoRA configuration
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.1
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+
+# Training configuration
+training:
+  learning_rate: 0.0002
+  num_epochs: 2
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  max_seq_length: 1024
+  warmup_steps: 100
+  save_steps: 500
+
+# Confidence evaluation
+confidence:
+  default_threshold: 0.6
+  detector_thresholds: {}
+  calibration_enabled: true
+
+# Serving configuration
+serving:
+  backend: "vllm"
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  max_batch_size: 32
+  gpu_memory_utilization: 0.9
+
+# Storage configuration
+storage:
+  s3_bucket: null
+  s3_prefix: "mapper-outputs"
+  database_url: null
+  retention_days: 90
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "json"
+  privacy_mode: true
+  max_message_length: 500
+
+# Security configuration
+security:
+  api_key_header: "X-API-Key"
+  tenant_header: "X-Tenant-ID"
+  secrets_backend: "vault"
+  encryption_key_id: null
+
+# File paths
+taxonomy_path: "pillars-detectors/taxonomy.yaml"
+detectors_path: "pillars-detectors"
+frameworks_path: "pillars-detectors/frameworks.yaml"
+schema_path: "pillars-detectors/schema.json"

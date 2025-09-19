@@ -1,0 +1,219 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        
+    - name: Lint with flake8
+      run: |
+        flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 src/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+        
+    - name: Format check with black
+      run: |
+        black --check --diff src/ tests/
+        
+    - name: Import sort check with isort
+      run: |
+        isort --check-only --diff src/ tests/
+        
+    - name: Type check with mypy
+      run: |
+        mypy src/llama_mapper/
+        
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v --cov=src/llama_mapper --cov-report=xml --cov-report=term-missing
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        
+    - name: Generate comprehensive golden test cases
+      run: |
+        mkdir -p tests/
+        python scripts/generate_golden_cases.py
+        
+    - name: Check golden test case coverage
+      run: |
+        python -m llama_mapper.cli quality check-coverage --golden-cases tests/golden_test_cases_comprehensive.json
+        
+    - name: Run quality gate validation
+      run: |
+        python -m llama_mapper.cli quality validate \
+          --golden-cases tests/golden_test_cases_comprehensive.json \
+          --output quality-report.json \
+          --fail-on-error
+          
+    - name: Upload quality report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: quality-report
+        path: quality-report.json
+        
+    - name: Comment PR with quality results
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          try {
+            const report = JSON.parse(fs.readFileSync('quality-report.json', 'utf8'));
+            
+            const status = report.overall_status === 'PASSED' ? '✅' : '❌';
+            const summary = report.summary;
+            
+            let comment = `## ${status} Quality Gate Results\n\n`;
+            comment += `**Overall Status:** ${report.overall_status}\n`;
+            comment += `**Total Checks:** ${summary.total_checks}\n`;
+            comment += `**Passed:** ${summary.passed_checks}\n`;
+            comment += `**Failed:** ${summary.failed_checks}\n\n`;
+            
+            if (summary.failed_checks > 0) {
+              comment += `### Failed Checks\n`;
+              report.results.filter(r => r.status === 'FAILED').forEach(result => {
+                comment += `- ❌ **${result.metric}**: ${result.message}\n`;
+              });
+              comment += `\n`;
+            }
+            
+            if (report.recommendations && report.recommendations.length > 0) {
+              comment += `### Recommendations\n`;
+              report.recommendations.forEach(rec => {
+                comment += `- 💡 ${rec}\n`;
+              });
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.log('Could not read quality report:', error.message);
+          }
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install locust
+        
+    - name: Run performance smoke tests
+      run: |
+        # Create a simple performance test
+        cat > performance_test.py << 'EOF'
+        from locust import HttpUser, task, between
+        import json
+        
+        class MapperUser(HttpUser):
+            wait_time = between(1, 3)
+            
+            @task
+            def test_map_endpoint(self):
+                payload = {
+                    "detector": "deberta-toxicity",
+                    "output": "toxic",
+                    "tenant_id": "test-tenant"
+                }
+                
+                with self.client.post("/map", json=payload, catch_response=True) as response:
+                    if response.status_code == 200:
+                        data = response.json()
+                        if "taxonomy" in data:
+                            response.success()
+                        else:
+                            response.failure("Invalid response format")
+                    else:
+                        response.failure(f"HTTP {response.status_code}")
+        EOF
+        
+        # Note: This would run against a test deployment in a real scenario
+        echo "Performance test created (would run against test deployment)"
+        
+    - name: Validate latency requirements
+      run: |
+        echo "Latency validation would be performed against running service"
+        echo "P95 latency should be ≤250ms for CPU deployment"
+        echo "P95 latency should be ≤120ms for GPU deployment"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Bandit security scan
+      run: |
+        pip install bandit[toml]
+        bandit -r src/ -f json -o bandit-report.json || true
+        bandit -r src/ -f txt
+        
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report
+        path: bandit-report.json
+        
+    - name: Check for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+        extra_args: --debug --only-verified

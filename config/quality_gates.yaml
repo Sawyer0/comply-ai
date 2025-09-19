@@ -1,0 +1,84 @@
+# Quality Gate Configuration
+# Adjust thresholds based on environment (development, staging, production)
+
+environments:
+  development:
+    description: "Relaxed thresholds for development environment"
+    thresholds:
+      schema_valid_percentage: 80.0
+      taxonomy_f1_score: 70.0
+      latency_p95_cpu_ms: 500.0
+      latency_p95_gpu_ms: 250.0
+      fallback_percentage: 20.0
+      min_golden_cases_per_detector: 10
+      taxonomy_coverage_percentage: 50.0
+  
+  staging:
+    description: "Moderate thresholds for staging environment"
+    thresholds:
+      schema_valid_percentage: 90.0
+      taxonomy_f1_score: 80.0
+      latency_p95_cpu_ms: 350.0
+      latency_p95_gpu_ms: 180.0
+      fallback_percentage: 15.0
+      min_golden_cases_per_detector: 50
+      taxonomy_coverage_percentage: 70.0
+  
+  production:
+    description: "Strict thresholds for production environment"
+    thresholds:
+      schema_valid_percentage: 95.0
+      taxonomy_f1_score: 90.0
+      latency_p95_cpu_ms: 250.0
+      latency_p95_gpu_ms: 120.0
+      fallback_percentage: 10.0
+      min_golden_cases_per_detector: 100
+      taxonomy_coverage_percentage: 80.0
+
+# Default environment if not specified
+default_environment: "production"
+
+# Quality gate rules
+rules:
+  - name: "Schema Validation Rate"
+    metric: "schema_valid_percentage"
+    description: "Percentage of model outputs that pass JSON schema validation"
+    severity: "critical"
+    
+  - name: "Taxonomy F1 Score"
+    metric: "taxonomy_f1_score"
+    description: "F1 score for taxonomy classification accuracy"
+    severity: "critical"
+    
+  - name: "Latency P95"
+    metric: "latency_p95_ms"
+    description: "95th percentile response latency"
+    severity: "warning"
+    
+  - name: "Fallback Usage Rate"
+    metric: "fallback_percentage"
+    description: "Percentage of requests using fallback mapping"
+    severity: "warning"
+    
+  - name: "Golden Test Coverage"
+    metric: "min_golden_cases_per_detector"
+    description: "Minimum number of golden test cases per detector"
+    severity: "critical"
+    
+  - name: "Taxonomy Coverage"
+    metric: "taxonomy_coverage_percentage"
+    description: "Percentage of taxonomy categories covered by test cases"
+    severity: "warning"
+
+# Alerting configuration
+alerting:
+  enabled: true
+  channels:
+    - type: "log"
+      level: "warning"
+    - type: "metrics"
+      export_to_prometheus: true
+  
+  escalation:
+    critical_threshold_violations: 0  # Fail immediately on critical violations
+    warning_threshold_violations: 3   # Allow up to 3 warning violations

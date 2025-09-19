@@ -1,0 +1,462 @@
+{
+  "version": "1.0",
+  "description": "Golden test cases for Llama Mapper quality gate validation",
+  "metadata": {
+    "created": "2025-01-18",
+    "taxonomy_version": "2025.09",
+    "total_cases": 56,
+    "detectors_covered": 5,
+    "categories_covered": 6,
+    "note": "This is a sample set. Use golden_test_cases_comprehensive.json for full CI/CD validation."
+  },
+  "test_cases": [
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "toxic",
+      "expected_taxonomy": ["HARM.SPEECH.Toxicity"],
+      "expected_confidence_min": 0.8,
+      "description": "Basic toxicity detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "severe_toxic",
+      "expected_taxonomy": ["HARM.SPEECH.Toxicity"],
+      "expected_confidence_min": 0.8,
+      "description": "Severe toxicity detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "obscene",
+      "expected_taxonomy": ["HARM.SPEECH.Obscenity"],
+      "expected_confidence_min": 0.7,
+      "description": "Obscenity detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "insult",
+      "expected_taxonomy": ["HARM.SPEECH.Insult"],
+      "expected_confidence_min": 0.7,
+      "description": "Insult detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "threat",
+      "expected_taxonomy": ["HARM.SPEECH.Threat"],
+      "expected_confidence_min": 0.8,
+      "description": "Threat detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "hate",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Other"],
+      "expected_confidence_min": 0.7,
+      "description": "Hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "hate/threatening",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Other"],
+      "expected_confidence_min": 0.8,
+      "description": "Threatening hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "self-harm",
+      "expected_taxonomy": ["HARM.VIOLENCE.SelfHarm"],
+      "expected_confidence_min": 0.8,
+      "description": "Self-harm content detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "violence",
+      "expected_taxonomy": ["HARM.VIOLENCE.Physical"],
+      "expected_confidence_min": 0.7,
+      "description": "Violence detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "violence",
+      "expected_taxonomy": ["HARM.VIOLENCE.Physical"],
+      "expected_confidence_min": 0.7,
+      "description": "Llama Guard violence detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "pii",
+      "expected_taxonomy": ["PII.Other"],
+      "expected_confidence_min": 0.6,
+      "description": "Generic PII detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "ssn",
+      "expected_taxonomy": ["PII.Identifier.SSN"],
+      "expected_confidence_min": 0.9,
+      "description": "SSN detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "email",
+      "expected_taxonomy": ["PII.Contact.Email"],
+      "expected_confidence_min": 0.9,
+      "description": "Email detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "phone",
+      "expected_taxonomy": ["PII.Contact.Phone"],
+      "expected_confidence_min": 0.8,
+      "description": "Phone number detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "credit_card",
+      "expected_taxonomy": ["PII.Identifier.CreditCard"],
+      "expected_confidence_min": 0.9,
+      "description": "Credit card detection",
+      "category": "PII"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "toxic",
+      "expected_taxonomy": ["HARM.SPEECH.Toxicity"],
+      "expected_confidence_min": 0.8,
+      "description": "Detoxify-HateBERT toxicity detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "obscene",
+      "expected_taxonomy": ["HARM.SPEECH.Obscenity"],
+      "expected_confidence_min": 0.7,
+      "description": "Detoxify-HateBERT obscenity detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "threat",
+      "expected_taxonomy": ["HARM.SPEECH.Threat"],
+      "expected_confidence_min": 0.8,
+      "description": "Detoxify-HateBERT threat detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "insult",
+      "expected_taxonomy": ["HARM.SPEECH.Insult"],
+      "expected_confidence_min": 0.7,
+      "description": "Detoxify-HateBERT insult detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "identity_attack",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Other"],
+      "expected_confidence_min": 0.7,
+      "description": "Detoxify-HateBERT identity attack detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "sexual_explicit",
+      "expected_taxonomy": ["HARM.VIOLENCE.Sexual"],
+      "expected_confidence_min": 0.8,
+      "description": "Detoxify-HateBERT sexual explicit content detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "bank_account",
+      "expected_taxonomy": ["PII.Identifier.BankAccount"],
+      "expected_confidence_min": 0.9,
+      "description": "Bank account number detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "passport",
+      "expected_taxonomy": ["PII.Identifier.Passport"],
+      "expected_confidence_min": 0.9,
+      "description": "Passport number detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "address",
+      "expected_taxonomy": ["PII.Contact.Address"],
+      "expected_confidence_min": 0.8,
+      "description": "Physical address detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "health_info",
+      "expected_taxonomy": ["PII.Health.HIPAA"],
+      "expected_confidence_min": 0.9,
+      "description": "Health information detection",
+      "category": "PII"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "jailbreak",
+      "expected_taxonomy": ["JAILBREAK.Attempt"],
+      "expected_confidence_min": 0.7,
+      "description": "Jailbreak attempt detection",
+      "category": "JAILBREAK"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "bypass_attempt",
+      "expected_taxonomy": ["JAILBREAK.Attempt"],
+      "expected_confidence_min": 0.7,
+      "description": "AI safety bypass attempt detection",
+      "category": "JAILBREAK"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "tool_injection",
+      "expected_taxonomy": ["PROMPT_INJECTION.ToolRequest"],
+      "expected_confidence_min": 0.8,
+      "description": "Tool injection attempt detection",
+      "category": "PROMPT_INJECTION"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "data_extraction",
+      "expected_taxonomy": ["PROMPT_INJECTION.DataExfiltration"],
+      "expected_confidence_min": 0.8,
+      "description": "Data exfiltration attempt detection",
+      "category": "PROMPT_INJECTION"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "policy_bypass",
+      "expected_taxonomy": ["PROMPT_INJECTION.PolicyOverride"],
+      "expected_confidence_min": 0.8,
+      "description": "Policy override attempt detection",
+      "category": "PROMPT_INJECTION"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "prompt_injection",
+      "expected_taxonomy": ["PROMPT_INJECTION.Other"],
+      "expected_confidence_min": 0.7,
+      "description": "Generic prompt injection detection",
+      "category": "PROMPT_INJECTION"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "gender_bias",
+      "expected_taxonomy": ["BIAS.Gender"],
+      "expected_confidence_min": 0.6,
+      "description": "Gender bias detection",
+      "category": "BIAS"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "racial_bias",
+      "expected_taxonomy": ["BIAS.Race"],
+      "expected_confidence_min": 0.6,
+      "description": "Racial bias detection",
+      "category": "BIAS"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "religious_bias",
+      "expected_taxonomy": ["BIAS.Religion"],
+      "expected_confidence_min": 0.6,
+      "description": "Religious bias detection",
+      "category": "BIAS"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "bias",
+      "expected_taxonomy": ["BIAS.Other"],
+      "expected_confidence_min": 0.6,
+      "description": "Generic bias detection",
+      "category": "BIAS"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "unknown",
+      "expected_taxonomy": ["OTHER.Unknown"],
+      "expected_confidence_min": 0.5,
+      "description": "Unknown content detection",
+      "category": "OTHER"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "error",
+      "expected_taxonomy": ["OTHER.ModelError"],
+      "expected_confidence_min": 0.5,
+      "description": "Model error detection",
+      "category": "OTHER"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "sexual_violence",
+      "expected_taxonomy": ["HARM.VIOLENCE.Sexual"],
+      "expected_confidence_min": 0.8,
+      "description": "Sexual violence detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "child_abuse",
+      "expected_taxonomy": ["HARM.VIOLENCE.ChildSexualAbuse"],
+      "expected_confidence_min": 0.9,
+      "description": "Child abuse detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "llama-guard",
+      "input_output": "suicide",
+      "expected_taxonomy": ["HARM.VIOLENCE.Suicide"],
+      "expected_confidence_min": 0.8,
+      "description": "Suicide content detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "racial_hate",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Race"],
+      "expected_confidence_min": 0.8,
+      "description": "Racial hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "gender_hate",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Gender"],
+      "expected_confidence_min": 0.8,
+      "description": "Gender-based hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "religious_hate",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Religion"],
+      "expected_confidence_min": 0.8,
+      "description": "Religious hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "deberta-toxicity",
+      "input_output": "lgbtq_hate",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.SexualOrientation"],
+      "expected_confidence_min": 0.8,
+      "description": "LGBTQ+ hate speech detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "hate_speech",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Other"],
+      "expected_confidence_min": 0.7,
+      "description": "General hate speech detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "severe_toxicity",
+      "expected_taxonomy": ["HARM.SPEECH.Toxicity"],
+      "expected_confidence_min": 0.9,
+      "description": "Severe toxicity detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "profanity",
+      "expected_taxonomy": ["HARM.SPEECH.Obscenity"],
+      "expected_confidence_min": 0.7,
+      "description": "Profanity detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "threatening_language",
+      "expected_taxonomy": ["HARM.SPEECH.Threat"],
+      "expected_confidence_min": 0.8,
+      "description": "Threatening language detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "offensive_language",
+      "expected_taxonomy": ["HARM.SPEECH.Insult"],
+      "expected_confidence_min": 0.7,
+      "description": "Offensive language detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "detoxify-hatebert",
+      "input_output": "identity_based_attack",
+      "expected_taxonomy": ["HARM.SPEECH.Hate.Other"],
+      "expected_confidence_min": 0.8,
+      "description": "Identity-based attack detection by Detoxify-HateBERT",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "harassment",
+      "expected_taxonomy": ["HARM.SPEECH.Insult"],
+      "expected_confidence_min": 0.7,
+      "description": "Harassment detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "violence/graphic",
+      "expected_taxonomy": ["HARM.VIOLENCE.Physical"],
+      "expected_confidence_min": 0.8,
+      "description": "Graphic violence detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "openai-moderation",
+      "input_output": "sexual",
+      "expected_taxonomy": ["HARM.VIOLENCE.Sexual"],
+      "expected_confidence_min": 0.7,
+      "description": "Sexual content detection",
+      "category": "HARM"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "personal_info",
+      "expected_taxonomy": ["PII.Other"],
+      "expected_confidence_min": 0.8,
+      "description": "Generic personal information detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "medical_record",
+      "expected_taxonomy": ["PII.Health.HIPAA"],
+      "expected_confidence_min": 0.9,
+      "description": "Medical record detection",
+      "category": "PII"
+    },
+    {
+      "detector": "regex-pii",
+      "input_output": "driver_license",
+      "expected_taxonomy": ["PII.Identifier.Other"],
+      "expected_confidence_min": 0.8,
+      "description": "Driver license detection",
+      "category": "PII"
+    }
+  ]
+}
