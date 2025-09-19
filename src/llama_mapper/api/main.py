@@ -1,10 +1,12 @@
 """
 Main entry point for running the FastAPI service.
 """
+
 import asyncio
 import logging
 
 import uvicorn
+from fastapi import FastAPI
 
 from ..config.manager import ConfigManager
 from ..monitoring.metrics_collector import MetricsCollector
@@ -17,9 +19,6 @@ from ..serving import (
 from .mapper import create_app
 
 logger = logging.getLogger(__name__)
-
-
-from fastapi import FastAPI
 
 async def create_service() -> FastAPI:
     """Create and configure the FastAPI service with all dependencies."""
@@ -36,7 +35,9 @@ async def create_service() -> FastAPI:
     )
 
     # Create model server (defaults to vLLM if available, otherwise TGI)
-    model_path = str(getattr(config_manager, "model_path", "meta-llama/Llama-3-8B-Instruct"))
+    model_path = str(
+        getattr(config_manager, "model_path", "meta-llama/Llama-3-8B-Instruct")
+    )
     backend = str(getattr(config_manager, "serving_backend", "vllm"))
 
     model_server = create_model_server(
@@ -47,11 +48,15 @@ async def create_service() -> FastAPI:
     await model_server.load_model()
 
     # Create JSON validator
-    schema_path = str(getattr(config_manager, "schema_path", "pillars-detectors/schema.json"))
+    schema_path = str(
+        getattr(config_manager, "schema_path", "pillars-detectors/schema.json")
+    )
     json_validator = JSONValidator(schema_path=schema_path)
 
     # Create fallback mapper
-    detector_configs_path = str(getattr(config_manager, "detector_configs_path", "pillars-detectors"))
+    detector_configs_path = str(
+        getattr(config_manager, "detector_configs_path", "pillars-detectors")
+    )
     fallback_mapper = FallbackMapper(detector_configs_path=detector_configs_path)
 
     # Create metrics collector

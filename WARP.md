@@ -211,6 +211,24 @@ Endpoints
 - Health: GET /health
 - Metrics: GET /metrics (Prometheus exposition), GET /metrics/summary, GET /metrics/alerts
 
+## Cost management and resource planning (Task 18)
+- Doc: docs/finops/cost-management.md
+- Switch CPU↔GPU profile:
+  ```bash
+  # CPU (TGI)
+  helm upgrade --install mapper charts/llama-mapper \
+    --namespace comply --set profile=tgi
+  # GPU (vLLM)
+  helm upgrade --install mapper charts/llama-mapper \
+    --namespace comply --set profile=vllm \
+    --set nodeSelector."nvidia.com/gpu.present"=true
+  ```
+- Quantization (training/inference loaders): set `LLAMA_MAPPER_MODEL__QUANTIZATION=8bit|4bit`
+- Guardrails (optional): enable ResourceQuota/LimitRange via Helm values under `costManagement.*`
+- Budgets: use Terraform module at `infra/terraform/aws_budgets` to set monthly cost caps and alerts
+
 ## Runbooks
 - Backups & DR: docs/runbook/backup-restore.md
 - Migrations & rollback: docs/runbook/migrations.md
+- Operations & kill-switch: docs/runbook/operations.md
+- Alerts: docs/runbook/alert-runbooks.md

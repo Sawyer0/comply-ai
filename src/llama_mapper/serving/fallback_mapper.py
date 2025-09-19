@@ -1,14 +1,15 @@
 """
 Rule-based fallback mapper for when model confidence is low or validation fails.
 """
+
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import yaml
 
 if TYPE_CHECKING:
-    from ..api.models import MappingResponse, Provenance
+    from ..api.models import MappingResponse
 
 # from ..api.models import MappingResponse, Provenance  # Moved to local imports
 from ..monitoring.metrics_collector import get_metrics_collector
@@ -65,7 +66,9 @@ class FallbackMapper:
             logger.error(f"Failed to load detector mappings: {str(e)}")
             self.detector_mappings = {}
 
-    def map(self, detector: str, output: str, reason: str = "low_confidence") -> "MappingResponse":
+    def map(
+        self, detector: str, output: str, reason: str = "low_confidence"
+    ) -> "MappingResponse":
         """
         Map detector output using rule-based mappings.
 
@@ -109,6 +112,7 @@ class FallbackMapper:
                 confidence=0.8,  # High confidence for exact rule match
                 notes=f"Rule-based mapping (exact): {output} -> {canonical_label}",
                 provenance=Provenance(detector=detector, raw_ref=None),
+                version_info=None,
             )
 
         # Try case-insensitive match
@@ -124,6 +128,7 @@ class FallbackMapper:
                     confidence=0.7,  # Slightly lower confidence for case-insensitive match
                     notes=f"Rule-based mapping (case-insensitive): {output} -> {canonical_label}",
                     provenance=Provenance(detector=detector, raw_ref=None),
+                    version_info=None,
                 )
 
         # Try partial match
@@ -141,6 +146,7 @@ class FallbackMapper:
                     confidence=0.5,  # Lower confidence for partial match
                     notes=f"Rule-based mapping (partial): {output} -> {canonical_label}",
                     provenance=Provenance(detector=detector, raw_ref=None),
+                    version_info=None,
                 )
 
         # No match found
@@ -175,6 +181,7 @@ class FallbackMapper:
             confidence=0.0,
             notes=f"No mapping found for detector {detector} output: {output} (reason: {reason})",
             provenance=Provenance(detector=detector, raw_ref=None),
+            version_info=None,
         )
 
     def get_supported_detectors(self) -> List[str]:

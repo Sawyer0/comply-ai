@@ -6,6 +6,7 @@ Rate limiting middleware and in-memory token bucket backend.
 - Emits standard RateLimit-* headers and optional legacy X-RateLimit-* headers
 - Records Prometheus + legacy counters via MetricsCollector
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +15,7 @@ import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Literal, Optional, Tuple, Awaitable
+from typing import Awaitable, Callable, Dict, Literal, Optional, Tuple
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -202,12 +203,62 @@ def _emit_headers(
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
-        self, app: ASGIApp, config_manager: ConfigManager, metrics_collector: MetricsCollector
+        self,
+        app: ASGIApp,
+        config_manager: ConfigManager,
+        metrics_collector: MetricsCollector,
     ) -> None:
         super().__init__(app)
         self.config = config_manager
         self.metrics = metrics_collector
-        self.backend = MemoryRateLimiterBackend()
+        # Choose backend based on config
+        backend_choice = getattr(
+            getattr(self.config, "rate_limit", object()), "backend", "memory"
+        )
+        # Explicit backend type to satisfy type-checker when switching implementations
+        self.backend: RateLimiterBackend
+        if backend_choice == "redis":
+            try:
+                from .rate_limit_redis import RedisRateLimiterBackend
+
+                # Pull optional URL from environment/config if present
+                # Reuse mapper auth redis URL if shared, else default localhost
+                redis_url = (
+                    getattr(
+                        getattr(self.config, "auth", object()),
+                        "idempotency_redis_url",
+                        None,
+                    )
+                    or "redis://localhost:6379/0"
+                )
+                rb = RedisRateLimiterBackend(redis_url=redis_url)
+                # Health-check; fallback if down
+                if rb.is_healthy():
+                    self.backend = rb
+                    try:
+                        self.metrics.redis_backend_up.labels(component="rate_limit").set(1)  # type: ignore[attr-defined]
+                    except Exception:
+                        self.metrics.set_gauge("redis_rate_limit_up", 1)
+                else:
+                    self.backend = MemoryRateLimiterBackend()
+                    try:
+                        self.metrics.redis_backend_up.labels(component="rate_limit").set(0)  # type: ignore[attr-defined]
+                        self.metrics.redis_backend_fallback_total.labels(component="rate_limit").inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        self.metrics.set_gauge("redis_rate_limit_up", 0)
+                        self.metrics.increment_counter(
+                            "redis_rate_limit_fallback_total"
+                        )
+            except Exception:
+                self.backend = MemoryRateLimiterBackend()
+                try:
+                    self.metrics.redis_backend_up.labels(component="rate_limit").set(0)  # type: ignore[attr-defined]
+                    self.metrics.redis_backend_fallback_total.labels(component="rate_limit").inc()  # type: ignore[attr-defined]
+                except Exception:
+                    self.metrics.set_gauge("redis_rate_limit_up", 0)
+                    self.metrics.increment_counter("redis_rate_limit_fallback_total")
+        else:
+            self.backend = MemoryRateLimiterBackend()
         self._skip_paths = {"/health", "/metrics", "/openapi.json", "/openapi.yaml"}
         self.logger = logging.getLogger(__name__)
 

@@ -1,5 +1,39 @@
 # Llama Mapper
 
+Note on Mapper API request schema deprecation:
+- The /map and /map/batch endpoints now prefer the MapperPayload request shape (see docs/contracts/mapper_compliance.md and docs/release/mapper_migration.md).
+- The legacy DetectorRequest shape is still accepted during a deprecation window; responses include `Deprecation: true` and metrics count usage. Sunset: Fri, 31 Oct 2025 00:00:00 GMT. Removal targeted for 0.3.0.
+- Configure mapper payload limits and privacy checks via environment variables:
+  - MAPPER_SERVING_MAPPER_TIMEOUT_MS (default 500)
+  - MAPPER_SERVING_MAX_PAYLOAD_KB (default 64)
+  - MAPPER_SERVING_REJECT_ON_RAW_CONTENT (default true)
+
+Client SDK examples
+- See docs/clients/ for Python, JavaScript/TypeScript, Go, Java, C#, and curl examples.
+
+API request examples
+- Preferred (MapperPayload):
+```json
+{
+  "detector": "orchestrated-multi",
+  "output": "toxic|hate|pii_detected",
+  "tenant_id": "tenant-123",
+  "metadata": {
+    "contributing_detectors": ["deberta-toxicity", "openai-moderation"],
+    "aggregation_method": "weighted_average",
+    "coverage_achieved": 1.0,
+    "provenance": [{"detector":"deberta-toxicity","confidence":0.93}]
+  }
+}
+```
+- Deprecated (DetectorRequest):
+```json
+{
+  "detector": "deberta-toxicity",
+  "output": "toxic"
+}
+```
+
 ## Rate limiting
 
 This service includes configurable rate limiting for the /map and /map/batch endpoints.
@@ -8,6 +42,15 @@ This service includes configurable rate limiting for the /map and /map/batch end
 - Defaults: 600 req/min per API key or tenant; 120 req/min per IP; 60s window
 - Headers returned: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset and Retry-After (on 429). Legacy X-RateLimit-* headers are also supported.
 - Configuration: see docs/runbook/rate-limits.md
+- Backend: in-memory by default; set `RATE_LIMIT_BACKEND=redis` and `MAPPER_IDEMPOTENCY_REDIS_URL` to enable a Redis backend for cross-instance limits.
+
+## Idempotency cache (Redis)
+
+- Mapper supports Redis-backed idempotency caching when `MAPPER_IDEMPOTENCY_BACKEND=redis` and `MAPPER_IDEMPOTENCY_REDIS_URL=redis://...` are set. Fallback is in-memory.
+- Orchestrator (detector-orchestration) supports Redis-backed idempotency and response caches via env:
+  - `ORCH_CONFIG__cache_backend=redis`
+  - `ORCH_CONFIG__redis_url=redis://localhost:6379/0`
+  - `ORCH_CONFIG__redis_prefix=orch`
 
 Regenerate the OpenAPI spec to capture rate limit headers:
 
@@ -49,6 +92,31 @@ cp config.yaml my-config.yaml
 ```bash
 mapper validate-config --config my-config.yaml
 ```
+
+### CLI quick reference
+
+- Validate all configs (taxonomy/frameworks/detectors):
+  ```bash
+  mapper validate-config --data-dir ./.kiro/pillars-detectors
+  ```
+- Inspect effective config with overlays (secrets masked):
+  ```bash
+  mapper show-config --tenant acme --environment production
+  # JSON output
+  mapper show-config --tenant acme --environment production --format json
+  ```
+- Detectors:
+  ```bash
+  # Lint detector YAMLs against taxonomy
+  mapper detectors lint --data-dir ./.kiro/pillars-detectors [--format json]
+
+  # Scaffold a new detector YAML
+  mapper detectors add --name sample-detector --output-dir ./pillars-detectors
+
+  # Suggest and optionally apply fixes to invalid labels
+  mapper detectors fix --data-dir ./.kiro/pillars-detectors --format json
+  mapper detectors fix --data-dir ./.kiro/pillars-detectors --apply --threshold 0.9
+  ```
 
 ### Set Confidence Thresholds
 
