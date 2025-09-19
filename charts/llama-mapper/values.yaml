@@ -54,6 +54,12 @@ tolerations: []
 #   operator: "Exists"
 #   effect: "NoSchedule"
 
+# Mapper tunables (contract/SLO enforcement)
+mapper:
+  timeoutMs: 500
+  maxPayloadKb: 64
+  rejectOnRawContent: true
+
 podAnnotations: {}
 
 podSecurityContext:
@@ -81,6 +87,14 @@ env:
     value: "8000"
   - name: LLAMA_MAPPER_SERVING__BACKEND
     valueFromProfile: true # when true, set value to profile (tgi or vllm)
+  - name: LLAMA_MAPPER_SERVING__MAPPER_TIMEOUT_MS
+    value: "{{ .Values.mapper.timeoutMs }}"
+  - name: LLAMA_MAPPER_SERVING__MAX_PAYLOAD_KB
+    value: "{{ .Values.mapper.maxPayloadKb }}"
+  - name: LLAMA_MAPPER_SERVING__REJECT_ON_RAW_CONTENT
+    value: "{{ .Values.mapper.rejectOnRawContent }}"
+  - name: LLAMA_MAPPER_MODEL__QUANTIZATION
+    value: "" # optional: 8bit or 4bit (training/inference loaders)
   - name: LLAMA_MAPPER_TAXONOMY_PATH
     value: "/app/pillars-detectors/taxonomy.yaml"
   - name: LLAMA_MAPPER_FRAMEWORKS_PATH
@@ -170,3 +184,55 @@ restore:
     database: "mapper"
     user: "default"
     passwordSecretRef: "" # name of Secret with key: CLICKHOUSE_PASSWORD
+
+# Cost management and resource guardrails
+costManagement:
+  # Enable to create namespace-level ResourceQuota and LimitRange objects
+  resourceQuota:
+    enabled: false
+    hard:
+      # Set sensible defaults; tune per environment
+      requests.cpu: "2"
+      requests.memory: "4Gi"
+      limits.cpu: "4"
+      limits.memory: "8Gi"
+      pods: "10"
+      services: "5"
+      configmaps: "20"
+      persistentvolumeclaims: "0"
+  limitRange:
+    enabled: false
+    defaultContainer:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+
+# Prometheus scraping via ServiceMonitor (Prometheus Operator)
+serviceMonitor:
+  enabled: true
+  labels: {}
+  interval: 15s
+  scrapeTimeout: 5s
+
+# Alerting rules (PrometheusRule via Prometheus Operator)
+alerts:
+  enabled: true
+  labels: {}
+  # Optional: set a URL to your repo docs for runbooks; used in alert annotations
+  # Example: https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md
+  runbookURL: ""
+  thresholds:
+    schemaValidMinPct: 99.5   # target >= 99.5%
+    fallbackMaxPct: 10        # target < 10%
+    latencyP95Seconds:
+      tgi: 0.25               # 250ms on CPU/TGI
+      vllm: 0.15              # 150ms on GPU/vLLM
+    fiveXXErrorRatePct: 1     # critical if >= 1% over 5m
+    # queueLagSeconds: 30     # Optional: enable if queue lag metric is available
+  durations:
+    short: 5m
+    medium: 10m
+    long: 15m

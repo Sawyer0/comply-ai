@@ -3,9 +3,9 @@
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional, Tuple, cast
 
 import click
-from typing import Any, Optional, Tuple
 
 from .config import ConfigManager
 from .config.manager import APIKeyInfo, ServingConfig
@@ -48,32 +48,135 @@ def main(ctx: click.Context, config: Optional[str], log_level: str) -> None:
 
 
 @main.command()
+@click.option(
+    "--data-dir",
+    type=click.Path(exists=False, file_okay=False),
+    help="Directory containing taxonomy.yaml, frameworks.yaml, and detector YAMLs",
+)
 @click.pass_context
-def validate_config(ctx: click.Context) -> None:
-    """Validate the current configuration."""
-    config_manager = ctx.obj["config"]
-    logger = get_logger(__name__)
+def validate_config(ctx: click.Context, data_dir: Optional[str]) -> None:
+    """Validate taxonomy, frameworks, and detector mappings."""
+    from pathlib import Path as _Path
 
-    if config_manager.validate_config():
-        logger.info("Configuration validation successful")
-        click.echo("✓ Configuration is valid")
+    from .config.validator import validate_configuration
+
+    logger = get_logger(__name__)
+    base = _Path(data_dir) if data_dir else None
+
+    click.echo("Validating configuration (taxonomy/frameworks/detectors)...\n")
+    result = validate_configuration(base)
+
+    click.echo(f"Data directory: {result.data_dir}")
+
+    # Taxonomy
+    click.echo("\n[Taxonomy]")
+    if result.taxonomy.ok:
+        click.echo("  ✓ taxonomy.yaml loaded successfully")
     else:
+        click.echo("  ✗ taxonomy.yaml validation failed")
+        for err in result.taxonomy.errors:
+            click.echo(f"    - {err}")
+
+    # Frameworks
+    click.echo("\n[Frameworks]")
+    if result.frameworks.ok:
+        frameworks = ", ".join(cast(list[str], result.frameworks.details.get("frameworks", [])))
+        click.echo(f"  ✓ frameworks.yaml valid (frameworks: {frameworks})")
+    else:
+        click.echo("  ✗ frameworks.yaml validation failed")
+        for err in result.frameworks.errors:
+            click.echo(f"    - {err}")
+
+    # Detectors
+    click.echo("\n[Detectors]")
+    if result.detectors.ok:
+        detectors_found = cast(list[str], result.detectors.details.get("detectors_found", []))
+        dets = ", ".join(detectors_found)
+        click.echo(
+            f"  ✓ detector YAMLs valid ({len(detectors_found)} found)"
+        )
+        if dets:
+            click.echo(f"    - {dets}")
+    else:
+        click.echo("  ✗ detector YAML validation failed")
+        for err in result.detectors.errors:
+            click.echo(f"    - {err}")
+
+    if not result.ok:
         logger.error("Configuration validation failed")
-        click.echo("✗ Configuration validation failed")
         ctx.exit(1)
+    else:
+        logger.info("Configuration validation successful")
+        click.echo("\nAll configuration checks passed ✓")
 
 
 @main.command()
+@click.option("--tenant", type=str, help="Tenant ID to apply tenant overrides")
+@click.option(
+    "--environment",
+    type=str,
+    help="Environment name to apply environment overrides (development|staging|production)",
+)
+@click.option("--format", "fmt", type=click.Choice(["json"]), default=None)
 @click.pass_context
-def show_config(ctx: click.Context) -> None:
-    """Display current configuration."""
-    config_manager = ctx.obj["config"]
+def show_config(ctx: click.Context, tenant: Optional[str], environment: Optional[str], fmt: Optional[str]) -> None:
+    """Display current configuration with optional tenant/environment overlays."""
+    # Recreate config manager with overlays if flags are provided
+    base_cm: ConfigManager = ctx.obj["config"]
+    if tenant or environment:
+        config_manager = ConfigManager(
+            config_path=base_cm.config_path, tenant_id=tenant, environment=environment
+        )
+    else:
+        config_manager = base_cm
+
     config_dict = config_manager.get_config_dict()
+
+    # Overlay header
+    active_env = config_dict.get("environment") or getattr(
+        getattr(config_manager, "_config_data", {}), "get", lambda *_: None
+    )("environment")
+
+    if fmt == "json":
+        # Create a masked copy for JSON output
+        masked = {}
+        for section, values in config_dict.items():
+            if section == "environment":
+                masked[section] = values
+                continue
+            sec_out = {}
+            for key, value in values.items():
+                if key.lower() in [
+                    "token",
+                    "password",
+                    "key",
+                    "vault_token",
+                    "api_key",
+                    "secret_key",
+                ]:
+                    value = "***MASKED***" if value else None
+                sec_out[key] = value
+            masked[section] = sec_out
+        import json as _json
+
+        payload = {
+            "tenant": tenant,
+            "environment": active_env,
+            "config": masked,
+        }
+        click.echo(_json.dumps(payload, indent=2))
+        return
 
     click.echo("Current Configuration:")
     click.echo("=" * 50)
+    click.echo(
+        f"Active overlays: tenant={tenant or '-'} | environment={active_env or '-'}"
+    )
 
     for section, values in config_dict.items():
+        if section == "environment":
+            # already printed in header; skip duplicate top-level line
+            continue
         click.echo(f"\n[{section.upper()}]")
         for key, value in values.items():
             # Mask sensitive values
@@ -362,6 +465,169 @@ def check_coverage(
 def auth(ctx: click.Context) -> None:
     """Authentication and API key management commands."""
     pass
+
+
+@main.group()
+def detectors() -> None:
+    """Detector configuration commands."""
+    pass
+
+
+@detectors.command("add")
+@click.option("--name", required=True, help="Detector name (e.g., openai-moderation)")
+@click.option(
+    "--version", default="v1", show_default=True, help="Detector config version"
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False),
+    help="Directory to place YAML (defaults to pillars-detectors or .kiro/pillars-detectors)",
+)
+@click.pass_context
+def detectors_add(
+    ctx: click.Context, name: str, version: str, output_dir: Optional[str]
+) -> None:
+    """Scaffold a new detector YAML with required fields and guidance."""
+    from pathlib import Path as _Path
+
+    from .config.validator import scaffold_detector_yaml
+
+    try:
+        path, guidance = scaffold_detector_yaml(
+            name=name,
+            version=version,
+            output_dir=_Path(output_dir) if output_dir else None,
+        )
+        click.echo(f"✓ Created: {path}")
+        click.echo(guidance)
+    except FileExistsError as e:
+        click.echo(f"✗ {e}")
+        ctx.exit(1)
+    except Exception as e:
+        click.echo(f"✗ Failed to scaffold detector: {e}")
+        ctx.exit(1)
+
+
+@detectors.command("lint")
+@click.option(
+    "--data-dir",
+    type=click.Path(exists=False, file_okay=False),
+    help="Directory with taxonomy.yaml and detector YAMLs",
+)
+@click.option("--format", "fmt", type=click.Choice(["json"]), default=None)
+@click.option("--strict", is_flag=True, default=False, help="Treat warnings as errors")
+def detectors_lint(data_dir: Optional[str], fmt: Optional[str], strict: bool) -> None:
+    """Lint detector YAMLs against the taxonomy and report issues."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from .config.validator import validate_configuration
+
+    result = validate_configuration(_Path(data_dir) if data_dir else None)
+
+    # Summarize
+    issues = []
+    if not result.taxonomy.ok:
+        issues.append("Taxonomy invalid; fix taxonomy.yaml before linting detectors.")
+    if not result.detectors.ok:
+        issues.extend(result.detectors.errors)
+
+    # JSON output if requested
+    if fmt == "json":
+        payload = {
+            "data_dir": str(result.data_dir),
+            "taxonomy_ok": result.taxonomy.ok,
+            "detectors_ok": result.detectors.ok,
+            "detectors_found": result.detectors.details.get("detectors_found", []),
+            "errors": issues,
+            "warnings": result.detectors.warnings,
+        }
+        click.echo(_json.dumps(payload, indent=2))
+    else:
+        click.echo(f"Data directory: {result.data_dir}")
+        click.echo("\n[Detectors Lint]")
+        if result.taxonomy.ok:
+            click.echo("  ✓ taxonomy.yaml valid")
+        else:
+            click.echo("  ✗ taxonomy.yaml invalid")
+            for err in result.taxonomy.errors:
+                click.echo(f"    - {err}")
+        if result.detectors.ok:
+            detectors_found = cast(list[str], result.detectors.details.get("detectors_found", []))
+            names = ", ".join(detectors_found)
+            click.echo(
+                f"  ✓ detector YAMLs valid ({len(detectors_found)} found)"
+            )
+            if names:
+                click.echo(f"    - {names}")
+        else:
+            click.echo("  ✗ detector YAML validation failed")
+            for err in result.detectors.errors:
+                click.echo(f"    - {err}")
+
+    # Exit code logic
+    if (not result.taxonomy.ok) or (not result.detectors.ok) or (strict and result.detectors.warnings):
+        raise SystemExit(1)
+
+
+@detectors.command("fix")
+@click.option(
+    "--data-dir",
+    type=click.Path(exists=False, file_okay=False),
+    help="Directory with taxonomy.yaml and detector YAMLs",
+)
+@click.option("--apply/--dry-run", default=False, help="Apply suggested fixes where confident enough")
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.86,
+    show_default=True,
+    help="Confidence threshold (0-1) to auto-apply a suggestion",
+)
+@click.option("--format", "fmt", type=click.Choice(["json"]), default=None)
+def detectors_fix(data_dir: Optional[str], apply: bool, threshold: float, fmt: Optional[str]) -> None:
+    """Suggest (and optionally apply) fixes for invalid detector canonical labels."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from .config.validator import build_detector_fix_plan, apply_detector_fix_plan
+
+    plan = build_detector_fix_plan(_Path(data_dir) if data_dir else None)
+
+    if fmt == "json":
+        click.echo(_json.dumps(plan, indent=2))
+    else:
+        click.echo(f"Data directory: {plan['data_dir']}")
+        click.echo(f"Total invalid labels: {plan['total_invalid']}")
+        items = cast(list[dict], plan.get("items", []))
+        for item in items:
+            det = item.get("detector")
+            file = item.get("file")
+            click.echo(f"\nDetector: {det}\nFile: {file}")
+            for bad in item.get("invalid", []):
+                click.echo(f"  - {bad}")
+                for s in item.get("suggestions", {}).get(bad, []):
+                    click.echo(f"      suggestion: {s['label']} (score={s['score']})")
+
+    if apply:
+        summary = apply_detector_fix_plan(plan, apply_threshold=threshold)
+        if fmt == "json":
+            click.echo(_json.dumps({"apply_summary": summary}, indent=2))
+        else:
+            click.echo("\nApply summary:")
+            click.echo(f"  applied: {summary['applied']}")
+            click.echo(f"  skipped: {summary['skipped']}")
+            if summary.get("updated_files"):
+                click.echo("  updated_files:")
+                updated_files = cast(dict[str, int], summary.get("updated_files", {}))
+                for fp, count in updated_files.items():
+                    click.echo(f"    - {fp}: {count} change(s)")
+        # Non-zero exit if there are still invalids after apply
+        # Rebuild plan to see remaining invalid
+        new_plan = build_detector_fix_plan(_Path(data_dir) if data_dir else None)
+        total_invalid = cast(int, (new_plan.get("total_invalid", 0) or 0))
+        if total_invalid > 0:
+            raise SystemExit(1)
 
 
 @auth.command("rotate-key")

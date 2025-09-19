@@ -1,14 +1,19 @@
 """
 JSON schema validator for model outputs.
 """
+
 from __future__ import annotations
+
 import json
 import logging
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
-from jsonschema import ValidationError, validate  # type: ignore[import-not-found,import-untyped]
+from jsonschema import (  # type: ignore[import-not-found,import-untyped]
+    ValidationError,
+    validate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +70,19 @@ class JSONValidator:
             # First, try to parse as JSON
             parsed_output = json.loads(model_output)
 
-            # Validate against schema
-            validate(instance=parsed_output, schema=self.schema)
+            # Validate against schema (tolerate optional version_info in model output)
+            validate_dict = parsed_output
+            if isinstance(parsed_output, dict) and "version_info" in parsed_output:
+                try:
+                    # Work on a shallow copy to avoid mutating caller data
+                    validate_dict = dict(parsed_output)
+                    validate_dict.pop("version_info", None)
+                except Exception:
+                    validate_dict = parsed_output
+            validate(instance=validate_dict, schema=self.schema)
 
             # Additional custom validations
-            custom_errors = self._custom_validations(parsed_output)
+            custom_errors = self._custom_validations(validate_dict)
             if custom_errors:
                 self.validation_stats["failed_validations"] += 1
                 return False, custom_errors
@@ -188,9 +201,11 @@ class JSONValidator:
                     route=prov_data.get("route"),
                     model=prov_data.get("model"),
                     tenant_id=prov_data.get("tenant_id"),
-                    ts=datetime.fromisoformat(prov_data["ts"])
-                    if prov_data.get("ts")
-                    else None,
+                    ts=(
+                        datetime.fromisoformat(prov_data["ts"])
+                        if prov_data.get("ts")
+                        else None
+                    ),
                 )
 
             # Extract policy context if present
@@ -209,6 +224,7 @@ class JSONValidator:
                 notes=parsed.get("notes"),
                 provenance=provenance,
                 policy_context=policy_context,
+                version_info=None,
             )
 
         except Exception as e:
@@ -342,4 +358,5 @@ class JSONValidator:
             confidence=0.0,
             notes=f"Validation failed for {detector}: {error_message}",
             provenance=Provenance(detector=detector, raw_ref=None),
+            version_info=None,
         )

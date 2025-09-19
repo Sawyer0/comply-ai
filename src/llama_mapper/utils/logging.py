@@ -5,7 +5,7 @@ import logging
 import re
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import structlog
 from structlog.stdlib import LoggerFactory
@@ -238,8 +238,6 @@ class JSONFormatter(logging.Formatter):
 
         return json.dumps(log_entry, default=str)
 
-
-from typing import cast
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """

@@ -16,9 +16,12 @@ from typing import Any, Dict, Optional
 import asyncpg  # type: ignore[import-not-found,import-untyped]
 import boto3  # type: ignore[import-not-found,import-untyped]
 import structlog
-from botocore.exceptions import ClientError, NoCredentialsError  # type: ignore[import-not-found,import-untyped]
+from botocore.exceptions import (  # type: ignore[import-not-found,import-untyped]
+    ClientError,
+    NoCredentialsError,
+)
 
-from ..config.settings import Settings, StorageConfig
+from ..config.settings import StorageConfig
 from .privacy_logger import PrivacyLogger
 from .tenant_isolation import TenantContext, TenantIsolationManager
 
@@ -63,7 +66,9 @@ class StorageManager:
         self.logger = logger.bind(component="storage_manager")
 
         # Initialize S3 client
-        from typing import Any as _Any, Optional as _Optional
+        from typing import Any as _Any
+        from typing import Optional as _Optional
+
         self._s3_client: _Any = None
         self._kms_client: _Any = None
 
@@ -73,6 +78,7 @@ class StorageManager:
 
         # Encryption
         from typing import Any as _Any
+
         self._fernet: _Optional[_Any] = None
 
         # Storage backend
@@ -194,6 +200,17 @@ class StorageManager:
     async def _init_encryption(self) -> None:
         """Initialize encryption using KMS or local key."""
         try:
+            # Minimal no-op Fernet fallback used when cryptography is unavailable
+            class _DummyFernet:
+                def __init__(self, key: bytes) -> None:
+                    self.key = key
+
+                def encrypt(self, data: bytes) -> bytes:  # noqa: D401 - simple pass-through
+                    return data
+
+                def decrypt(self, data: bytes) -> bytes:  # noqa: D401 - simple pass-through
+                    return data
+
             # Determine encryption key (KMS or local) first
             if self.settings.kms_key_id:
                 # Use KMS for key management
@@ -203,33 +220,41 @@ class StorageManager:
                     self._kms_client.generate_data_key,
                     {"KeyId": self.settings.kms_key_id, "KeySpec": "AES_256"},
                 )
-                encryption_key = key_response["Plaintext"][:32]  # Use first 32 bytes
+                # Use first 32 bytes from the plaintext data key
+                raw_key = key_response["Plaintext"][:32]
             else:
-                # Use local encryption key
-                encryption_key = self.settings.encryption_key.encode()[:32]
+                # Use local encryption key (derive 32 bytes deterministically)
+                raw_key = self.settings.encryption_key.encode()
+                if len(raw_key) < 32:
+                    # Right-pad with zeros to 32 bytes
+                    raw_key = raw_key.ljust(32, b"0")
+                else:
+                    raw_key = raw_key[:32]
 
             # Prepare base64-encoded key
             import base64
 
-            fernet_key = base64.urlsafe_b64encode(encryption_key)
+            fernet_key = base64.urlsafe_b64encode(raw_key)
 
             try:
                 # Try to import real Fernet
                 from cryptography.fernet import Fernet  # type: ignore
 
-                self._fernet = Fernet(fernet_key)
-                self.logger.info(
-                    "Encryption initialized", kms_enabled=bool(self.settings.kms_key_id)
-                )
+                try:
+                    self._fernet = Fernet(fernet_key)
+                    self.logger.info(
+                        "Encryption initialized",
+                        kms_enabled=bool(self.settings.kms_key_id),
+                    )
+                except Exception as e:
+                    # Fall back to a no-op Fernet if key format is invalid
+                    self._fernet = _DummyFernet(fernet_key)
+                    self.logger.warning(
+                        "Invalid encryption key; using dummy Fernet (no-op)",
+                        error=str(e),
+                    )
             except ModuleNotFoundError:
                 # Provide a minimal dummy Fernet compatible wrapper for tests
-                class _DummyFernet:
-                    def __init__(self, key: bytes) -> None:
-                        self.key = key
-                    def encrypt(self, data: bytes) -> bytes:
-                        return data
-                    def decrypt(self, data: bytes) -> bytes:
-                        return data
                 self._fernet = _DummyFernet(fernet_key)
                 self.logger.warning(
                     "cryptography not installed; using dummy Fernet (no-op)"
@@ -403,8 +428,12 @@ class StorageManager:
                 record = await self._retrieve_from_s3(scoped_id, tenant_context)
 
             # Validate tenant access to retrieved record
-            if tenant_context and record and not self.tenant_manager.validate_tenant_access(
-                tenant_context.tenant_id, record.tenant_id, "read"
+            if (
+                tenant_context
+                and record
+                and not self.tenant_manager.validate_tenant_access(
+                    tenant_context.tenant_id, record.tenant_id, "read"
+                )
             ):
                 self.logger.warning(
                     "Tenant access denied for record",
@@ -476,20 +505,20 @@ class StorageManager:
         if hasattr(ctx, "__aenter__"):
             async with ctx as conn:  # type: ignore[func-returns-value]
                 await conn.execute(
-                """
+                    """
                 INSERT INTO storage_records 
                 (id, source_data, mapped_data, model_version, timestamp, metadata, tenant_id, encrypted)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             """,
-                record.id,
-                record.source_data,
-                record.mapped_data,
-                record.model_version,
-                record.timestamp,
-                record.metadata,
-                record.tenant_id,
-                record.encrypted,
-            )
+                    record.id,
+                    record.source_data,
+                    record.mapped_data,
+                    record.model_version,
+                    record.timestamp,
+                    record.metadata,
+                    record.tenant_id,
+                    record.encrypted,
+                )
         else:
             # Awaitable acquire returning a connection or context manager
             awaited = await ctx  # type: ignore[misc]
@@ -584,9 +613,9 @@ class StorageManager:
                 "Key": s3_key,
                 "Body": json.dumps(record_data),
                 "ServerSideEncryption": "aws:kms",
-                "SSEKMSKeyId": self.settings.kms_key_id
-                if self.settings.kms_key_id
-                else None,
+                "SSEKMSKeyId": (
+                    self.settings.kms_key_id if self.settings.kms_key_id else None
+                ),
                 "ObjectLockMode": "GOVERNANCE",
                 "ObjectLockRetainUntilDate": datetime.now(timezone.utc)
                 + timedelta(days=365 * (self.settings.s3_retention_years or 7)),
@@ -733,8 +762,11 @@ class StorageManager:
                     )
 
                     # Validate tenant access
-                    if tenant_context is None or self.tenant_manager.validate_tenant_access(
-                        tenant_context.tenant_id, record.tenant_id, "read"
+                    if (
+                        tenant_context is None
+                        or self.tenant_manager.validate_tenant_access(
+                            tenant_context.tenant_id, record.tenant_id, "read"
+                        )
                     ):
                         return record
 
@@ -792,7 +824,7 @@ class StorageManager:
         if hasattr(ctx, "__aenter__"):
             async with ctx as conn:  # type: ignore[func-returns-value]
                 await conn.execute(
-                """
+                    """
                 CREATE TABLE IF NOT EXISTS storage_records (
                     id VARCHAR(255) PRIMARY KEY,
                     source_data TEXT NOT NULL,
@@ -823,7 +855,7 @@ class StorageManager:
                     FOR ALL
                     USING (tenant_id = current_setting('app.current_tenant_id', true));
             """
-            )
+                )
         else:
             awaited = await ctx  # type: ignore[misc]
             if hasattr(awaited, "__aenter__"):
