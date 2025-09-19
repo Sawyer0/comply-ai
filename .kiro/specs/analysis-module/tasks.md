@@ -1,5 +1,13 @@
 # Implementation Plan
 
+- [ ] Contracts compliance with `.kiro/specs/service-contracts.md`
+  - [ ] Use locked coverage semantics in metrics and recommendations [Sec 6]
+  - [ ] Enforce boundaries: no detector invocation or taxonomy mapping [Sec 2]
+  - [ ] Include `version_info` {taxonomy, frameworks, analyst_model} in responses [Sec 10]
+  - [ ] Align error codes and SLO targets with canonical contracts [Sec 8, 7]
+  - [ ] Observability: emit schema_valid_rate, template_fallback_rate, and OPA compile success [Sec 12]
+  - [ ] Security/privacy: PII redaction on all free-text fields; no raw content in logs [Sec 11]
+
 - [ ] 1. Set up analysis module structure and core interfaces
   - Create directory structure for analysis module components
   - Define base interfaces and abstract classes for analysis pipeline

@@ -4,6 +4,10 @@
 
 The Analysis Module is a new component that will provide concise, auditable explanations and suggested remediations from structured metrics data. This module will analyze coverage gaps, incidents, anomalies, and provide threshold tuning suggestions to improve the overall security posture of the application. The module will optionally emit machine-actionable policy diffs (OPA/CEL) to fix coverage and threshold issues.
 
+### Contracts
+
+This spec inherits the cross-service constraints defined in `.kiro/specs/service-contracts.md`. This module uses locked coverage semantics, does not call detectors or assign taxonomy, includes `version_info` in responses, aligns error codes/SLOs, and enforces PII redaction.
+
 ## Requirements
 
 ### Requirement 1

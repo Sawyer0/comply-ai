@@ -6,6 +6,17 @@ The Detector Orchestration Layer is a new microservice that sits above the exist
 
 The orchestration layer receives content analysis requests, determines which detectors should process the content based on tenant policies and content type, coordinates parallel detector execution, monitors detector health, and aggregates responses into a unified payload that can be consumed by the existing `/map` endpoint.
 
+## Contracts
+
+This service adheres to the cross-service contracts in `.kiro/specs/service-contracts.md`. Key touchpoints for the orchestration layer:
+- Handoff: Produces `MapperPayload` for the Mapper; schema is locked (see Section 3).
+- Coverage semantics: Computes `coverage_achieved` using locked methods (see Section 6).
+- SLAs/Timeouts: Applies global budgets and `mapper_timeout_budget_ms` when `auto_map_results` is enabled (see Section 7).
+- Error model: Returns canonical error codes and maps partial coverage to HTTP 206 (see Section 8).
+- Idempotency/Caching: Honors the locked behaviors for keys, TTL, and bypass (see Section 9).
+- Observability: Emits locked metric names for dashboards (see Section 12).
+- Boundaries: Orchestrator does not assign canonical taxonomy; Mapper remains source of truth (see Section 2).
+
 ## Architecture
 
 ### High-Level Architecture

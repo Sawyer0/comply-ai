@@ -1,0 +1,210 @@
+openapi: 3.0.3
+info:
+  title: Detector Orchestration API (Stub)
+  version: 0.1.0
+  description: |
+    Stub OpenAPI for the Detector Orchestration service.
+    Contracts reference: .kiro/specs/service-contracts.md (Sections 3, 6-12)
+servers:
+  - url: http://localhost:8002
+paths:
+  /orchestrate:
+    post:
+      summary: Orchestrate multi-detector analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrchestrationRequest'
+      responses:
+        '200':
+          description: Orchestration result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationResponse'
+        '206':
+          description: Partial coverage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrchestrationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Detector unavailable/communication error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /orchestrate/batch:
+    post:
+      summary: Batch orchestrate
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requests:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrchestrationRequest'
+      responses:
+        '200':
+          description: Batch orchestration result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/OrchestrationResponse' }
+                  idempotency_key: { type: string }
+  /orchestrate/status/{job_id}:
+    get:
+      summary: Get async job status
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string }
+                  status: { type: string, enum: [pending, running, completed, failed, cancelled] }
+                  progress: { type: number, minimum: 0, maximum: 1 }
+                  result:
+                    nullable: true
+                    allOf: [{ $ref: '#/components/schemas/OrchestrationResponse' }]
+components:
+  schemas:
+    OrchestrationRequest:
+      type: object
+      required: [content, content_type, tenant_id, policy_bundle, environment]
+      properties:
+        content: { type: string, maxLength: 50000 }
+        content_type: { type: string, enum: [text, image, document, code] }
+        tenant_id: { type: string }
+        policy_bundle: { type: string }
+        environment: { type: string, enum: [dev, stage, prod] }
+        processing_mode: { type: string, enum: [sync, async], default: sync }
+        priority: { type: string, enum: [low, normal, high, critical], default: normal }
+        metadata: { type: object }
+        required_detectors:
+          type: array
+          items: { type: string }
+        excluded_detectors:
+          type: array
+          items: { type: string }
+    DetectorResult:
+      type: object
+      required: [detector, status, processing_time_ms]
+      properties:
+        detector: { type: string }
+        status: { type: string, enum: [success, failed, timeout, unavailable, skipped] }
+        output: { type: string }
+        metadata: { type: object }
+        error: { type: string }
+        processing_time_ms: { type: integer, minimum: 0 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+    MapperPayload:
+      type: object
+      required: [detector, output, metadata, tenant_id]
+      properties:
+        detector: { type: string }
+        output: { type: string }
+        metadata:
+          type: object
+          properties:
+            contributing_detectors:
+              type: array
+              items: { type: string }
+            normalized_scores:
+              type: object
+              additionalProperties: { type: number, minimum: 0, maximum: 1 }
+            conflict_resolution_applied: { type: boolean }
+            aggregation_method: { type: string, enum: [weighted_average, majority_vote, highest_confidence, most_restrictive] }
+            coverage_achieved: { type: number, minimum: 0, maximum: 1 }
+            provenance:
+              type: array
+              items:
+                type: object
+                properties:
+                  detector: { type: string }
+                  confidence: { type: number, minimum: 0, maximum: 1 }
+                  output: { type: string }
+                  processing_time_ms: { type: integer, minimum: 0 }
+        tenant_id: { type: string }
+    RoutingDecision:
+      type: object
+      properties:
+        selected_detectors:
+          type: array
+          items: { type: string }
+        routing_reason: { type: string }
+        policy_applied: { type: string }
+        coverage_requirements:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+        health_status:
+          type: object
+          additionalProperties: { type: boolean }
+    OrchestrationResponse:
+      type: object
+      required: [request_id, processing_mode, detector_results, total_processing_time_ms, detectors_attempted, detectors_succeeded, detectors_failed, coverage_achieved, routing_decision, fallback_used, timestamp]
+      properties:
+        request_id: { type: string }
+        job_id: { type: string }
+        processing_mode: { type: string, enum: [sync, async] }
+        detector_results:
+          type: array
+          items: { $ref: '#/components/schemas/DetectorResult' }
+        aggregated_payload:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/MapperPayload' }]
+        mapping_result:
+          nullable: true
+          type: object
+          description: MappingResponse from Mapper service (see mapper OpenAPI)
+        total_processing_time_ms: { type: integer }
+        detectors_attempted: { type: integer }
+        detectors_succeeded: { type: integer }
+        detectors_failed: { type: integer }
+        coverage_achieved: { type: number, minimum: 0, maximum: 1 }
+        routing_decision: { $ref: '#/components/schemas/RoutingDecision' }
+        fallback_used: { type: boolean }
+        timestamp: { type: string, format: date-time }
+        error_code: { type: string }
+        idempotency_key: { type: string }
+    ErrorResponse:
+      type: object
+      properties:
+        error_code: { type: string }
+        message: { type: string }
+}

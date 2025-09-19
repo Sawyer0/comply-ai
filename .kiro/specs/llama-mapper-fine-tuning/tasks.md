@@ -1,5 +1,13 @@
 # Implementation Plan
 
+- [ ] Contracts compliance with `.kiro/specs/service-contracts.md`
+  - [ ] Accept only `MapperPayload`; validate schema and privacy (no raw content) [Sec 3, 11]
+  - [ ] Ensure `MappingResponse` schema alignment and include `version_info`/provenance [Sec 4, 10]
+  - [ ] Align error codes with canonical set and document retry guidance [Sec 8]
+  - [ ] SLO/timeouts: meet p95 targets; operate within orchestrator timeout budgets [Sec 7]
+  - [ ] Observability: emit required metrics and labels per mapper spec; cross-ref [Sec 12]
+  - [ ] Boundary: canonical taxonomy owned by Mapper; no duplication in other services [Sec 2]
+
 - [x] 1. Set up project structure and core configuration management
 
 

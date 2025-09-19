@@ -4,6 +4,10 @@
 
 The Detector Orchestration Layer is a new component that will coordinate and manage multiple detector services in a detector-agnostic manner. This orchestration layer sits above the existing FallbackMapper and coordinates the overall detection workflow by routing requests to appropriate detectors, managing detector health and availability, coordinating multi-detector workflows, and providing unified response aggregation. The system will leverage the existing mapping infrastructure while adding intelligent routing, health management, and response coordination capabilities.
 
+### Contracts
+
+This spec inherits the cross-service constraints defined in `.kiro/specs/service-contracts.md`. Orchestration produces `MapperPayload` per locked schema, computes coverage using locked definitions, applies SLAs/mapper timeout budgets (for auto-map), returns canonical error codes, honors idempotency/caching, and emits locked metrics.
+
 ## Requirements
 
 ### Requirement 1
