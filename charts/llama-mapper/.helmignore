@@ -1,0 +1,15 @@
+# Common Helm ignore patterns
+*.swp
+*.bak
+*.tmp
+*.orig
+.git/
+.github/
+.gitignore
+.vscode/
+.idea/
+charts/
+examples/
+tests/
+LICENSE
+README.md
