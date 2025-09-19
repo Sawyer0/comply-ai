@@ -8,9 +8,8 @@ operations across instances.
 """
 from __future__ import annotations
 
-from typing import Tuple
 
-from .rate_limit import RateLimiterBackend, AllowResult
+from .rate_limit import AllowResult, RateLimiterBackend
 
 
 class RedisRateLimiterBackend(RateLimiterBackend):

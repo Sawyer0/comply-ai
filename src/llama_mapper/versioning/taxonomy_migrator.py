@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
-from ..data.taxonomy import Taxonomy, TaxonomyLoader, TaxonomyLabel
+from ..data.taxonomy import Taxonomy, TaxonomyLoader
 
 
 @dataclass
@@ -69,6 +69,8 @@ class TaxonomyMigrator:
     def compute_plan(self) -> MigrationPlan:
         if not self.old_taxonomy or not self.new_taxonomy:
             self.load()
+        assert self.old_taxonomy is not None
+        assert self.new_taxonomy is not None
 
         old_labels = {lbl.name: lbl for lbl in self.old_taxonomy.get_all_labels()}
         new_label_names = {lbl.name for lbl in self.new_taxonomy.get_all_labels()}
@@ -90,6 +92,7 @@ class TaxonomyMigrator:
             leaf = old_name.split(".")[-1]
             alias_candidates = {a.lower() for a in old_label.aliases} | {leaf.lower()}
             for alias in alias_candidates:
+                assert self.new_taxonomy is not None
                 for lbl in self.new_taxonomy.get_labels_by_alias(alias):
                     candidates.add(lbl.name)
             if len(candidates) == 1:
@@ -100,6 +103,8 @@ class TaxonomyMigrator:
         new_names_mapped = set(label_map.values())
         new_without_source = sorted(list(new_label_names - new_names_mapped))
 
+        assert self.old_taxonomy is not None
+        assert self.new_taxonomy is not None
         return MigrationPlan(
             from_version=self.old_taxonomy.version,
             to_version=self.new_taxonomy.version,
@@ -109,7 +114,9 @@ class TaxonomyMigrator:
             new_labels_without_source=new_without_source,
         )
 
-    def apply_to_mapping(self, mapping: Dict[str, str], plan: MigrationPlan) -> Tuple[Dict[str, str], int, int]:
+    def apply_to_mapping(
+        self, mapping: Dict[str, str], plan: MigrationPlan
+    ) -> Tuple[Dict[str, str], int, int]:
         """
         Apply a migration plan to a single detector mapping dictionary.
         Returns (new_mapping, remapped_count, unknown_count_after).
@@ -124,14 +131,18 @@ class TaxonomyMigrator:
                     remapped += 1
             else:
                 # Keep as is; if label no longer exists, route to OTHER.Unknown
-                if self.new_taxonomy and not any(l.name == canonical for l in self.new_taxonomy.get_all_labels()):
+                if self.new_taxonomy and not any(
+                    l.name == canonical for l in self.new_taxonomy.get_all_labels()
+                ):
                     new_maps[det_label] = "OTHER.Unknown"
                     unknown_after += 1
                 else:
                     new_maps[det_label] = canonical
         return new_maps, remapped, unknown_after
 
-    def apply_to_detector_mappings(self, detector_mappings: Dict[str, Dict[str, str]], plan: MigrationPlan) -> MigrationReport:
+    def apply_to_detector_mappings(
+        self, detector_mappings: Dict[str, Dict[str, str]], plan: MigrationPlan
+    ) -> MigrationReport:
         total = 0
         remapped_total = 0
         unknown_total = 0
@@ -161,6 +172,8 @@ class TaxonomyMigrator:
         """Return basic completeness metrics for the plan."""
         if not self.old_taxonomy or not self.new_taxonomy:
             self.load()
+        assert self.old_taxonomy is not None
+        assert self.new_taxonomy is not None
         old_count = len(self.old_taxonomy.get_all_labels())
         coverage = len(plan.label_map)
         return {

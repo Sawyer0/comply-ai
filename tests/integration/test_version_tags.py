@@ -6,17 +6,16 @@ fallback mapping. It then verifies that:
 - MappingResponse.provenance.model is present (string)
 """
 
-import asyncio
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from src.llama_mapper.api.mapper import create_app
-from src.llama_mapper.serving.model_server import ModelServer
-from src.llama_mapper.serving.json_validator import JSONValidator
-from src.llama_mapper.serving.fallback_mapper import FallbackMapper
 from src.llama_mapper.config.manager import ConfigManager
 from src.llama_mapper.monitoring.metrics_collector import MetricsCollector
+from src.llama_mapper.serving.fallback_mapper import FallbackMapper
+from src.llama_mapper.serving.json_validator import JSONValidator
+from src.llama_mapper.serving.model_server import ModelServer
 
 
 class _FailingModelServer(ModelServer):
@@ -32,8 +31,8 @@ class _FailingModelServer(ModelServer):
 
 
 def _build_app():
-    schema_path = str(Path('.kiro/pillars-detectors/schema.json'))
-    detectors_dir = str(Path('.kiro/pillars-detectors'))
+    schema_path = str(Path(".kiro/pillars-detectors/schema.json"))
+    detectors_dir = str(Path(".kiro/pillars-detectors"))
 
     model_server = _FailingModelServer(model_path="stub")
     json_validator = JSONValidator(schema_path=schema_path)
@@ -66,13 +65,17 @@ def test_mapping_response_contains_version_tags():
 
     # Verify notes contain version tag
     assert "notes" in data and isinstance(data["notes"], str)
-    assert "versions:" in data["notes"], f"Missing version tag in notes: {data['notes']}"
+    assert (
+        "versions:" in data["notes"]
+    ), f"Missing version tag in notes: {data['notes']}"
 
     # Verify provenance.model is present
     assert "provenance" in data and isinstance(data["provenance"], dict)
     assert "model" in data["provenance"], "provenance.model missing"
     assert isinstance(data["provenance"]["model"], str)
-    assert data["provenance"]["model"] != "unknown", "provenance.model must be a non-'unknown' version string"
+    assert (
+        data["provenance"]["model"] != "unknown"
+    ), "provenance.model must be a non-'unknown' version string"
 
     # Fallback mapping should map toxic -> HARM.SPEECH.Toxicity
     assert "taxonomy" in data and "HARM.SPEECH.Toxicity" in data["taxonomy"], data

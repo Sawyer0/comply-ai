@@ -10,15 +10,16 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import logging
 import math
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Literal, Callable
-import logging
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Awaitable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette.types import ASGIApp
 
 from ..config.manager import ConfigManager
 from ..monitoring.metrics_collector import MetricsCollector
@@ -68,7 +69,9 @@ class MemoryRateLimiterBackend(RateLimiterBackend):
             self._locks[key] = lock
         return lock
 
-    async def allow(self, endpoint: str, identity: str, limit: int, window: int, cost: int = 1) -> AllowResult:
+    async def allow(
+        self, endpoint: str, identity: str, limit: int, window: int, cost: int = 1
+    ) -> AllowResult:
         now = time.monotonic()
         key = (endpoint, identity)
         lock = self._get_lock(key)
@@ -76,7 +79,9 @@ class MemoryRateLimiterBackend(RateLimiterBackend):
             rate_per_sec = limit / float(window)
             state = self._buckets.get(key)
             if state is None:
-                state = _BucketState(tokens=float(limit), last_refill=now, limit=limit, window=window)
+                state = _BucketState(
+                    tokens=float(limit), last_refill=now, limit=limit, window=window
+                )
                 self._buckets[key] = state
             # Refill tokens
             elapsed = max(0.0, now - state.last_refill)
@@ -87,11 +92,15 @@ class MemoryRateLimiterBackend(RateLimiterBackend):
             if state.tokens >= cost:
                 state.tokens -= cost
                 remaining = int(math.floor(state.tokens))
-                return AllowResult(True, remaining, state.limit, 0.0, "api_key")  # identity_kind set by caller
+                return AllowResult(
+                    True, remaining, state.limit, 0.0, "api_key"
+                )  # identity_kind set by caller
             else:
                 # Time until enough tokens for 1 request
                 deficit = max(0.0, cost - state.tokens)
-                reset_seconds = deficit / rate_per_sec if rate_per_sec > 0 else float("inf")
+                reset_seconds = (
+                    deficit / rate_per_sec if rate_per_sec > 0 else float("inf")
+                )
                 return AllowResult(False, 0, state.limit, reset_seconds, "api_key")
 
 
@@ -109,7 +118,9 @@ def _first_untrusted_hop(xff: str, trusted_proxies: int) -> Optional[str]:
     return parts[index] if index < len(parts) else parts[0]
 
 
-def _extract_identity(request: Request, config: ConfigManager) -> Tuple[IdentityKind, str]:
+def _extract_identity(
+    request: Request, config: ConfigManager
+) -> Tuple[IdentityKind, str]:
     # 1) API Key
     api_key_header = getattr(config.security, "api_key_header", "X-API-Key")
     api_key_val = request.headers.get(api_key_header)
@@ -127,7 +138,11 @@ def _extract_identity(request: Request, config: ConfigManager) -> Tuple[Identity
         return ("tenant", tenant_id)
 
     # 3) Client IP
-    trusted = int(getattr(config.rate_limit, "trusted_proxies", 0)) if hasattr(config, "rate_limit") else 0
+    trusted = (
+        int(getattr(config.rate_limit, "trusted_proxies", 0))
+        if hasattr(config, "rate_limit")
+        else 0
+    )
     xff = request.headers.get("X-Forwarded-For")
     if xff:
         ip = _first_untrusted_hop(xff, trusted)
@@ -145,7 +160,9 @@ def _endpoint_key(path: str) -> Optional[str]:
     return None
 
 
-def _limits_for(endpoint: str, identity_kind: IdentityKind, config: ConfigManager) -> Tuple[int, int]:
+def _limits_for(
+    endpoint: str, identity_kind: IdentityKind, config: ConfigManager
+) -> Tuple[int, int]:
     rl = getattr(config, "rate_limit", None)
     if rl is None:
         return (600, 60)
@@ -162,7 +179,15 @@ def _limits_for(endpoint: str, identity_kind: IdentityKind, config: ConfigManage
     return (int(ep_cfg.ip_limit), window)
 
 
-def _emit_headers(response: Response, limit: int, remaining: int, reset_seconds: float, window: int, emit_standard: bool, emit_legacy: bool) -> None:
+def _emit_headers(
+    response: Response,
+    limit: int,
+    remaining: int,
+    reset_seconds: float,
+    window: int,
+    emit_standard: bool,
+    emit_legacy: bool,
+) -> None:
     reset_int = int(math.ceil(max(0.0, reset_seconds)))
     if emit_standard:
         response.headers["RateLimit-Limit"] = f"{limit};w={window}"
@@ -176,7 +201,9 @@ def _emit_headers(response: Response, limit: int, remaining: int, reset_seconds:
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, config_manager: ConfigManager, metrics_collector: MetricsCollector) -> None:
+    def __init__(
+        self, app: ASGIApp, config_manager: ConfigManager, metrics_collector: MetricsCollector
+    ) -> None:
         super().__init__(app)
         self.config = config_manager
         self.metrics = metrics_collector
@@ -184,7 +211,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._skip_paths = {"/health", "/metrics", "/openapi.json", "/openapi.yaml"}
         self.logger = logging.getLogger(__name__)
 
-    async def dispatch(self, request: Request, call_next: Callable[..., Any]) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         rl_cfg = getattr(self.config, "rate_limit", None)
         if not rl_cfg or not rl_cfg.enabled:
             return await call_next(request)
@@ -210,10 +239,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 # Fallback legacy counter
                 self.metrics.increment_counter("rate_limit_backend_errors_total")
             reset_seconds = float(window)
-            request_id = getattr(getattr(request, 'state', object()), 'request_id', None)
+            request_id = getattr(
+                getattr(request, "state", object()), "request_id", None
+            )
             self.logger.error(
                 "Rate limit backend error",
-                extra={"endpoint": ep, "identity_kind": identity_kind, "reset_seconds": reset_seconds, "request_id": request_id, "error": str(ex)}
+                extra={
+                    "endpoint": ep,
+                    "identity_kind": identity_kind,
+                    "reset_seconds": reset_seconds,
+                    "request_id": request_id,
+                    "error": str(ex),
+                },
             )
             body = {
                 "detail": "Rate limit backend error",
@@ -223,9 +260,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "identity_kind": identity_kind,
                 "endpoint": ep,
             }
-            response = JSONResponse(status_code=429, content=body)
-            _emit_headers(response, limit, 0, reset_seconds, window, rl_cfg.headers.emit_standard, rl_cfg.headers.emit_legacy)
-            return response
+            err_response = JSONResponse(status_code=429, content=body)
+            _emit_headers(
+                err_response,
+                limit,
+                0,
+                reset_seconds,
+                window,
+                rl_cfg.headers.emit_standard,
+                rl_cfg.headers.emit_legacy,
+            )
+            return err_response
 
         # Align identity_kind on result for upstream metrics usage
         result.identity_kind = identity_kind  # type: ignore[attr-defined]
@@ -238,7 +283,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 self.metrics.rate_limit_requests_total.labels(endpoint=ep, identity_kind=identity_kind, action="allow").inc()  # type: ignore[attr-defined]
             except Exception:
                 # Legacy counter
-                self.metrics.increment_counter("rate_limit_allowed_total", {"endpoint": ep, "identity": identity_kind})
+                self.metrics.increment_counter(
+                    "rate_limit_allowed_total",
+                    {"endpoint": ep, "identity": identity_kind},
+                )
             self.logger.debug(
                 "Rate limit allow",
                 extra={
@@ -246,10 +294,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "identity_kind": identity_kind,
                     "remaining": result.remaining,
                     "limit": result.limit,
-                    "request_id": getattr(getattr(request, 'state', object()), 'request_id', None)
-                }
+                    "request_id": getattr(
+                        getattr(request, "state", object()), "request_id", None
+                    ),
+                },
             )
-            _emit_headers(response, result.limit, result.remaining, result.reset_seconds, window, rl_cfg.headers.emit_standard, rl_cfg.headers.emit_legacy)
+            _emit_headers(
+                response,
+                result.limit,
+                result.remaining,
+                result.reset_seconds,
+                window,
+                rl_cfg.headers.emit_standard,
+                rl_cfg.headers.emit_legacy,
+            )
             return response
         else:
             # Block with 429
@@ -261,12 +319,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "identity_kind": identity_kind,
                 "endpoint": ep,
             }
-            response = JSONResponse(status_code=429, content=body)
+            block_response = JSONResponse(status_code=429, content=body)
             try:
                 self.metrics.rate_limit_requests_total.labels(endpoint=ep, identity_kind=identity_kind, action="block").inc()  # type: ignore[attr-defined]
                 self.metrics.rate_limit_reset_seconds.labels(endpoint=ep, identity_kind=identity_kind).observe(result.reset_seconds)  # type: ignore[attr-defined]
             except Exception:
-                self.metrics.increment_counter("rate_limit_blocked_total", {"endpoint": ep, "identity": identity_kind})
+                self.metrics.increment_counter(
+                    "rate_limit_blocked_total",
+                    {"endpoint": ep, "identity": identity_kind},
+                )
             self.logger.warning(
                 "Rate limit block",
                 extra={
@@ -275,8 +336,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "remaining": 0,
                     "limit": result.limit,
                     "reset_seconds": result.reset_seconds,
-                    "request_id": getattr(getattr(request, 'state', object()), 'request_id', None)
-                }
+                    "request_id": getattr(
+                        getattr(request, "state", object()), "request_id", None
+                    ),
+                },
             )
-            _emit_headers(response, result.limit, 0, result.reset_seconds, window, rl_cfg.headers.emit_standard, rl_cfg.headers.emit_legacy)
-            return response
+            _emit_headers(
+                block_response,
+                result.limit,
+                0,
+                result.reset_seconds,
+                window,
+                rl_cfg.headers.emit_standard,
+                rl_cfg.headers.emit_legacy,
+            )
+            return block_response

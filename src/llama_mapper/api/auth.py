@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import Header, HTTPException, Request
 
-from ..config.manager import ConfigManager, APIKeyInfo
+from ..config.manager import APIKeyInfo, ConfigManager
 
 
 @dataclass
 class AuthContext:
     """Resolved authentication context for a request."""
+
     tenant_id: Optional[str]
     api_key_id: Optional[str]
     scopes: List[str]
@@ -43,7 +44,9 @@ class IdempotencyCache:
         # Bound size
         if len(self._store) > self.max_items:
             # Drop oldest by expiration time
-            for k, _ in sorted(self._store.items(), key=lambda kv: kv[1][0])[: len(self._store) - self.max_items]:
+            for k, _ in sorted(self._store.items(), key=lambda kv: kv[1][0])[
+                : len(self._store) - self.max_items
+            ]:
                 self._store.pop(k, None)
 
     def get(self, key: str) -> Optional[Any]:
@@ -68,7 +71,9 @@ class IdempotencyCache:
         self._store[key] = (exp, value)
 
 
-def build_idempotency_key(tenant_id: Optional[str], path: str, idempotency_key: Optional[str]) -> Optional[str]:
+def build_idempotency_key(
+    tenant_id: Optional[str], path: str, idempotency_key: Optional[str]
+) -> Optional[str]:
     """Compose a stable cache key from tenant, path, and idempotency key value."""
     if not idempotency_key:
         return None
@@ -88,26 +93,32 @@ def build_api_key_auth(
     required_scopes = required_scopes or []
 
     # Resolve header names safely (handle mocks)
-    sec_cfg = getattr(config_manager, 'security', None)
-    api_key_header_name = getattr(sec_cfg, 'api_key_header', 'X-API-Key')
+    sec_cfg = getattr(config_manager, "security", None)
+    api_key_header_name = getattr(sec_cfg, "api_key_header", "X-API-Key")
     if not isinstance(api_key_header_name, str):
-        api_key_header_name = 'X-API-Key'
-    tenant_header_name = getattr(sec_cfg, 'tenant_header', 'X-Tenant-ID')
+        api_key_header_name = "X-API-Key"
+    tenant_header_name = getattr(sec_cfg, "tenant_header", "X-Tenant-ID")
     if not isinstance(tenant_header_name, str):
-        tenant_header_name = 'X-Tenant-ID'
+        tenant_header_name = "X-Tenant-ID"
 
     # Resolve auth enablement safely (handle mocks)
-    auth_cfg = getattr(config_manager, 'auth', None)
-    _require_tenant_header_val = getattr(auth_cfg, 'require_tenant_header', True)
-    require_tenant_header = bool(_require_tenant_header_val) if isinstance(_require_tenant_header_val, bool) else True
+    auth_cfg = getattr(config_manager, "auth", None)
+    _require_tenant_header_val = getattr(auth_cfg, "require_tenant_header", True)
+    require_tenant_header = (
+        bool(_require_tenant_header_val)
+        if isinstance(_require_tenant_header_val, bool)
+        else True
+    )
 
     async def _dependency(
         request: Request,
         api_key: Optional[str] = Header(default=None, alias=api_key_header_name),
-        tenant_id_header: Optional[str] = Header(default=None, alias=tenant_header_name),
+        tenant_id_header: Optional[str] = Header(
+            default=None, alias=tenant_header_name
+        ),
     ) -> AuthContext:
         # If disabled, attach context and continue (safe check)
-        _enabled_val = getattr(auth_cfg, 'enabled', False)
+        _enabled_val = getattr(auth_cfg, "enabled", False)
         auth_enabled = bool(_enabled_val) if isinstance(_enabled_val, bool) else False
         if not auth_enabled:
             ctx = AuthContext(
@@ -125,7 +136,7 @@ def build_api_key_auth(
 
         # Lookup API key
         # Access api_keys safely
-        api_keys = getattr(auth_cfg, 'api_keys', {}) or {}
+        api_keys = getattr(auth_cfg, "api_keys", {}) or {}
         # If api_keys is a dict of plain dicts, handle both types
         key_info: Optional[APIKeyInfo]
         try:
@@ -138,11 +149,16 @@ def build_api_key_auth(
         # Resolve tenant
         resolved_tenant = tenant_id_header or key_info.tenant_id
         if require_tenant_header and not tenant_id_header:
-            raise HTTPException(status_code=400, detail=f"Missing required tenant header: {tenant_header_name}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required tenant header: {tenant_header_name}",
+            )
 
         # Check scope requirements
         if required_scopes and not set(required_scopes).issubset(set(key_info.scopes)):
-            raise HTTPException(status_code=403, detail="Insufficient scopes for this operation")
+            raise HTTPException(
+                status_code=403, detail="Insufficient scopes for this operation"
+            )
 
         ctx = AuthContext(
             tenant_id=resolved_tenant,

@@ -16,13 +16,13 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..data.taxonomy import TaxonomyLoader
-from ..data.frameworks import FrameworkMapper
 from ..data.detectors import DetectorConfigLoader
+from ..data.frameworks import FrameworkMapper
+from ..data.taxonomy import TaxonomyLoader
 
 
 def _first_existing_path(paths: List[Path]) -> Optional[Path]:
@@ -66,24 +66,37 @@ class VersionManager:
     ) -> None:
         # Resolve data directory where taxonomy/frameworks/detectors live
         env_dir = os.getenv(f"{env_prefix}_DATA_DIR")
-        default_candidates = [
+        from typing import Optional as _Optional, List as _List
+        default_candidates_raw: _List[_Optional[Path]] = [
             Path(str(data_dir)) if data_dir else None,
             Path("pillars-detectors"),
             Path("./pillars-detectors"),
             Path(".kiro/pillars-detectors"),
         ]
-        default_candidates = [p for p in default_candidates if p is not None]
-        self.data_dir = Path(env_dir) if env_dir else (_first_existing_path(default_candidates) or Path("pillars-detectors"))
+        default_candidates: _List[Path] = [p for p in default_candidates_raw if p is not None]
+        self.data_dir = (
+            Path(env_dir)
+            if env_dir
+            else (_first_existing_path(default_candidates) or Path("pillars-detectors"))
+        )
 
         # Registry of model versions; falls back to env var if not found
         env_versions = os.getenv(f"{env_prefix}_MODEL_VERSIONS")
-        self.versions_registry = Path(env_versions) if env_versions else (
-            Path(str(versions_registry)) if versions_registry else Path("model_checkpoints/versions.json")
+        self.versions_registry = (
+            Path(env_versions)
+            if env_versions
+            else (
+                Path(str(versions_registry))
+                if versions_registry
+                else Path("model_checkpoints/versions.json")
+            )
         )
 
         self._taxonomy_loader = TaxonomyLoader(self.data_dir / "taxonomy.yaml")
         self._framework_mapper = FrameworkMapper(self.data_dir / "frameworks.yaml")
-        self._detector_loader = DetectorConfigLoader(self.data_dir, taxonomy_loader=self._taxonomy_loader)
+        self._detector_loader = DetectorConfigLoader(
+            self.data_dir, taxonomy_loader=self._taxonomy_loader
+        )
 
     def snapshot(self) -> VersionSnapshot:
         """Create a fresh version snapshot."""
@@ -93,7 +106,7 @@ class VersionManager:
         model_version = self._discover_model_version()
 
         return VersionSnapshot(
-            created_at=datetime.utcnow().isoformat() + "Z",
+            created_at=datetime.now(timezone.utc).isoformat(),
             taxonomy=taxonomy_info or {},
             frameworks=frameworks_info or {},
             detectors=detectors_info or {},
@@ -127,7 +140,8 @@ class VersionManager:
         Determine the model version in priority order:
         1) {env_prefix}_MODEL_VERSION environment variable
         2) Latest key in versions.json registry (if exists)
-        3) "unknown"
+        3) Derive from config component versions (taxonomy/frameworks) if available
+        4) "unknown"
         """
         env_version = os.getenv("LLAMA_MAPPER_MODEL_VERSION")
         if env_version:
@@ -139,15 +153,36 @@ class VersionManager:
                     data = json.load(f)
                 if isinstance(data, dict) and data:
                     # Choose the newest by created_at field if present; else lexical max
-                    def _key(item):
+                    def _key(item: tuple[str, Any]) -> datetime:
                         v = item[1]
                         ts = v.get("created_at")
                         try:
-                            return datetime.fromisoformat(ts.replace("Z", "+00:00")) if ts else datetime.fromtimestamp(0)
+                            return (
+                                datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                                if ts
+                                else datetime.fromtimestamp(0)
+                            )
                         except Exception:
                             return datetime.fromtimestamp(0)
+
                     latest = sorted(data.items(), key=_key, reverse=True)[0]
-                    return latest[0]
+                    return str(latest[0])
+        except Exception:
+            pass
+
+        # Attempt to derive a non-"unknown" tag from available component versions
+        try:
+            t_info = self._safe_taxonomy_info() or {}
+            f_info = self._safe_frameworks_info() or {}
+            fragments: list[str] = []
+            t_ver = t_info.get("version")
+            f_ver = f_info.get("version")
+            if isinstance(t_ver, str) and t_ver:
+                fragments.append(f"taxonomy@{t_ver}")
+            if isinstance(f_ver, str) and f_ver:
+                fragments.append(f"frameworks@{f_ver}")
+            if fragments:
+                return "|".join(fragments)
         except Exception:
             pass
 

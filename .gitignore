@@ -66,6 +66,7 @@ env.bak/
 venv.bak/
 
 # IDE
+AGENTS.md
 .vscode/
 .idea/
 .cursorignore
