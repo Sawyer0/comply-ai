@@ -4,7 +4,7 @@ import pytest
 import tempfile
 import yaml
 from pathlib import Path
-from llama_mapper.config import ConfigManager, Settings
+from src.llama_mapper.config import ConfigManager, Settings
 
 
 def test_config_manager_default_settings():
