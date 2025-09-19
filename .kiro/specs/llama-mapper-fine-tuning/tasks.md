@@ -271,15 +271,26 @@
 
 - [x] 11. Create deployment and containerization
 - [x] 11.1 Build Docker image with multi-stage optimization
-   - Create production-ready image with Python 3.11, FastAPI, Hugging Face stack
-   - Implement health checks and graceful shutdown handling
-   - Optimize image size and security scanning
+   - Create production-ready image with Python 3.11, FastAPI, Hugging Face stack (Dockerfile at project root)
+   - Implement health checks and graceful shutdown handling (HEALTHCHECK → GET /health; FastAPI shutdown hook closes model_server sessions incl. TGI) (src/llama_mapper/api/mapper.py)
+   - Optimize image size and security scanning (multi-stage build, non-root user, minimal runtime base, .dockerignore trims context)
+   - Notes:
+     - Dockerfile: multi-stage builder installs deps to /install, runtime copies to /usr/local; default CMD: `python -m src.llama_mapper.api.main --host 0.0.0.0 --port 8000`
+     - .dockerignore excludes tests, .kiro/, local data, caches; README kept in build context
+     - WARP.md updated with build/run instructions and notes on probes/HPA
    - _Requirements: 10.1, 10.2_
 
 - [x] 11.2 Create Helm chart for Kubernetes deployment
-   - Configure ConfigMaps for taxonomy and detector configurations
-   - Set up Secrets management for model weights and API keys
-   - Implement HPA and resource limits based on serving backend
+   - Chart path: charts/llama-mapper (Chart.yaml, values.yaml, templates/*, .helmignore, NOTES.txt)
+   - Profile switch: `.Values.profile` controls backend env and resources (tgi=CPU default, vllm=GPU); `LLAMA_MAPPER_SERVING__BACKEND` auto-follows profile
+   - Resources: separate CPU/GPU requests/limits; GPU profile requests `nvidia.com/gpu: 1` and supports nodeSelector/tolerations
+   - Probes & HPA: Liveness/Readiness → GET /health; autoscaling/v2 HPA on CPU utilization with configurable bounds
+   - Configuration:
+     - External config: `externalConfigMaps.enabled=true` and provide names; mounts to /app/pillars-detectors
+     - Inline demo config: `inlineConfigs.enabled=true` (taxonomy/frameworks/schema + optional detectors)
+     - Env vars: `.Values.env` controls LLAMA_MAPPER_* paths/serving options
+   - Security: ServiceAccount created conditionally; container runs as non-root and drops all capabilities
+   - Service/Ingress: ClusterIP by default; optional Ingress template with TLS
    - _Requirements: 10.2, 10.4_
 
 - [x] 12. Define API contract and public interface
