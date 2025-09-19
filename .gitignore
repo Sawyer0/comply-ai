@@ -69,6 +69,7 @@ venv.bak/
 .kiro/
 .vscode/
 .idea/
+.cursorignore
 *.swp
 *.swo
 *~
