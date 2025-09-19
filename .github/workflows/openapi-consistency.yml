@@ -1,0 +1,33 @@
+name: OpenAPI Consistency
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  openapi-consistency:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install minimal deps for OpenAPI export
+        run: |
+          python -m pip install --upgrade pip
+          pip install fastapi pyyaml jsonschema structlog
+
+      - name: Export OpenAPI YAML
+        env:
+          PYTHONPATH: .
+        run: |
+          python scripts/export_openapi.py --output generated_openapi.yaml
+
+      - name: Diff committed vs generated OpenAPI
+        run: |
+          diff -u docs/openapi.yaml generated_openapi.yaml || (echo "OpenAPI is out of date. Run: python scripts/export_openapi.py --output docs/openapi.yaml" && exit 1)

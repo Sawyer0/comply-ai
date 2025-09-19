@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 
+from fastapi.security import APIKeyHeader
+
 from .auth import (
     build_api_key_auth,
     IdempotencyCache,
@@ -58,6 +60,9 @@ class MapperAPI:
             description="AI safety detector output normalization service",
             version="1.0.0"
         )
+
+        # For OpenAPI docs: API key security scheme (docs-only dependency)
+        self._api_key_header_for_docs = APIKeyHeader(name=self.config_manager.security.api_key_header, auto_error=False)
 
         # Idempotency cache
         # Resolve idempotency TTL safely (handle mocks)
@@ -108,6 +113,10 @@ class MapperAPI:
         # Register routes
         self._register_routes()
 
+        # Add RateLimit middleware (after route registration so it's global)
+        from .rate_limit import RateLimitMiddleware
+        self.app.add_middleware(RateLimitMiddleware, config_manager=self.config_manager, metrics_collector=self.metrics_collector)
+
         # OpenAPI YAML endpoint (generated from FastAPI schema)
         @self.app.get("/openapi.yaml", include_in_schema=False)
         async def openapi_yaml():
@@ -150,8 +159,17 @@ class MapperAPI:
             "/map",
             response_model=MappingResponse,
             summary="Map detector output to canonical taxonomy",
+            dependencies=[Depends(self._api_key_header_for_docs)],
             responses={
-                200: {"description": "Mapping succeeded", "headers": {"X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}}, "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}}}},
+                200: {"description": "Mapping succeeded", "headers": {
+                    "X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}},
+                    "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}},
+                    "RateLimit-Limit": {"description": "Rate limit and window", "schema": {"type": "string"}},
+                    "RateLimit-Remaining": {"description": "Remaining requests in window", "schema": {"type": "integer"}},
+                    "RateLimit-Reset": {"description": "Seconds until reset", "schema": {"type": "integer"}},
+                    "X-RateLimit-Limit": {"description": "Legacy limit header", "schema": {"type": "integer"}},
+                    "X-RateLimit-Remaining": {"description": "Legacy remaining header", "schema": {"type": "integer"}}
+                }},
                 400: {"description": "Bad request (missing tenant header when required)"},
                 401: {"description": "Unauthorized (missing/invalid API key)"},
                 403: {"description": "Forbidden (insufficient scope or tenant mismatch)"},
@@ -166,6 +184,7 @@ class MapperAPI:
             response: Response,
             auth: AuthContext = Depends(self._auth_map_write),
             idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+            _tenant_header_for_docs: Optional[str] = Header(default=None, alias=self.config_manager.security.tenant_header),
         ) -> MappingResponse:
             """
             Map a single detector output to canonical taxonomy.
@@ -232,8 +251,17 @@ class MapperAPI:
             "/map/batch",
             response_model=BatchMappingResponse,
             summary="Batch map detector outputs to canonical taxonomy",
+            dependencies=[Depends(self._api_key_header_for_docs)],
             responses={
-                200: {"description": "Batch mapping succeeded", "headers": {"X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}}, "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}}}},
+                200: {"description": "Batch mapping succeeded", "headers": {
+                    "X-Request-ID": {"description": "Request ID", "schema": {"type": "string"}},
+                    "Idempotency-Key": {"description": "Echoed if provided", "schema": {"type": "string"}},
+                    "RateLimit-Limit": {"description": "Rate limit and window", "schema": {"type": "string"}},
+                    "RateLimit-Remaining": {"description": "Remaining requests in window", "schema": {"type": "integer"}},
+                    "RateLimit-Reset": {"description": "Seconds until reset", "schema": {"type": "integer"}},
+                    "X-RateLimit-Limit": {"description": "Legacy limit header", "schema": {"type": "integer"}},
+                    "X-RateLimit-Remaining": {"description": "Legacy remaining header", "schema": {"type": "integer"}}
+                }},
                 400: {"description": "Bad request (missing tenant header when required)"},
                 401: {"description": "Unauthorized (missing/invalid API key)"},
                 403: {"description": "Forbidden (insufficient scope or tenant mismatch)"},
@@ -248,6 +276,7 @@ class MapperAPI:
             response: Response,
             auth: AuthContext = Depends(self._auth_map_write),
             idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+            _tenant_header_for_docs: Optional[str] = Header(default=None, alias=self.config_manager.security.tenant_header),
         ) -> BatchMappingResponse:
             """
             Map multiple detector outputs to canonical taxonomy.
@@ -324,6 +353,23 @@ class MapperAPI:
             tenant_id=request.tenant_id,
             ts=time.time()
         )
+        
+        # Kill-switch: force rule-only mapping when runtime mode is rules_only
+        try:
+            runtime_mode = getattr(self.config_manager.serving, 'mode', 'hybrid')
+        except Exception:
+            runtime_mode = 'hybrid'
+        if runtime_mode == 'rules_only':
+            logger.warning("Kill-switch active: forcing rule-only mapping")
+            fallback_result = self.fallback_mapper.map(request.detector, request.output, reason="kill_switch")
+            # Enrich provenance and notes with version tags
+            self.version_manager.apply_to_provenance(provenance)
+            fallback_result.provenance = provenance
+            fallback_result.notes = self.version_manager.annotate_notes_with_versions(
+                "Kill-switch active: rule-based mapping enforced"
+            )
+            self.metrics_collector.record_fallback_usage(request.detector, "kill_switch")
+            return fallback_result
         
         try:
             # Generate mapping using the fine-tuned model

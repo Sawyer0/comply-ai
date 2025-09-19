@@ -157,6 +157,26 @@ class MetricsCollector:
             'Service information',
             registry=self._registry
         )
+
+        # Rate limit metrics
+        self.rate_limit_requests_total = Counter(
+            'mapper_rate_limit_requests_total',
+            'Rate limit decisions by endpoint and identity kind',
+            ['endpoint', 'identity_kind', 'action'],
+            registry=self._registry
+        )
+        self.rate_limit_backend_errors_total = Counter(
+            'mapper_rate_limit_backend_errors_total',
+            'Total rate limit backend errors',
+            registry=self._registry
+        )
+        self.rate_limit_reset_seconds = Histogram(
+            'mapper_rate_limit_reset_seconds',
+            'Observed reset seconds on 429 blocks',
+            ['endpoint', 'identity_kind'],
+            buckets=(0, 1, 2, 5, 10, 30, 60, 120, 300),
+            registry=self._registry
+        )
         
         # Set initial service info
         self.service_info.info({
@@ -595,6 +615,7 @@ class MetricsCollector:
             self.update_percentage_metrics()
             logger.info(f"Schema Valid %: {self.schema_valid_percentage._value._value:.1f}%")
             logger.info(f"Fallback %: {self.fallback_percentage._value._value:.1f}%")
+            # Noisy detail: omit per-metric dumps; counters can be scraped via Prometheus
             
             # Check and log alerts
             alerts = self.check_quality_thresholds()

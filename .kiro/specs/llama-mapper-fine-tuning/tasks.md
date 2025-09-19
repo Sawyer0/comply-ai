@@ -306,30 +306,40 @@
     - Implement tenant-scoped access controls and request validation
     - _Requirements: 8.3_
 
-- [ ] 13. Establish SLOs and performance testing
-  - [ ] 13.1 Define service level objectives document
+- [x] 13. Establish SLOs and performance testing
+  - [x] 13.1 Define service level objectives document
     - Set target SLOs (p95 ≤250ms CPU, ≥99.5% schema-valid, <10% fallback)
     - Document load model (events/sec per tenant) and capacity planning
     - Define alerting thresholds and escalation procedures
     - _Requirements: 11.2, 11.3_
 
-  - [ ] 13.2 Create performance testing suite
+  - [x] 13.2 Create performance testing suite
     - Implement Locust/k6 performance tests for CI smoke testing
     - Build separate load testing job for staging environment
     - Add conformance tests that replay golden cases via HTTP
     - _Requirements: 11.3, 11.4_
 
-- [ ] 14. Implement backup, disaster recovery, and migrations
-  - [ ] 14.1 Set up data backup and recovery systems
+- [x] 14. Implement backup, disaster recovery, and migrations
+  - [x] 14.1 Set up data backup and recovery systems
     - Create ClickHouse/PostgreSQL backup jobs with restore drill procedures
+      - Helm CronJobs: charts/llama-mapper/templates/backup-postgresql-cronjob.yaml; charts/llama-mapper/templates/backup-clickhouse-cronjob.yaml
+      - Restore Jobs: charts/llama-mapper/templates/restore-postgresql-job.yaml; charts/llama-mapper/templates/restore-clickhouse-job.yaml
+      - Helm values: backups.* and restore.* in charts/llama-mapper/values.yaml
     - Configure S3 lifecycle rules (WORM + retention) with documented restore steps
+      - Terraform module: infra/terraform/s3_worm_bucket (Object Lock, versioning, optional Glacier transitions)
+      - Runbook: docs/runbook/backup-restore.md (procedures, verification, permissions)
     - Test backup integrity and recovery time objectives
+      - RTO guidance and integrity checks documented in docs/runbook/backup-restore.md
     - _Requirements: 12.1, 12.2_
 
-  - [ ] 14.2 Create migration and rollback procedures
+  - [x] 14.2 Create migration and rollback procedures
     - Document taxonomy/framework migration playbook with rollback steps
+      - Runbook: docs/runbook/migrations.md (plan/apply/invert steps, VersionSnapshot usage)
     - Implement LoRA adapter rollback procedures and kill-switch for rule-only mapping
+      - Kill-switch: runtime mode in ConfigManager (serving.mode = hybrid|rules_only) and API enforcement in MapperAPI
+      - CLI controls: mapper runtime show-mode | set-mode | kill-switch on/off (src/llama_mapper/cli.py)
     - Create tenant configuration migration tools and validation
+      - CLI: mapper tenant migrate-config | validate-config for tenant YAMLs
     - _Requirements: 7.3, 10.1_
 
 - [ ] 15. Build security and privacy safeguards

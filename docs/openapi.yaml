@@ -1,0 +1,407 @@
+openapi: 3.1.0
+info:
+  title: Llama Mapper API
+  description: AI safety detector output normalization service
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: Health check endpoint.
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /metrics:
+    get:
+      summary: Get Metrics
+      description: Prometheus metrics endpoint.
+      operationId: get_metrics_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /metrics/summary:
+    get:
+      summary: Get Metrics Summary
+      description: Get metrics summary in JSON format.
+      operationId: get_metrics_summary_metrics_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /metrics/alerts:
+    get:
+      summary: Get Quality Alerts
+      description: Get current quality threshold violations.
+      operationId: get_quality_alerts_metrics_alerts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /map:
+    post:
+      summary: Map detector output to canonical taxonomy
+      description: "Map a single detector output to canonical taxonomy.\n\nArgs:\n\
+        \    request: Detector output to map\n    http_request: FastAPI request object\
+        \ for metadata\n    \nReturns:\n    MappingResponse: Canonical taxonomy mapping\n\
+        \    \nRaises:\n    HTTPException: If mapping fails"
+      operationId: map_detector_output_map_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Tenant-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Tenant-Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectorRequest'
+      responses:
+        '200':
+          description: Mapping succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingResponse'
+          headers:
+            X-Request-ID:
+              description: Request ID
+              schema:
+                type: string
+            Idempotency-Key:
+              description: Echoed if provided
+              schema:
+                type: string
+            RateLimit-Limit:
+              description: Rate limit and window
+              schema:
+                type: string
+            RateLimit-Remaining:
+              description: Remaining requests in window
+              schema:
+                type: integer
+            RateLimit-Reset:
+              description: Seconds until reset
+              schema:
+                type: integer
+            X-RateLimit-Limit:
+              description: Legacy limit header
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              description: Legacy remaining header
+              schema:
+                type: integer
+        '400':
+          description: Bad request (missing tenant header when required)
+        '401':
+          description: Unauthorized (missing/invalid API key)
+        '403':
+          description: Forbidden (insufficient scope or tenant mismatch)
+        '422':
+          description: Validation error
+        '429':
+          description: Too Many Requests (rate limited)
+        '500':
+          description: Internal server error
+  /map/batch:
+    post:
+      summary: Batch map detector outputs to canonical taxonomy
+      description: "Map multiple detector outputs to canonical taxonomy.\n\nArgs:\n\
+        \    request: Batch of detector outputs to map\n    http_request: FastAPI\
+        \ request object for metadata\n    \nReturns:\n    BatchMappingResponse: Batch\
+        \ of canonical taxonomy mappings"
+      operationId: map_detector_outputs_batch_map_batch_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Tenant-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Tenant-Id
+      - name: X-API-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Api-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDetectorRequest'
+      responses:
+        '200':
+          description: Batch mapping succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchMappingResponse'
+          headers:
+            X-Request-ID:
+              description: Request ID
+              schema:
+                type: string
+            Idempotency-Key:
+              description: Echoed if provided
+              schema:
+                type: string
+            RateLimit-Limit:
+              description: Rate limit and window
+              schema:
+                type: string
+            RateLimit-Remaining:
+              description: Remaining requests in window
+              schema:
+                type: integer
+            RateLimit-Reset:
+              description: Seconds until reset
+              schema:
+                type: integer
+            X-RateLimit-Limit:
+              description: Legacy limit header
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              description: Legacy remaining header
+              schema:
+                type: integer
+        '400':
+          description: Bad request (missing tenant header when required)
+        '401':
+          description: Unauthorized (missing/invalid API key)
+        '403':
+          description: Forbidden (insufficient scope or tenant mismatch)
+        '422':
+          description: Validation error
+        '429':
+          description: Too Many Requests (rate limited)
+        '500':
+          description: Internal server error
+components:
+  schemas:
+    BatchDetectorRequest:
+      properties:
+        requests:
+          items:
+            $ref: '#/components/schemas/DetectorRequest'
+          type: array
+          maxItems: 100
+          minItems: 1
+          title: Requests
+      type: object
+      required:
+      - requests
+      title: BatchDetectorRequest
+      description: Request model for batch processing multiple detector outputs.
+    BatchMappingResponse:
+      properties:
+        results:
+          items:
+            $ref: '#/components/schemas/MappingResponse'
+          type: array
+          title: Results
+        errors:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Errors
+          description: Any errors encountered during batch processing
+      type: object
+      required:
+      - results
+      title: BatchMappingResponse
+      description: Response model for batch processing.
+    DetectorRequest:
+      properties:
+        detector:
+          type: string
+          title: Detector
+          description: Name of the detector that produced the output
+        output:
+          type: string
+          title: Output
+          description: Raw output from the detector
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+          description: Optional metadata about the detection
+        tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+          description: Tenant identifier for multi-tenancy
+      type: object
+      required:
+      - detector
+      - output
+      title: DetectorRequest
+      description: Request model for the /map endpoint.
+    MappingResponse:
+      properties:
+        taxonomy:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Taxonomy
+          description: Canonical taxonomy labels
+        scores:
+          additionalProperties:
+            type: number
+          type: object
+          title: Scores
+          description: Map of taxonomy labels to normalized scores [0,1]
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+          description: Model-calibrated confidence in the mapping
+        notes:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Notes
+          description: Optional debugging notes
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/Provenance'
+          - type: 'null'
+        policy_context:
+          anyOf:
+          - $ref: '#/components/schemas/PolicyContext'
+          - type: 'null'
+      type: object
+      required:
+      - taxonomy
+      - scores
+      - confidence
+      title: MappingResponse
+      description: Response model following pillars-detectors/schema.json.
+    PolicyContext:
+      properties:
+        expected_detectors:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Expected Detectors
+        environment:
+          anyOf:
+          - type: string
+            pattern: ^(dev|stage|prod)$
+          - type: 'null'
+          title: Environment
+      type: object
+      title: PolicyContext
+      description: Policy context for detector expectations.
+    Provenance:
+      properties:
+        vendor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Vendor
+        detector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detector
+        detector_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Detector Version
+        raw_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Raw Ref
+          description: Pointer/ID to the raw event in Splunk/Datadog/S3
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+        ts:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Ts
+      type: object
+      title: Provenance
+      description: Provenance information for tracking detector outputs.
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key

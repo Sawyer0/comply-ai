@@ -1,5 +1,18 @@
 # Llama Mapper
 
+## Rate limiting
+
+This service includes configurable rate limiting for the /map and /map/batch endpoints.
+
+- Identity precedence: API key (X-API-Key) → tenant (X-Tenant-ID) → client IP
+- Defaults: 600 req/min per API key or tenant; 120 req/min per IP; 60s window
+- Headers returned: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset and Retry-After (on 429). Legacy X-RateLimit-* headers are also supported.
+- Configuration: see docs/runbook/rate-limits.md
+
+Regenerate the OpenAPI spec to capture rate limit headers:
+
+- python scripts/export_openapi.py --output docs/openapi.yaml
+
 Fine-tuned Llama model for mapping detector outputs to canonical taxonomy.
 
 ## Overview
