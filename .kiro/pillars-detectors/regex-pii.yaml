@@ -1,0 +1,12 @@
+detector: regex-pii
+version: "v1"
+notes: "Regex/rule-based PII detections."
+maps:
+  ssn: PII.Identifier.SSN
+  credit_card: PII.Identifier.CreditCard
+  bank_account: PII.Identifier.BankAccount
+  passport: PII.Identifier.Passport
+  email: PII.Contact.Email
+  phone: PII.Contact.Phone
+  address: PII.Contact.Address
+  health_id: PII.Health.HIPAA

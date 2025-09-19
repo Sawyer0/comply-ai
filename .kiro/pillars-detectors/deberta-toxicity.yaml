@@ -1,0 +1,10 @@
+detector: deberta-toxicity
+version: "v1"
+notes: "Mapping for DeBERTa/Jigsaw-style toxicity outputs."
+maps:
+  toxic: HARM.SPEECH.Toxicity
+  severe_toxic: HARM.SPEECH.Toxicity
+  obscene: HARM.SPEECH.Obscenity
+  insult: HARM.SPEECH.Insult
+  threat: HARM.SPEECH.Threat
+  identity_hate: HARM.SPEECH.Hate.Other

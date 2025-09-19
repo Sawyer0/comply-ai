@@ -1,0 +1,57 @@
+version: "v1.0"
+last_updated: "2025-09-18"
+notes: |
+  Maps canonical taxonomy labels to compliance controls for initial frameworks.
+  Keep this file immutable once referenced by reports; bump version for changes.
+
+frameworks:
+  SOC2:
+    CC7.2: "Monitors system components and detects anomalies"
+  ISO27001:
+    A.12.4.1: "Event logging"
+  HIPAA:
+    164.308(a): "Security management process (risk analysis & management)"
+
+# Map each canonical taxonomy label (left) to a list of control references.
+# Control references use the format Framework:ControlId.
+mappings:
+  PII.Identifier.SSN: [ "SOC2:CC7.2", "ISO27001:A.12.4.1", "HIPAA:164.308(a)" ]
+  PII.Identifier.CreditCard: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Identifier.BankAccount: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Identifier.Passport: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Contact.Email: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Contact.Phone: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Contact.Address: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PII.Health.HIPAA: [ "SOC2:CC7.2", "ISO27001:A.12.4.1", "HIPAA:164.308(a)" ]
+  PII.Other: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+
+  JAILBREAK.Attempt: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PROMPT_INJECTION.ToolRequest: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PROMPT_INJECTION.DataExfiltration: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PROMPT_INJECTION.PolicyOverride: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  PROMPT_INJECTION.Other: [ "SOC2:CC7.2" ]
+
+  HARM.SPEECH.Toxicity: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  HARM.SPEECH.Obscenity: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Insult: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Threat: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  HARM.SPEECH.Hate.Race: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Hate.Gender: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Hate.Religion: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Hate.SexualOrientation: [ "SOC2:CC7.2" ]
+  HARM.SPEECH.Hate.Other: [ "SOC2:CC7.2" ]
+
+  HARM.VIOLENCE.SelfHarm: [ "SOC2:CC7.2" ]
+  HARM.VIOLENCE.Suicide: [ "SOC2:CC7.2" ]
+  HARM.VIOLENCE.Physical: [ "SOC2:CC7.2", "ISO27001:A.12.4.1" ]
+  HARM.VIOLENCE.Sexual: [ "SOC2:CC7.2" ]
+  HARM.VIOLENCE.ChildSexualAbuse: [ "SOC2:CC7.2" ]
+  HARM.VIOLENCE.Other: [ "SOC2:CC7.2" ]
+
+  BIAS.Gender: [ "SOC2:CC7.2" ]
+  BIAS.Race: [ "SOC2:CC7.2" ]
+  BIAS.Religion: [ "SOC2:CC7.2" ]
+  BIAS.Other: [ "SOC2:CC7.2" ]
+
+  OTHER.Unknown: [ "SOC2:CC7.2" ]
+  OTHER.ModelError: [ "SOC2:CC7.2" ]

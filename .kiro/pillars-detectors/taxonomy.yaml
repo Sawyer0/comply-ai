@@ -1,0 +1,155 @@
+version: "2025.09"
+namespace: "pillars-detectors"
+last_updated: "2025-09-18"
+notes: |
+  Canonical taxonomy for AI safety detector outputs.
+  This taxonomy provides standardized labels for normalizing outputs
+  from various AI safety detectors into consistent categories.
+
+categories:
+  PII:
+    description: "Personally Identifiable Information"
+    subcategories:
+      Identifier:
+        description: "Unique identifiers"
+        labels:
+          - name: "PII.Identifier.SSN"
+            description: "Social Security Number"
+            aliases: ["ssn", "social_security"]
+          - name: "PII.Identifier.CreditCard"
+            description: "Credit card number"
+            aliases: ["credit_card", "cc_number"]
+          - name: "PII.Identifier.BankAccount"
+            description: "Bank account number"
+            aliases: ["bank_account", "account_number"]
+          - name: "PII.Identifier.Passport"
+            description: "Passport number"
+            aliases: ["passport", "passport_number"]
+      Contact:
+        description: "Contact information"
+        labels:
+          - name: "PII.Contact.Email"
+            description: "Email address"
+            aliases: ["email", "email_address"]
+          - name: "PII.Contact.Phone"
+            description: "Phone number"
+            aliases: ["phone", "phone_number", "telephone"]
+          - name: "PII.Contact.Address"
+            description: "Physical address"
+            aliases: ["address", "street_address"]
+      Health:
+        description: "Health-related PII"
+        labels:
+          - name: "PII.Health.HIPAA"
+            description: "HIPAA-protected health information"
+            aliases: ["health_info", "medical_info", "phi"]
+      Other:
+        description: "Other PII types"
+        labels:
+          - name: "PII.Other"
+            description: "Other personally identifiable information"
+            aliases: ["pii", "personal_info"]
+
+  JAILBREAK:
+    description: "Jailbreak and prompt manipulation attempts"
+    labels:
+      - name: "JAILBREAK.Attempt"
+        description: "Attempt to bypass AI safety measures"
+        aliases: ["jailbreak", "bypass_attempt"]
+
+  PROMPT_INJECTION:
+    description: "Prompt injection attacks"
+    labels:
+      - name: "PROMPT_INJECTION.ToolRequest"
+        description: "Attempt to invoke unauthorized tools"
+        aliases: ["tool_injection", "function_call"]
+      - name: "PROMPT_INJECTION.DataExfiltration"
+        description: "Attempt to extract sensitive data"
+        aliases: ["data_extraction", "information_leak"]
+      - name: "PROMPT_INJECTION.PolicyOverride"
+        description: "Attempt to override system policies"
+        aliases: ["policy_bypass", "rule_override"]
+      - name: "PROMPT_INJECTION.Other"
+        description: "Other prompt injection attempts"
+        aliases: ["prompt_injection", "injection_attack"]
+
+  HARM:
+    description: "Harmful content categories"
+    subcategories:
+      SPEECH:
+        description: "Harmful speech content"
+        labels:
+          - name: "HARM.SPEECH.Toxicity"
+            description: "Toxic or harmful language"
+            aliases: ["toxic", "toxicity", "harmful_speech"]
+          - name: "HARM.SPEECH.Obscenity"
+            description: "Obscene or profane content"
+            aliases: ["obscene", "profanity", "vulgar"]
+          - name: "HARM.SPEECH.Insult"
+            description: "Insulting or demeaning language"
+            aliases: ["insult", "offensive", "demeaning"]
+          - name: "HARM.SPEECH.Threat"
+            description: "Threatening language"
+            aliases: ["threat", "threatening", "menacing"]
+          - name: "HARM.SPEECH.Hate.Race"
+            description: "Racial hate speech"
+            aliases: ["racial_hate", "racism"]
+          - name: "HARM.SPEECH.Hate.Gender"
+            description: "Gender-based hate speech"
+            aliases: ["gender_hate", "sexism"]
+          - name: "HARM.SPEECH.Hate.Religion"
+            description: "Religious hate speech"
+            aliases: ["religious_hate", "religious_discrimination"]
+          - name: "HARM.SPEECH.Hate.SexualOrientation"
+            description: "Sexual orientation-based hate speech"
+            aliases: ["lgbtq_hate", "homophobia"]
+          - name: "HARM.SPEECH.Hate.Other"
+            description: "Other forms of hate speech"
+            aliases: ["hate", "hate_speech", "identity_hate"]
+      VIOLENCE:
+        description: "Violence-related content"
+        labels:
+          - name: "HARM.VIOLENCE.SelfHarm"
+            description: "Self-harm content"
+            aliases: ["self_harm", "self_injury"]
+          - name: "HARM.VIOLENCE.Suicide"
+            description: "Suicide-related content"
+            aliases: ["suicide", "suicidal"]
+          - name: "HARM.VIOLENCE.Physical"
+            description: "Physical violence content"
+            aliases: ["violence", "physical_harm"]
+          - name: "HARM.VIOLENCE.Sexual"
+            description: "Sexual violence content"
+            aliases: ["sexual_violence", "sexual_assault"]
+          - name: "HARM.VIOLENCE.ChildSexualAbuse"
+            description: "Child sexual abuse content"
+            aliases: ["child_abuse", "csam"]
+          - name: "HARM.VIOLENCE.Other"
+            description: "Other violence-related content"
+            aliases: ["violent_content"]
+
+  BIAS:
+    description: "Bias and discrimination"
+    labels:
+      - name: "BIAS.Gender"
+        description: "Gender bias"
+        aliases: ["gender_bias", "sexist_bias"]
+      - name: "BIAS.Race"
+        description: "Racial bias"
+        aliases: ["racial_bias", "racist_bias"]
+      - name: "BIAS.Religion"
+        description: "Religious bias"
+        aliases: ["religious_bias"]
+      - name: "BIAS.Other"
+        description: "Other forms of bias"
+        aliases: ["bias", "discrimination"]
+
+  OTHER:
+    description: "Fallback categories"
+    labels:
+      - name: "OTHER.Unknown"
+        description: "Unknown or unmapped detector output"
+        aliases: ["unknown", "unmapped"]
+      - name: "OTHER.ModelError"
+        description: "Model generation or processing error"
+        aliases: ["error", "model_error", "processing_error"]
