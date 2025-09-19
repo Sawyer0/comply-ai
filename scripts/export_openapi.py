@@ -59,6 +59,104 @@ def _build_app() -> any:
     return app
 
 
+def _ensure_components(openapi_dict: dict) -> dict:
+    if "components" not in openapi_dict:
+        openapi_dict["components"] = {"schemas": {}}
+    if "schemas" not in openapi_dict["components"]:
+        openapi_dict["components"]["schemas"] = {}
+    return openapi_dict
+
+
+def _inject_request_schemas(openapi_dict: dict) -> dict:
+    """Inject oneOf requestBody schemas for /map and /map/batch, and ensure models exist in components."""
+    from src.llama_mapper.api.models import (
+        MapperPayload,
+        DetectorRequest,
+        BatchDetectorRequest,
+        MappingResponse,
+        ErrorBody,
+        Provenance,
+        PolicyContext,
+        VersionInfo,
+    )
+
+    openapi_dict = _ensure_components(openapi_dict)
+    schemas = openapi_dict["components"]["schemas"]
+
+    # Ensure model schemas are present
+    def add_model_schema(model, name: str) -> None:
+        if name not in schemas:
+            try:
+                schemas[name] = model.model_json_schema(ref_template="#/components/schemas/{model}")
+            except Exception:
+                schemas[name] = model.model_json_schema()
+
+    add_model_schema(MapperPayload, "MapperPayload")
+    add_model_schema(DetectorRequest, "DetectorRequest")
+    add_model_schema(BatchDetectorRequest, "BatchDetectorRequest")
+    add_model_schema(MappingResponse, "MappingResponse")
+    add_model_schema(ErrorBody, "ErrorBody")
+    add_model_schema(Provenance, "Provenance")
+    add_model_schema(PolicyContext, "PolicyContext")
+    add_model_schema(VersionInfo, "VersionInfo")
+
+    # Add BatchMapperPayload synthetic schema
+    if "BatchMapperPayload" not in schemas:
+        schemas["BatchMapperPayload"] = {
+            "type": "object",
+            "title": "BatchMapperPayload",
+            "properties": {
+                "requests": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {"$ref": "#/components/schemas/MapperPayload"},
+                }
+            },
+            "required": ["requests"],
+        }
+
+    # Update /map requestBody
+    try:
+        map_post = openapi_dict["paths"]["/map"]["post"]
+        map_post["requestBody"] = {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "oneOf": [
+                            {"$ref": "#/components/schemas/MapperPayload"},
+                            {"$ref": "#/components/schemas/DetectorRequest", "deprecated": True},
+                        ]
+                    }
+                }
+            },
+        }
+    except Exception:
+        pass
+
+    # Update /map/batch requestBody
+    try:
+        batch_post = openapi_dict["paths"]["/map/batch"]["post"]
+        batch_post["requestBody"] = {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "oneOf": [
+                            {"$ref": "#/components/schemas/BatchMapperPayload"},
+                            {"$ref": "#/components/schemas/BatchDetectorRequest", "deprecated": True},
+                        ]
+                    }
+                }
+            },
+        }
+    except Exception:
+        pass
+
+    return openapi_dict
+
+
 def main():
     parser = argparse.ArgumentParser(description="Export OpenAPI YAML from live app instance")
     parser.add_argument("--output", "-o", type=str, default="docs/openapi.yaml", help="Output file path")
@@ -66,6 +164,9 @@ def main():
 
     app = _build_app()
     openapi_dict = app.openapi()
+    # Post-process: inject oneOf request schemas and ensure components
+    openapi_dict = _inject_request_schemas(openapi_dict)
+
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:

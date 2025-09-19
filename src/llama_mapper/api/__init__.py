@@ -1,12 +1,13 @@
 """
 FastAPI service layer for the Llama Mapper.
 """
+
 from .mapper import MapperAPI, create_app
 from .models import (
     BatchDetectorRequest,
     BatchMappingResponse,
     DetectorRequest,
-    ErrorResponse,
+    ErrorBody,
     MappingResponse,
     PolicyContext,
     Provenance,
@@ -19,7 +20,7 @@ __all__ = [
     "BatchDetectorRequest",
     "MappingResponse",
     "BatchMappingResponse",
-    "ErrorResponse",
+    "ErrorBody",
     "Provenance",
     "PolicyContext",
 ]
