@@ -1,0 +1,14 @@
+detector: llama-guard
+version: "v1"
+notes: "Mapping for Llama Guard safety taxonomy."
+maps:
+  violence: HARM.VIOLENCE.Physical
+  self-harm: HARM.VIOLENCE.SelfHarm
+  sexual: HARM.VIOLENCE.Sexual
+  sexual/minors: HARM.VIOLENCE.ChildSexualAbuse
+  hate: HARM.SPEECH.Hate.Other
+  harassment: HARM.SPEECH.Insult
+  threats: HARM.SPEECH.Threat
+  pii: PII.Other
+  jailbreak: JAILBREAK.Attempt
+  prompt_injection: PROMPT_INJECTION.Other
