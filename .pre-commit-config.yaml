@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: no-raw-content-logs
+        name: Block raw-content logging
+        entry: python scripts/check_no_raw_logs.py
+        language: system
+        types: [python]
+        files: ^src/llama_mapper/|^examples/
