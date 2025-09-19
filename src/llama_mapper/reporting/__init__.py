@@ -3,7 +3,7 @@ Reporting and audit capabilities for the Llama Mapper system.
 
 This module provides comprehensive reporting functionality including:
 - PDF report generation via WeasyPrint with embedded version tags
-- CSV exports via Pandas with version metadata  
+- CSV exports via Pandas with version metadata
 - JSON API responses with version headers
 - Audit trail and compliance mapping capabilities
 """

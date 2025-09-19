@@ -239,9 +239,11 @@ class TenantIsolationManager:
             "Applied tenant filter to query",
             tenant_id=tenant_context.tenant_id,
             original_query=query[:100] + "..." if len(query) > 100 else query,
-            filtered_query=filtered_query[:100] + "..."
-            if len(filtered_query) > 100
-            else filtered_query,
+            filtered_query=(
+                filtered_query[:100] + "..."
+                if len(filtered_query) > 100
+                else filtered_query
+            ),
         )
 
         return filtered_query

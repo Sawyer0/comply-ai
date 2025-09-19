@@ -1,6 +1,7 @@
 """
 Tests for quality gates functionality.
 """
+
 import json
 import tempfile
 from pathlib import Path

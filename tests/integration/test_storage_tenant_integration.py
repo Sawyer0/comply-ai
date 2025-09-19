@@ -39,9 +39,10 @@ def sample_record():
 
 async def create_mock_storage_manager(settings):
     """Helper function to create a properly mocked StorageManager."""
-    with patch("boto3.Session") as mock_session, patch(
-        "asyncpg.create_pool"
-    ) as mock_pool:
+    with (
+        patch("boto3.Session") as mock_session,
+        patch("asyncpg.create_pool") as mock_pool,
+    ):
         # Mock S3 client
         mock_s3_client = MagicMock()
         mock_s3_client.head_bucket.return_value = None

@@ -1,6 +1,7 @@
 """
 Unit tests for the in-memory rate limiter token bucket.
 """
+
 import asyncio
 
 import pytest

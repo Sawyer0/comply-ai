@@ -50,15 +50,15 @@ class TestStorageIntegration:
         """Test StorageManager initialization with mocked dependencies."""
         settings = Settings()
 
-        with patch("boto3.Session") as mock_session, patch(
-            "asyncpg.create_pool"
-        ) as mock_pool, patch.object(
-            StorageManager, "_create_postgresql_tables"
-        ) as mock_create_tables, patch.object(
-            StorageManager, "_init_encryption"
-        ) as mock_init_encryption, patch.object(
-            StorageManager, "_setup_worm_policy"
-        ) as mock_worm_policy:
+        with (
+            patch("boto3.Session") as mock_session,
+            patch("asyncpg.create_pool") as mock_pool,
+            patch.object(
+                StorageManager, "_create_postgresql_tables"
+            ) as mock_create_tables,
+            patch.object(StorageManager, "_init_encryption") as mock_init_encryption,
+            patch.object(StorageManager, "_setup_worm_policy") as mock_worm_policy,
+        ):
             # Mock S3 client
             mock_s3_client = MagicMock()
             mock_s3_client.head_bucket.return_value = None

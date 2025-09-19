@@ -405,10 +405,10 @@ class DetectorConfigLoader:
             "covered_labels": len(covered_labels),
             "uncovered_labels": len(uncovered_labels),
             "coverage_percentage": (
-                len(covered_labels) / len(all_taxonomy_labels) * 100
-            )
-            if all_taxonomy_labels
-            else 0,
+                (len(covered_labels) / len(all_taxonomy_labels) * 100)
+                if all_taxonomy_labels
+                else 0
+            ),
             "category_coverage": category_coverage,
             "uncovered_label_list": sorted(uncovered_labels),
             "detector_count": len(self._detector_mappings),
@@ -421,7 +421,9 @@ class DetectorConfigLoader:
         Returns:
             Dictionary mapping detector labels to conflicting mappings
         """
-        label_mappings: Dict[str, List[Dict[str, str]]] = {}  # detector_label -> list of mapping dicts
+        label_mappings: Dict[str, List[Dict[str, str]]] = (
+            {}
+        )  # detector_label -> list of mapping dicts
 
         # Collect all mappings
         for detector_name, mapping in self._detector_mappings.items():
@@ -451,9 +453,9 @@ class DetectorConfigLoader:
             version_info[detector_name] = {
                 "version": mapping.version,
                 "file_path": str(mapping.file_path) if mapping.file_path else "",
-                "last_modified": str(mapping.last_modified)
-                if mapping.last_modified
-                else "",
+                "last_modified": (
+                    str(mapping.last_modified) if mapping.last_modified else ""
+                ),
             }
 
         return version_info

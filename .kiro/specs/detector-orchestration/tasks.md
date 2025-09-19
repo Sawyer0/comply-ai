@@ -1,101 +1,101 @@
 # Implementation Plan
 
-- [ ] Contracts compliance with `.kiro/specs/service-contracts.md`
-  - [ ] Produce `MapperPayload` exactly per locked schema; validate before /map [Sec 3]
-  - [ ] Implement locked coverage semantics; map partial coverage to HTTP 206 [Sec 6]
-  - [ ] Apply SLAs/timeouts; respect `mapper_timeout_budget_ms` on auto-map [Sec 7]
-  - [ ] Implement canonical error codes and retry-safety guidance [Sec 8]
-  - [ ] Honor idempotency and caching behaviors; bypass for CRITICAL [Sec 9]
-  - [ ] Propagate `version_info` and provenance into `mapping_result` notes/provenance [Sec 10]
-  - [ ] Emit locked metric names for dashboards and alerts [Sec 12]
-  - [ ] Enforce boundaries: orchestrator never assigns canonical taxonomy [Sec 2]
-  - [ ] Security/privacy: redact content in logs/metrics; tenant isolation [Sec 11]
+- [x] Contracts compliance with `.kiro/specs/service-contracts.md`
+  - [x] Produce `MapperPayload` exactly per locked schema; validate before /map [Sec 3]
+  - [x] Implement locked coverage semantics; map partial coverage to HTTP 206 [Sec 6]
+  - [x] Apply SLAs/timeouts; respect `mapper_timeout_budget_ms` on auto-map [Sec 7]
+  - [x] Implement canonical error codes and retry-safety guidance [Sec 8]
+  - [x] Honor idempotency and caching behaviors; bypass for CRITICAL [Sec 9]
+  - [x] Propagate `version_info` and provenance into `mapping_result` notes/provenance [Sec 10]
+  - [x] Emit locked metric names for dashboards and alerts [Sec 12]
+  - [x] Enforce boundaries: orchestrator never assigns canonical taxonomy [Sec 2]
+  - [x] Security/privacy: redact content in logs/metrics; tenant isolation [Sec 11]
 
-- [ ] 1. Set up orchestration module structure and core data models
+- [x] 1. Set up orchestration module structure and core data models
   - Create directory structure for orchestration module components
   - Define base data models (OrchestrationRequest, OrchestrationResponse, MapperPayload)
   - Implement locked schema validation for mapper handoff payload
   - _Requirements: 1.1, 3.5_
 
-- [ ] 2. Implement core configuration and policy management
-- [ ] 2.1 Create configuration models with SLA and timeout definitions
+- [x] 2. Implement core configuration and policy management
+- [x] 2.1 Create configuration models with SLA and timeout definitions
   - Write SLAConfig model with locked timeout semantics
   - Implement OrchestrationConfig with health monitoring thresholds
   - Create configuration loading and validation system
   - _Requirements: 6.1, 7.5_
 
-- [ ] 2.2 Build policy store interface and tenant policy models
+- [x] 2.2 Build policy store interface and tenant policy models
   - Implement TenantPolicy model with OPA/Rego integration support
   - Create PolicyStore interface with migration/versioning support
   - Write policy validation logic with conflict resolution defaults
   - _Requirements: 7.1, 7.2, 3.4_
 
-- [ ] 2.3 Implement OPA policy engine integration
+- [x] 2.3 Implement OPA policy engine integration
   - Create OPAPolicyEngine class for policy-as-code evaluation
   - Implement detector selection, coverage, and conflict resolution via Rego
   - Add OPA policy compilation and validation
   - _Requirements: 7.1, 7.2, 1.1_
 
-- [ ] 2.4 Create policy validation CLI tool with OPA support
+- [x] 2.4 Create policy validation CLI tool with OPA support
   - Implement PolicyValidationCLI for pre-rollout validation
   - Add OPA policy compilation validation and Rego syntax checking
   - Create validation reports with policy bundle and Rego rule testing
   - _Requirements: 7.2_
 
-- [ ] 3. Build detector registry and client management
-- [ ] 3.1 Implement detector client abstraction
+- [x] 3. Build detector registry and client management
+- [x] 3.1 Implement detector client abstraction
   - Create DetectorClient class with auth and communication handling
   - Implement detector capability discovery and health checking
   - Add timeout and retry logic with exponential backoff
   - _Requirements: 2.1, 2.2, 6.3_
 
-- [ ] 3.2 Create detector registry with service discovery
+- [x] 3.2 Create detector registry with service discovery
   - Implement DetectorRegistry for managing available detectors
   - Add dynamic detector registration and configuration updates
   - Create detector capability matching and selection logic
   - _Requirements: 7.1, 7.3_
 
-- [ ] 4. Implement health monitoring and circuit breaker system
-- [ ] 4.1 Create health monitor with continuous checking
+- [x] 4. Implement health monitoring and circuit breaker system
+- [x] 4.1 Create health monitor with continuous checking
   - Implement HealthMonitor with 30-second unhealthy removal threshold
   - Add background health checking with configurable intervals
   - Create health status tracking and recovery detection
   - _Requirements: 2.1, 2.2, 2.5_
 
-- [ ] 4.2 Build circuit breaker with half-open testing
+- [x] 4.2 Build circuit breaker with half-open testing
   - Implement CircuitBreaker with failure threshold and recovery logic
   - Add half-open state testing with limited request sampling
   - Create circuit breaker state tracking and metrics collection
   - _Requirements: 2.2, 6.1_
 
-- [ ] 5. Create content router with policy-driven detector selection
-- [ ] 5.1 Implement content analysis and type detection
+- [x] 5. Create content router with policy-driven detector selection
+- [x] 5.1 Implement content analysis and type detection
   - Create content type analysis for optimal detector selection
   - Implement content-based routing rules and heuristics
   - Add content size and format validation
   - _Requirements: 1.1, 1.2_
 
-- [ ] 5.2 Build policy-driven routing engine with OPA integration
+- [x] 5.2 Build policy-driven routing engine with OPA integration
   - Implement tenant policy application via OPA policy evaluation
   - Create OPA-based detector selection with fallback to hardcoded rules
   - Add routing decision logging with OPA decision audit trail
   - _Requirements: 1.3, 1.4, 5.4_
 
-- [ ] 6. Implement detector coordinator with parallel execution
-- [ ] 6.1 Create parallel detector execution engine
+- [] 6. Implement detector coordinator with parallel execution
+- [x] 6.1 Create parallel detector execution engine
   - Implement DetectorCoordinator with concurrent detector calls
   - Add parallel group execution with timeout management
   - Create dependency handling for sequential detector chains
   - _Requirements: 4.1, 4.4, 6.2_
 
-- [ ] 6.2 Build error handling and retry logic
+- [x] 6.2 Build error handling and retry logic
   - Implement per-detector error handling with retry strategies
   - Add timeout handling and graceful degradation
   - Create fallback routing when detectors fail
   - _Requirements: 2.3, 2.4, 4.1_
 
 - [ ] 7. Create response aggregator with conflict resolution
-- [ ] 7.1 Implement multi-detector response aggregation
+- [x] 7.1 Implement multi-detector response aggregation
   - Create ResponseAggregator with locked MapperPayload generation
   - Implement score normalization to 0-1 range with provenance tracking
   - Add coverage calculation with weighted and required-set methods
@@ -147,7 +147,7 @@
   - _Requirements: 5.1, 5.5_
 
 - [ ] 11. Create FastAPI orchestration service
-- [ ] 11.1 Implement core orchestration endpoints
+- [x] 11.1 Implement core orchestration endpoints
   - Create POST /orchestrate endpoint with request validation
   - Implement POST /orchestrate/batch with idempotency key handling
   - Add GET /orchestrate/status/{job_id} for async job tracking
@@ -166,13 +166,13 @@
   - _Requirements: 3.1, 4.1, 4.4_
 
 - [ ] 12. Implement mapper integration and auto-mapping
-- [ ] 12.1 Create mapper client for auto-mapping
+- [x] 12.1 Create mapper client for auto-mapping
   - Implement MapperClient for calling existing /map endpoint
   - Add mapper timeout budget management and error handling
   - Create mapper payload validation before handoff
   - _Requirements: 3.5, 4.1_
 
-- [ ] 12.2 Build mapper integration pipeline
+- [x] 12.2 Build mapper integration pipeline
   - Implement automatic mapping when auto_map_results is enabled
   - Add mapper response integration into OrchestrationResponse
   - Create mapper failure handling with partial result return

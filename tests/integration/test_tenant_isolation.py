@@ -5,7 +5,6 @@ This module tests tenant isolation functionality including
 access control, configuration management, and data filtering.
 """
 
-
 import pytest
 
 from llama_mapper.config.settings import Settings

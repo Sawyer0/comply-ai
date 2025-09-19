@@ -1,0 +1,11 @@
+{{- if .Values.costManagement.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-quota
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  hard:
+{{ toYaml .Values.costManagement.resourceQuota.hard | indent 4 }}
+{{- end }}

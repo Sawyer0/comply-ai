@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
+
 try:
     import torch  # type: ignore
 except Exception:  # torch is an optional dependency at runtime
@@ -24,17 +25,23 @@ except Exception:
     class PeftModel:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         def save_pretrained(self, *args: Any, **kwargs: Any) -> None:
             pass
+
         @classmethod
         def from_pretrained(cls, *args: Any, **kwargs: Any) -> "PeftModel":
             return cls()
+
+
 try:
     from transformers import PreTrainedTokenizer  # type: ignore
 except Exception:
+
     class PreTrainedTokenizer:  # type: ignore
         def save_pretrained(self, *args: Any, **kwargs: Any) -> None:
             pass
+
 
 logger = structlog.get_logger(__name__)
 
@@ -231,12 +238,12 @@ class CheckpointManager:
             # Prepare metadata
             full_metadata = {
                 "training_metrics": training_metrics,
-                "model_config": model.config.to_dict()
-                if hasattr(model.config, "to_dict")
-                else {},
-                "peft_config": model.peft_config
-                if hasattr(model, "peft_config")
-                else {},
+                "model_config": (
+                    model.config.to_dict() if hasattr(model.config, "to_dict") else {}
+                ),
+                "peft_config": (
+                    model.peft_config if hasattr(model, "peft_config") else {}
+                ),
                 "tags": tags or [],
                 "created_by": "CheckpointManager",
                 **(metadata or {}),

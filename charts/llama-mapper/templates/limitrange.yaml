@@ -1,0 +1,15 @@
+{{- if .Values.costManagement.limitRange.enabled }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-limits
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+{{ toYaml .Values.costManagement.limitRange.defaultContainer.requests | indent 8 }}
+      default:
+{{ toYaml .Values.costManagement.limitRange.defaultContainer.limits | indent 8 }}
+{{- end }}

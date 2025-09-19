@@ -1,6 +1,7 @@
 """
 Tests for the FastAPI service layer.
 """
+
 from unittest.mock import AsyncMock, Mock
 
 import pytest

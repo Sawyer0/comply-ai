@@ -1,0 +1,16 @@
+{
+  "name": "@your-org/llama-mapper-client",
+  "version": "0.1.0",
+  "description": "Minimal TypeScript client wrapper for the Llama Mapper API",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist"
+  ]
+}

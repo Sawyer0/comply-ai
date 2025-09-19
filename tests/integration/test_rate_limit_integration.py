@@ -1,6 +1,7 @@
 """
 Integration tests for rate limiting headers and 429 behavior.
 """
+
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -113,5 +114,36 @@ def test_rate_limit_headers_and_429(test_app):
     r3 = test_app.post("/map", json=payload, headers=headers)
     assert r3.status_code == 429
     assert r3.json()["detail"] == "Rate limit exceeded"
+    assert r3.headers.get("RateLimit-Remaining") == "0"
+    assert "Retry-After" in r3.headers
+
+
+def test_rate_limit_headers_and_429_batch(test_app):
+    headers = {"X-API-Key": "test-key"}
+    batch_payload = {
+        "requests": [
+            {"detector": "deberta-toxicity", "output": "toxic"},
+            {"detector": "regex-pii", "output": "email"},
+        ]
+    }
+
+    # First two requests should pass
+    r1 = test_app.post("/map/batch", json=batch_payload, headers=headers)
+    assert r1.status_code == 200
+    assert "RateLimit-Limit" in r1.headers
+    assert "RateLimit-Remaining" in r1.headers
+    assert "RateLimit-Reset" in r1.headers
+    assert "X-RateLimit-Limit" in r1.headers
+    assert "X-RateLimit-Remaining" in r1.headers
+
+    r2 = test_app.post("/map/batch", json=batch_payload, headers=headers)
+    assert r2.status_code == 200
+    assert "RateLimit-Remaining" in r2.headers
+
+    # Third request should be rate-limited
+    r3 = test_app.post("/map/batch", json=batch_payload, headers=headers)
+    assert r3.status_code == 429
+    body = r3.json()
+    assert body["detail"] == "Rate limit exceeded"
     assert r3.headers.get("RateLimit-Remaining") == "0"
     assert "Retry-After" in r3.headers

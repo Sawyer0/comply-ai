@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import structlog
+
 try:
     import torch  # type: ignore
 except Exception:  # torch is an optional dependency at runtime
@@ -35,15 +36,20 @@ except Exception:
             self.lora_dropout = lora_dropout
             self.bias = bias
             self.task_type = task_type
+
     class PeftModel:  # type: ignore
         def __init__(self, *args: object, **kwargs: object) -> None:
             pass
+
+
 try:
     from torch.utils.data import Dataset  # type: ignore
 except Exception:
     # Minimal fallback to allow import without torch installed
     class Dataset:  # type: ignore
         pass
+
+
 try:
     from transformers import (  # type: ignore
         DataCollatorForLanguageModeling,
@@ -57,16 +63,21 @@ except Exception:
         def __init__(self, **kwargs: Any) -> None:
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     class Trainer:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
+
     class PreTrainedTokenizer:  # type: ignore
         pad_token_id: int = 0
+
         def __len__(self) -> int:
             return 0
+
     class DataCollatorForLanguageModeling:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
+
 
 from .model_loader import ModelLoader, create_instruction_prompt
 
@@ -445,6 +456,7 @@ class LoRATrainer:
 
         logger.info("Evaluation completed", metrics=eval_results)
         from typing import cast
+
         return cast(Dict[str, float], eval_results)
 
 

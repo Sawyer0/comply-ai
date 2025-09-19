@@ -4,7 +4,6 @@ import logging
 import tempfile
 from pathlib import Path
 
-
 from llama_mapper.logging import (
     MetadataOnlyProcessor,
     PrivacyFilter,

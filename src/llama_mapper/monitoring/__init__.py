@@ -1,6 +1,7 @@
 """
 Monitoring and observability components.
 """
+
 from .metrics_collector import (
     MetricsCollector,
     get_metrics_collector,
