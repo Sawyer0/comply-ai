@@ -4,6 +4,10 @@
 
 This feature involves fine-tuning a Llama-3-8B-Instruct model to create a "Mapper" that normalizes outputs from various AI safety detectors into a canonical taxonomy. The system will take raw detector outputs (like "toxic" from DeBERTa or "hate/threatening" from OpenAI Moderation) and map them to standardized labels (like HARM.SPEECH.Toxicity or HARM.SPEECH.Hate.Other) for consistent audit reporting and compliance monitoring.
 
+### Contracts
+
+This spec inherits the cross-service constraints defined in `.kiro/specs/service-contracts.md`. The mapper is authoritative for canonical taxonomy mapping, honors SLAs/timeout budgets, emits locked metrics, and returns canonical error codes.
+
 ## Requirements
 
 ### Requirement 1

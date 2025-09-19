@@ -1,0 +1,137 @@
+openapi: 3.0.3
+info:
+  title: Llama Mapper API (Stub)
+  version: 0.1.0
+  description: |
+    Stub OpenAPI for the Llama Mapper service.
+    Contracts reference: .kiro/specs/service-contracts.md (Sections 3-4, 7-12)
+servers:
+  - url: http://localhost:8000
+paths:
+  /map:
+    post:
+      summary: Map detector output to canonical taxonomy
+      description: Receives MapperPayload and returns a MappingResponse (canonical taxonomy).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MapperPayload'
+      responses:
+        '200':
+          description: Mapping result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Schema validation failed; fallback may be used
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    MapperPayload:
+      type: object
+      additionalProperties: false
+      required: [detector, output, metadata, tenant_id]
+      properties:
+        detector:
+          type: string
+          example: orchestrated-multi
+        output:
+          type: string
+          example: toxic|hate|pii_detected
+        metadata:
+          type: object
+          properties:
+            contributing_detectors:
+              type: array
+              items: { type: string }
+            normalized_scores:
+              type: object
+              additionalProperties:
+                type: number
+                format: float
+                minimum: 0
+                maximum: 1
+            conflict_resolution_applied:
+              type: boolean
+            aggregation_method:
+              type: string
+              enum: [weighted_average, majority_vote, highest_confidence, most_restrictive]
+            coverage_achieved:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+            provenance:
+              type: array
+              items:
+                type: object
+                properties:
+                  detector: { type: string }
+                  confidence: { type: number, minimum: 0, maximum: 1 }
+                  output: { type: string }
+                  processing_time_ms: { type: integer, minimum: 0 }
+        tenant_id:
+          type: string
+    MappingResponse:
+      type: object
+      required: [taxonomy, scores, confidence]
+      properties:
+        taxonomy:
+          type: array
+          items: { type: string }
+        scores:
+          type: object
+          additionalProperties:
+            type: number
+            minimum: 0
+            maximum: 1
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        notes:
+          type: string
+          maxLength: 500
+        provenance:
+          type: object
+          properties:
+            vendor: { type: string }
+            detector: { type: string }
+            detector_version: { type: string }
+            raw_ref: { type: string }
+            route: { type: string }
+            model: { type: string }
+            tenant_id: { type: string }
+            ts: { type: string, format: date-time }
+        policy_context:
+          type: object
+          properties:
+            expected_detectors:
+              type: array
+              items: { type: string }
+            environment:
+              type: string
+              enum: [dev, stage, prod]
+    ErrorResponse:
+      type: object
+      properties:
+        error_code: { type: string }
+        message: { type: string }

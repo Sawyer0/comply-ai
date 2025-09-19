@@ -1,5 +1,16 @@
 # Implementation Plan
 
+- [ ] Contracts compliance with `.kiro/specs/service-contracts.md`
+  - [ ] Produce `MapperPayload` exactly per locked schema; validate before /map [Sec 3]
+  - [ ] Implement locked coverage semantics; map partial coverage to HTTP 206 [Sec 6]
+  - [ ] Apply SLAs/timeouts; respect `mapper_timeout_budget_ms` on auto-map [Sec 7]
+  - [ ] Implement canonical error codes and retry-safety guidance [Sec 8]
+  - [ ] Honor idempotency and caching behaviors; bypass for CRITICAL [Sec 9]
+  - [ ] Propagate `version_info` and provenance into `mapping_result` notes/provenance [Sec 10]
+  - [ ] Emit locked metric names for dashboards and alerts [Sec 12]
+  - [ ] Enforce boundaries: orchestrator never assigns canonical taxonomy [Sec 2]
+  - [ ] Security/privacy: redact content in logs/metrics; tenant isolation [Sec 11]
+
 - [ ] 1. Set up orchestration module structure and core data models
   - Create directory structure for orchestration module components
   - Define base data models (OrchestrationRequest, OrchestrationResponse, MapperPayload)

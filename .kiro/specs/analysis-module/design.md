@@ -6,6 +6,15 @@ The Analysis Module is a new microservice component that provides automated anal
 
 The module follows a deterministic, template-fallback architecture using the Phi-3 Mini (3.8B) model for zero-shot inference, with built-in schema validation and quality monitoring to ensure reliable, consistent outputs.
 
+## Contracts
+
+This service adheres to the cross-service contracts in `.kiro/specs/service-contracts.md`. Key touchpoints for the analysis module:
+- Shared semantics: Uses locked coverage definitions for its metrics and recommendations (see Section 6).
+- Boundaries: Consumes metrics; does not invoke detectors nor assign canonical taxonomy (see Section 2).
+- Versioning: Includes `version_info` {taxonomy, frameworks, analyst_model} in responses (see Section 10).
+- Error model and SLOs: Aligns to canonical error codes and latency targets as applicable (see Sections 8 and 7).
+- Observability: Emits `schema_valid_rate`, `template_fallback_rate`, and OPA compilation success metrics per Section 12.
+
 ## Architecture
 
 ### High-Level Architecture

@@ -4,6 +4,16 @@
 
 The Llama Mapper Fine-tuning system is a privacy-first, audit-ready service that normalizes raw detector outputs into a canonical taxonomy for compliance evidence generation. The system consists of four main components: a dataset preparation pipeline, a LoRA fine-tuning pipeline for Llama-3-8B-Instruct, a FastAPI serving layer with JSON validation, and a comprehensive storage and reporting infrastructure. The system is designed to be deterministic, with all outputs matching a strict schema, and includes framework mapping for SOC 2, ISO 27001, and HIPAA compliance.
 
+## Contracts
+
+This service adheres to the cross-service contracts defined in `.kiro/specs/service-contracts.md`. Key touchpoints for the mapper:
+- Handoff: Receives `MapperPayload` from the Orchestrator (see Section 3).
+- Canonical mapping: Emits `MappingResponse` as the source of truth for taxonomy (see Section 4).
+- SLAs/Timeouts: Honors `mapper_timeout_budget_ms` when called by the Orchestrator (see Section 7).
+- Error model: Uses canonical error codes (see Section 8).
+- Observability: Emits required metric names (see Section 12).
+- Boundaries: Mapper performs taxonomy mapping; Orchestrator/Analysis must not duplicate this responsibility (see Section 2).
+
 ## Architecture
 
 ```mermaid

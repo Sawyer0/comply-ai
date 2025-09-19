@@ -1,0 +1,178 @@
+openapi: 3.0.3
+info:
+  title: Analysis Module API (Stub)
+  version: 0.1.0
+  description: |
+    Stub OpenAPI for the Analysis Module service.
+    Contracts reference: .kiro/specs/service-contracts.md (Sections 6-12)
+servers:
+  - url: http://localhost:8001
+paths:
+  /analyze:
+    post:
+      summary: Analyze structured metrics for insights and remediations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisRequest'
+      responses:
+        '200':
+          description: Analysis response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Schema validation failure or confidence fallback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /analyze/batch:
+    post:
+      summary: Batch analyze structured metrics
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
+          description: Idempotency key for batch processing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchAnalysisRequest'
+      responses:
+        '200':
+          description: Batch analysis response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchAnalysisResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Schema validation failure or confidence fallback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    AnalysisRequest:
+      type: object
+      required: [period, tenant, app, route, required_detectors, observed_coverage, required_coverage, detector_errors, policy_bundle, env]
+      properties:
+        period: { type: string, description: 'RFC3339 interval start/end' }
+        tenant: { type: string }
+        app: { type: string }
+        route: { type: string }
+        required_detectors:
+          type: array
+          items: { type: string }
+        observed_coverage:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+        required_coverage:
+          type: object
+          additionalProperties: { type: number, minimum: 0, maximum: 1 }
+        detector_errors:
+          type: object
+          additionalProperties: { type: object }
+        high_sev_hits:
+          type: array
+          items: { type: object }
+        false_positive_bands:
+          type: array
+          items: { type: object }
+        policy_bundle: { type: string }
+        env: { type: string, enum: [dev, stage, prod] }
+    VersionInfo:
+      type: object
+      properties:
+        taxonomy: { type: string }
+        frameworks: { type: string }
+        analyst_model: { type: string }
+    AnalysisResponse:
+      type: object
+      required: [reason, remediation, opa_diff, confidence, confidence_cutoff_used, evidence_refs, notes, version_info, request_id, timestamp, processing_time_ms]
+      properties:
+        reason: { type: string, maxLength: 120 }
+        remediation: { type: string, maxLength: 120 }
+        opa_diff: { type: string, maxLength: 2000 }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        confidence_cutoff_used: { type: number }
+        evidence_refs:
+          type: array
+          items: { type: string }
+        notes: { type: string, maxLength: 500 }
+        version_info: { $ref: '#/components/schemas/VersionInfo' }
+        request_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        processing_time_ms: { type: integer, minimum: 0 }
+    BatchAnalysisRequest:
+      type: object
+      required: [requests]
+      properties:
+        requests:
+          type: array
+          items: { $ref: '#/components/schemas/AnalysisRequest' }
+    BatchAnalysisResponse:
+      type: object
+      required: [responses, batch_id, idempotency_key, total_processing_time_ms, success_count, error_count]
+      properties:
+        responses:
+          type: array
+          items:
+            anyOf:
+              - $ref: '#/components/schemas/AnalysisResponse'
+              - $ref: '#/components/schemas/AnalysisErrorResponse'
+        batch_id: { type: string }
+        idempotency_key: { type: string }
+        total_processing_time_ms: { type: integer }
+        success_count: { type: integer }
+        error_count: { type: integer }
+    AnalysisErrorResponse:
+      type: object
+      required: [error_type, message, request_id, timestamp, fallback_used, mode]
+      properties:
+        error_type: { type: string, enum: [validation_error, processing_error, timeout_error, confidence_fallback] }
+        message: { type: string }
+        request_id: { type: string }
+        timestamp: { type: string, format: date-time }
+        fallback_used: { type: boolean }
+        mode: { type: string, enum: [error, fallback] }
+        template_response:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/AnalysisResponse' }]
+    ErrorResponse:
+      type: object
+      properties:
+        error_code: { type: string }
+        message: { type: string }
