@@ -42,6 +42,9 @@ class ServingConfig(BaseModel):
     workers: int = Field(default=1, ge=1, le=16, description="Number of workers")
     batch_size: int = Field(default=8, ge=1, le=128, description="Batch size for inference")
     
+    # Runtime mode: hybrid (default) uses model with fallback; rules_only forces rule-based mapping
+    mode: str = Field(default="hybrid", pattern="^(hybrid|rules_only)$", description="Runtime mode (hybrid or rules_only)")
+    
     # GPU/CPU settings
     device: str = Field(default="auto", description="Device to use (auto, cpu, cuda)")
     gpu_memory_utilization: float = Field(default=0.9, ge=0.1, le=1.0, description="GPU memory utilization")
@@ -109,6 +112,34 @@ class AuthConfig(BaseModel):
     require_tenant_header: bool = Field(default=True, description="Require tenant header on requests")
     api_keys: Dict[str, APIKeyInfo] = Field(default_factory=dict, description="Map of API key -> APIKeyInfo")
     idempotency_cache_ttl_seconds: int = Field(default=600, ge=0, le=86400, description="TTL for idempotency cache")
+
+
+class RateLimitHeadersConfig(BaseModel):
+    """Headers configuration for rate limiting responses."""
+    emit_standard: bool = Field(default=True, description="Emit RateLimit-* and Retry-After headers")
+    emit_legacy: bool = Field(default=True, description="Emit X-RateLimit-* headers for compatibility")
+
+
+class RateLimitEndpointConfig(BaseModel):
+    """Per-endpoint rate limit configuration."""
+    api_key_limit: int = Field(default=600, ge=1, description="Requests per window per API key")
+    tenant_limit: int = Field(default=600, ge=1, description="Requests per window per tenant")
+    ip_limit: int = Field(default=120, ge=1, description="Requests per window per client IP")
+
+
+class RateLimitConfig(BaseModel):
+    """Global rate limiting configuration."""
+    enabled: bool = Field(default=True, description="Enable rate limiting")
+    window_seconds: int = Field(default=60, ge=1, description="Size of the rate limiting window in seconds")
+    trusted_proxies: int = Field(default=0, ge=0, le=5, description="Number of trusted proxy hops for X-Forwarded-For parsing")
+    headers: RateLimitHeadersConfig = Field(default_factory=RateLimitHeadersConfig)
+    endpoints: Dict[str, RateLimitEndpointConfig] = Field(
+        default_factory=lambda: {
+            "map": RateLimitEndpointConfig(),
+            "map_batch": RateLimitEndpointConfig(),
+        },
+        description="Endpoint-specific limits keyed by internal endpoint key"
+    )
 
 
 class MonitoringConfig(BaseModel):
@@ -196,6 +227,7 @@ class ConfigManager:
         self.security = SecurityConfig(**self._config_data.get("security", {}))
         self.monitoring = MonitoringConfig(**self._config_data.get("monitoring", {}))
         self.auth = AuthConfig(**self._config_data.get("auth", {}))
+        self.rate_limit = RateLimitConfig(**self._config_data.get("rate_limit", {}))
     
     def _create_default_config(self) -> None:
         """Create default configuration file."""
@@ -219,6 +251,7 @@ class ConfigManager:
                 "port": 8000,
                 "workers": 1,
                 "batch_size": 8,
+                "mode": "hybrid",
                 "device": "auto",
                 "gpu_memory_utilization": 0.9
             },
@@ -260,6 +293,19 @@ class ConfigManager:
                 "min_schema_valid_pct": 95.0,
                 "max_fallback_pct": 10.0,
                 "max_p95_latency_ms": 250
+            },
+            "rate_limit": {
+                "enabled": True,
+                "window_seconds": 60,
+                "trusted_proxies": 0,
+                "headers": {
+                    "emit_standard": True,
+                    "emit_legacy": True
+                },
+                "endpoints": {
+                    "map": {"api_key_limit": 600, "tenant_limit": 600, "ip_limit": 120},
+                    "map_batch": {"api_key_limit": 600, "tenant_limit": 600, "ip_limit": 120}
+                }
             }
         }
         
@@ -275,11 +321,18 @@ class ConfigManager:
             "MAPPER_MODEL_NAME": ("model", "name"),
             "MAPPER_CONFIDENCE_THRESHOLD": ("confidence", "threshold"),
             "MAPPER_SERVING_PORT": ("serving", "port"),
+            "MAPPER_SERVING_MODE": ("serving", "mode"),
             "MAPPER_LOG_LEVEL": ("monitoring", "log_level"),
             "MAPPER_DB_HOST": ("storage", "db_host"),
             "MAPPER_DB_PORT": ("storage", "db_port"),
             "MAPPER_S3_BUCKET": ("storage", "s3_bucket"),
             "MAPPER_VAULT_URL": ("security", "vault_url"),
+            # Rate limiting basic toggles
+            "RATE_LIMIT_ENABLED": ("rate_limit", "enabled"),
+            "RATE_LIMIT_WINDOW_SECONDS": ("rate_limit", "window_seconds"),
+            "RATE_LIMIT_TRUSTED_PROXIES": ("rate_limit", "trusted_proxies"),
+            "RATE_LIMIT_HEADERS_EMIT_STANDARD": ("rate_limit", ("headers", "emit_standard")),
+            "RATE_LIMIT_HEADERS_EMIT_LEGACY": ("rate_limit", ("headers", "emit_legacy")),
         }
         
         for env_var, (section, key) in env_mappings.items():
@@ -288,14 +341,28 @@ class ConfigManager:
                 if section not in self._config_data:
                     self._config_data[section] = {}
                 
+                # Nested key support for rate_limit.headers
+                if isinstance(key, tuple):
+                    parent_key, child_key = key
+                    if parent_key not in self._config_data[section]:
+                        self._config_data[section][parent_key] = {}
+                    target = self._config_data[section][parent_key]
+                    # Type conversion
+                    if child_key in ["emit_standard", "emit_legacy"]:
+                        converted = value.lower() in ("true", "1", "yes", "on")
+                    else:
+                        converted = value
+                    target[child_key] = converted
+                    continue
+                
                 # Type conversion based on expected type
-                if key in ["port", "db_port", "epochs", "lora_r", "lora_alpha", "retention_days", "max_p95_latency_ms"]:
+                if key in ["port", "db_port", "epochs", "lora_r", "lora_alpha", "retention_days", "max_p95_latency_ms", "window_seconds", "trusted_proxies"]:
                     value = int(value)
                 elif key in ["threshold", "temperature", "top_p", "learning_rate", "gpu_memory_utilization", 
                            "min_schema_valid_pct", "max_fallback_pct"]:
                     value = float(value)
                 elif key in ["use_8bit", "use_fp16", "calibration_enabled", "fallback_enabled", 
-                           "log_raw_inputs", "tenant_isolation", "encryption_at_rest", "metrics_enabled"]:
+                           "log_raw_inputs", "tenant_isolation", "encryption_at_rest", "metrics_enabled", "enabled"]:
                     value = value.lower() in ("true", "1", "yes", "on")
                 
                 self._config_data[section][key] = value
@@ -310,6 +377,7 @@ class ConfigManager:
             "security": self.security.model_dump(),
             "auth": self.auth.model_dump(),
             "monitoring": self.monitoring.model_dump(),
+            "rate_limit": self.rate_limit.model_dump(),
         }
     
     def save_config(self, path: Optional[Union[str, Path]] = None) -> None:

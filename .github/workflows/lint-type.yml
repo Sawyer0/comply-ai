@@ -1,0 +1,41 @@
+name: Lint and Type Check
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  lint-type:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install linters and type checker
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8 mypy
+
+      - name: Black (check)
+        run: |
+          black --check src tests scripts || (echo "Run: black src tests scripts" && exit 1)
+
+      - name: isort (check)
+        run: |
+          isort --check-only src tests scripts || (echo "Run: isort src tests scripts" && exit 1)
+
+      - name: flake8
+        run: |
+          flake8 src tests scripts
+
+      - name: mypy (ignore missing imports)
+        env:
+          PYTHONPATH: .
+        run: |
+          mypy --ignore-missing-imports src/llama_mapper/api src/llama_mapper/config src/llama_mapper/monitoring scripts
