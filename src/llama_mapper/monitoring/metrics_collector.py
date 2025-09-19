@@ -1,6 +1,7 @@
 """
 Metrics collection for monitoring and observability with Prometheus integration.
 """
+
 import logging
 import time
 from collections import defaultdict, deque
@@ -8,12 +9,12 @@ from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from prometheus_client import (
+    REGISTRY,
     CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
     Info,
-    REGISTRY,
     generate_latest,
     start_http_server,
 )
@@ -129,6 +130,20 @@ class MetricsCollector:
             registry=self._registry,
         )
 
+        # Redis backend health/fallback metrics
+        self.redis_backend_up = Gauge(
+            "mapper_redis_backend_up",
+            "Redis backend health (1 up, 0 down)",
+            ["component"],
+            registry=self._registry,
+        )
+        self.redis_backend_fallback_total = Counter(
+            "mapper_redis_backend_fallback_total",
+            "Redis backend fallback occurrences",
+            ["component"],
+            registry=self._registry,
+        )
+
         self.low_confidence_total = Counter(
             "mapper_low_confidence_total",
             "Total predictions with confidence below threshold",
@@ -162,6 +177,26 @@ class MetricsCollector:
             "mapper_batch_size",
             "Batch request size distribution",
             buckets=(1, 5, 10, 25, 50, 100, 250, 500),
+            registry=self._registry,
+        )
+
+        # Error and compliance metrics
+        self.errors_total = Counter(
+            "mapper_errors_total",
+            "Total errors by canonical error_code",
+            ["error_code"],
+            registry=self._registry,
+        )
+        self.payload_rejected_total = Counter(
+            "mapper_request_payload_rejected_total",
+            "Total request payload rejections by reason",
+            ["reason"],
+            registry=self._registry,
+        )
+        self.request_deprecated_total = Counter(
+            "mapper_request_deprecated_total",
+            "Deprecated request usage",
+            ["type"],
             registry=self._registry,
         )
 
@@ -281,6 +316,24 @@ class MetricsCollector:
             self.batch_requests_total.inc()
             self.batch_size.observe(batch_size)
         self.increment_counter("batch_requests_total")
+
+    def record_error(self, error_code: str) -> None:
+        """Record a canonical error occurrence."""
+        if self._enable_prometheus:
+            self.errors_total.labels(error_code=error_code).inc()
+        self.increment_counter("errors_total", {"error_code": error_code})
+
+    def record_payload_rejection(self, reason: str) -> None:
+        """Record a request payload rejection."""
+        if self._enable_prometheus:
+            self.payload_rejected_total.labels(reason=reason).inc()
+        self.increment_counter("payload_rejected_total", {"reason": reason})
+
+    def record_deprecated_request(self, request_type: str) -> None:
+        """Record usage of deprecated request schema."""
+        if self._enable_prometheus:
+            self.request_deprecated_total.labels(type=request_type).inc()
+        self.increment_counter("request_deprecated_total", {"type": request_type})
 
     def update_quality_metrics(self, detector: str, f1_score: float) -> None:
         """Update quality metrics like F1 score."""
@@ -618,6 +671,7 @@ class MetricsCollector:
         self.update_percentage_metrics()
 
         from typing import cast
+
         return cast(bytes, generate_latest(self._registry or REGISTRY))
 
     def start_prometheus_server(self, port: int = 8000) -> None:

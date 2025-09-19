@@ -66,14 +66,18 @@ class VersionManager:
     ) -> None:
         # Resolve data directory where taxonomy/frameworks/detectors live
         env_dir = os.getenv(f"{env_prefix}_DATA_DIR")
-        from typing import Optional as _Optional, List as _List
+        from typing import List as _List
+        from typing import Optional as _Optional
+
         default_candidates_raw: _List[_Optional[Path]] = [
             Path(str(data_dir)) if data_dir else None,
             Path("pillars-detectors"),
             Path("./pillars-detectors"),
             Path(".kiro/pillars-detectors"),
         ]
-        default_candidates: _List[Path] = [p for p in default_candidates_raw if p is not None]
+        default_candidates: _List[Path] = [
+            p for p in default_candidates_raw if p is not None
+        ]
         self.data_dir = (
             Path(env_dir)
             if env_dir
@@ -210,3 +214,22 @@ class VersionManager:
                 setattr(provenance_obj, "model", snap.model_version)
         except Exception:
             pass
+
+    def get_version_info_dict(self) -> Dict[str, str]:
+        """Return version_info dict {taxonomy, frameworks, model} (Sec 10)."""
+        snap = self.snapshot()
+        taxonomy_ver = (
+            str(snap.taxonomy.get("version", "unknown"))
+            if isinstance(snap.taxonomy, dict)
+            else "unknown"
+        )
+        frameworks_ver = (
+            str(snap.frameworks.get("version", "unknown"))
+            if isinstance(snap.frameworks, dict)
+            else "unknown"
+        )
+        return {
+            "taxonomy": taxonomy_ver or "unknown",
+            "frameworks": frameworks_ver or "unknown",
+            "model": snap.model_version or "unknown",
+        }
