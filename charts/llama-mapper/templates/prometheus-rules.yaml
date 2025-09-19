@@ -1,0 +1,66 @@
+{{- if .Values.alerts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-alerts
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+    {{- if .Values.alerts.labels }}
+    {{- toYaml .Values.alerts.labels | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+  - name: llama-mapper.rules
+    rules:
+    - alert: MapperSchemaValidLow
+      expr: mapper_schema_valid_percentage < {{ .Values.alerts.thresholds.schemaValidMinPct | default 99.5 }}
+      for: {{ .Values.alerts.durations.medium | default "10m" }}
+      labels:
+        severity: warning
+      annotations:
+        summary: "Schema-valid percentage below threshold"
+        description: "Schema validation percentage is below {{ .Values.alerts.thresholds.schemaValidMinPct }}%."
+        runbook_url: {{ .Values.alerts.runbookURL | default "https://REPLACE_WITH_REPO/docs/runbook/alert-runbooks.md#mapperschemavalidlow" | quote }}
+
+    - alert: MapperFallbackHigh
+      expr: mapper_fallback_percentage > {{ .Values.alerts.thresholds.fallbackMaxPct | default 10 }}
+      for: {{ .Values.alerts.durations.medium | default "10m" }}
+      labels:
+        severity: warning
+      annotations:
+        summary: "Fallback percentage above threshold"
+        description: "Fallback mapping usage is above {{ .Values.alerts.thresholds.fallbackMaxPct }}%."
+        runbook_url: {{ .Values.alerts.runbookURL | default "https://REPLACE_WITH_REPO/docs/runbook/alert-runbooks.md#mapperfallbackhigh" | quote }}
+
+    - alert: MapperLatencyP95High
+      expr: histogram_quantile(0.95, sum(rate(mapper_request_duration_seconds_bucket[5m])) by (le)) > {{ ternary .Values.alerts.thresholds.latencyP95Seconds.vllm .Values.alerts.thresholds.latencyP95Seconds.tgi (eq .Values.profile "vllm") | default 0.25 }}
+      for: {{ .Values.alerts.durations.long | default "15m" }}
+      labels:
+        severity: warning
+      annotations:
+        summary: "P95 latency above threshold"
+        description: "P95 request latency is above the threshold for profile {{ .Values.profile }}."
+        runbook_url: {{ .Values.alerts.runbookURL | default "https://REPLACE_WITH_REPO/docs/runbook/alert-runbooks.md#mapperlatencyp95high" | quote }}
+
+    - alert: Mapper5xxHigh
+      expr: (sum(rate(mapper_requests_total{status="error"}[5m])) / sum(rate(mapper_requests_total[5m]))) * 100 > {{ .Values.alerts.thresholds.fiveXXErrorRatePct | default 1 }}
+      for: {{ .Values.alerts.durations.short | default "5m" }}
+      labels:
+        severity: critical
+      annotations:
+        summary: "5xx error rate high"
+        description: "5xx (error) rate exceeded {{ .Values.alerts.thresholds.fiveXXErrorRatePct }}% over last 5 minutes."
+        runbook_url: {{ .Values.alerts.runbookURL | default "https://REPLACE_WITH_REPO/docs/runbook/alert-runbooks.md#mapper5xxhigh" | quote }}
+
+    {{- if .Values.alerts.thresholds.queueLagSeconds }}
+    - alert: MapperQueueLagHigh
+      expr: max_over_time(mapper_queue_lag_seconds[5m]) > {{ .Values.alerts.thresholds.queueLagSeconds }}
+      for: {{ .Values.alerts.durations.medium | default "10m" }}
+      labels:
+        severity: warning
+      annotations:
+        summary: "Queue lag is high"
+        description: "Queue lag exceeds {{ .Values.alerts.thresholds.queueLagSeconds }}s."
+        runbook_url: {{ .Values.alerts.runbookURL | default "https://REPLACE_WITH_REPO/docs/runbook/alert-runbooks.md#mapperqueuelaghigh" | quote }}
+    {{- end }}
+{{- end }}
