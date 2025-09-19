@@ -66,11 +66,16 @@ env.bak/
 venv.bak/
 
 # IDE
+.kiro/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# Project-specific directories to exclude
+dev-docs/
+llm/
 
 # OS
 .DS_Store
