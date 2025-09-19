@@ -2,8 +2,8 @@
 
 import click
 from pathlib import Path
-from llama_mapper.config import ConfigManager
-from llama_mapper.logging import setup_logging, get_logger
+from .config import ConfigManager
+from .logging import setup_logging, get_logger
 
 
 @click.group()
@@ -145,7 +145,7 @@ def validate(ctx, golden_cases, output, fail_on_error, environment, config):
     import asyncio
     import json
     from pathlib import Path
-    from llama_mapper.monitoring.quality_gates import QualityGateValidator
+    from .monitoring.quality_gates import QualityGateValidator
     
     config_manager = ctx.obj['config']
     logger = get_logger(__name__)
@@ -212,7 +212,7 @@ def validate(ctx, golden_cases, output, fail_on_error, environment, config):
 def init_golden_cases(ctx, output):
     """Initialize sample golden test cases file."""
     from pathlib import Path
-    from llama_mapper.monitoring.quality_gates import create_sample_golden_test_cases
+    from .monitoring.quality_gates import create_sample_golden_test_cases
     
     logger = get_logger(__name__)
     output_path = Path(output)
@@ -239,7 +239,7 @@ def init_golden_cases(ctx, output):
 def check_coverage(ctx, golden_cases, environment, config):
     """Check golden test case coverage."""
     from pathlib import Path
-    from llama_mapper.monitoring.quality_gates import QualityGateValidator
+    from .monitoring.quality_gates import QualityGateValidator
     
     logger = get_logger(__name__)
     

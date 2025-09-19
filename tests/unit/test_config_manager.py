@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from llama_mapper.config import ConfigManager
+from src.llama_mapper.config import ConfigManager
 
 
 class TestConfigManager:
