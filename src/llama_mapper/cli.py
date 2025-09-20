@@ -11,6 +11,11 @@ from .config import ConfigManager
 from .config.manager import APIKeyInfo, ServingConfig
 from .logging import get_logger, setup_logging
 from .versioning import TaxonomyMigrator, VersionManager
+from .serving.model_server import create_model_server, GenerationConfig
+from .serving.json_validator import JSONValidator
+from .serving.fallback_mapper import FallbackMapper
+from .api.mapper import create_app
+from .monitoring.metrics_collector import MetricsCollector
 
 
 @click.group()
@@ -241,6 +246,8 @@ def train(ctx: click.Context) -> None:
 @click.pass_context
 def serve(ctx: click.Context, host: Optional[str], port: Optional[int]) -> None:
     """Start the FastAPI server."""
+    import uvicorn
+
     config_manager = ctx.obj["config"]
     logger = get_logger(__name__)
 
@@ -255,9 +262,51 @@ def serve(ctx: click.Context, host: Optional[str], port: Optional[int]) -> None:
         backend=config_manager.serving.backend,
     )
 
-    click.echo("Serving not implemented yet")
-    click.echo(f"Would serve on {serve_host}:{serve_port}")
-    click.echo(f"Backend: {config_manager.serving.backend}")
+    # Build dependencies
+    try:
+        # Prefer local .kiro artifacts if present
+        from pathlib import Path as _Path
+
+        schema_path = str(_Path('.kiro/pillars-detectors/schema.json'))
+        detectors_dir = str(_Path('.kiro/pillars-detectors'))
+
+        gen_cfg = GenerationConfig(
+            temperature=config_manager.model.temperature,
+            top_p=config_manager.model.top_p,
+            max_new_tokens=config_manager.model.max_new_tokens,
+        )
+        model_server = create_model_server(
+            backend=config_manager.serving.backend,
+            model_path=config_manager.model.name,
+            generation_config=gen_cfg,
+            gpu_memory_utilization=config_manager.serving.gpu_memory_utilization,
+        )
+        json_validator = JSONValidator(schema_path=schema_path)
+        fallback_mapper = FallbackMapper(detector_configs_path=detectors_dir)
+
+        metrics = MetricsCollector()
+
+        app = create_app(
+            model_server=model_server,
+            json_validator=json_validator,
+            fallback_mapper=fallback_mapper,
+            config_manager=config_manager,
+            metrics_collector=metrics,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("Failed to initialize app", error=str(e))
+        raise SystemExit(1)
+
+    uvicorn.run(
+        app,
+        host=serve_host,
+        port=serve_port,
+        loop="uvloop",
+        http="httptools",
+        access_log=False,
+        workers=config_manager.serving.workers,
+        timeout_keep_alive=5,
+    )
 
 
 @main.group()

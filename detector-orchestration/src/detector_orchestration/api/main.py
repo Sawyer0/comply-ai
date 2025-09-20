@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Callable
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response, Request
+from contextlib import asynccontextmanager
 import json as _json
 
 from ..aggregator import ResponseAggregator
@@ -20,12 +21,14 @@ from ..models import (
     JobStatus,
     JobStatusResponse,
     MappingResponse,
+    RoutingPlan,
 )
 from ..models import ProcessingMode, PolicyContext
 from ..router import ContentRouter
 from ..content_analysis import infer_content_type
 from ..security import AuthContext, build_api_key_auth
 from ..metrics import OrchestrationMetricsCollector
+from ..jobs import JobManager
 from ..cache import IdempotencyCache, ResponseCache, RedisIdempotencyCache, RedisResponseCache
 from ..health_monitor import HealthMonitor
 from ..circuit_breaker import CircuitBreakerManager
@@ -33,24 +36,79 @@ from ..registry import DetectorRegistry, DetectorRegistration
 from ..policy import PolicyStore, OPAPolicyEngine, PolicyManager, TenantPolicy
 from .. import __version__ as ORCH_VERSION
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from fastapi.responses import JSONResponse
 from ..rate_limit import OrchestratorRateLimitMiddleware
 from ..mapper_client import MapperClient
+from ..conflict import ConflictResolver
+from ..errors import build_error_body
 
 
 settings = Settings()
-app = FastAPI(title="Detector Orchestration Service", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _ensure_clients_initialized()
+    if HEALTH_MONITOR:
+        await HEALTH_MONITOR.start()
+    if JOB_MANAGER:
+        try:
+            await JOB_MANAGER.start()
+        except Exception:
+            pass
+    try:
+        yield
+    finally:
+        if HEALTH_MONITOR:
+            await HEALTH_MONITOR.stop()
+        if JOB_MANAGER:
+            try:
+                await JOB_MANAGER.stop()
+            except Exception:
+                pass
+
+app = FastAPI(title="Detector Orchestration Service", version="0.1.0", lifespan=lifespan)
 # Install simple rate limit middleware (per-tenant)
-app.add_middleware(OrchestratorRateLimitMiddleware, settings=settings)
-auth_dep = build_api_key_auth(settings)
-auth_registry_read = build_api_key_auth(settings, required_scopes=["registry:read"]) 
-auth_registry_write = build_api_key_auth(settings, required_scopes=["registry:write"]) 
-auth_policy_read = build_api_key_auth(settings, required_scopes=["policy:read"]) 
-auth_policy_write = build_api_key_auth(settings, required_scopes=["policy:write"]) 
 metrics = OrchestrationMetricsCollector()
+app.add_middleware(OrchestratorRateLimitMiddleware, settings=settings, metrics=metrics)
+
+# Canonical error response handlers (Sec 8)
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    # Map common statuses to canonical error codes
+    status = int(exc.status_code)
+    message = exc.detail if isinstance(exc.detail, str) else None
+    if status == 401:
+        code = "UNAUTHORIZED"
+    elif status == 403:
+        # Distinguish rate limit vs RBAC if detail provided
+        if isinstance(exc.detail, str) and "rate" in exc.detail.lower():
+            code = "RATE_LIMITED"
+        else:
+            code = "INSUFFICIENT_RBAC"
+    elif status == 400:
+        code = "INVALID_REQUEST"
+    elif status == 408:
+        code = "REQUEST_TIMEOUT"
+    elif status == 502:
+        code = "DETECTOR_COMMUNICATION_FAILED"
+    else:
+        code = "INTERNAL_ERROR"
+    body = build_error_body(request_id=None, code=code, message=message).model_dump()
+    return JSONResponse(status_code=status, content={"detail": body})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    body = build_error_body(request_id=None, code="INTERNAL_ERROR", message=str(exc)).model_dump()
+    return JSONResponse(status_code=500, content={"detail": body})
+# Auth dependencies
+auth_orchestrate_write = build_api_key_auth(settings, required_scopes=["orchestrate:write"], metrics=metrics)
+auth_orchestrate_status = build_api_key_auth(settings, required_scopes=["orchestrate:status"], metrics=metrics)
+auth_registry_read = build_api_key_auth(settings, required_scopes=["registry:read"], metrics=metrics) 
+auth_registry_write = build_api_key_auth(settings, required_scopes=["registry:write"], metrics=metrics) 
+auth_policy_read = build_api_key_auth(settings, required_scopes=["policy:read"], metrics=metrics) 
+auth_policy_write = build_api_key_auth(settings, required_scopes=["policy:write"], metrics=metrics) 
 
 
 # In-memory stores (MVP)
-ASYNC_JOBS: dict[str, JobStatusResponse] = {}
 if settings.config.cache_backend == "redis" and settings.config.redis_url:
     _idem = RedisIdempotencyCache(
         settings.config.redis_url,
@@ -84,6 +142,7 @@ REGISTRY: DetectorRegistry | None = None
 POLICY_STORE: PolicyStore | None = None
 POLICY_MANAGER: PolicyManager | None = None
 MAPPER_CLIENT: MapperClient | None = None
+JOB_MANAGER: JobManager | None = None
 
 
 def _ensure_clients_initialized() -> None:
@@ -120,19 +179,13 @@ def _ensure_clients_initialized() -> None:
     global MAPPER_CLIENT
     if not MAPPER_CLIENT:
         MAPPER_CLIENT = MapperClient(settings)
+    global JOB_MANAGER
+    if not JOB_MANAGER:
+        # Defer binding of _process_sync until runtime; function defined below
+        JOB_MANAGER = JobManager(run_fn=lambda req, idem, dec, plan, prog: _process_sync(req, Response(), idem, dec, plan, prog))
 
 
-@app.on_event("startup")
-async def on_startup():
-    _ensure_clients_initialized()
-    if HEALTH_MONITOR:
-        await HEALTH_MONITOR.start()
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    if HEALTH_MONITOR:
-        await HEALTH_MONITOR.stop()
+# Lifespan handles startup/shutdown to avoid deprecation warnings.
 
 
 @app.get("/health")
@@ -193,6 +246,13 @@ async def update_detector(name: str, payload: DetectorRegistration, auth: AuthCo
         REGISTRY.update(name, payload)
     except KeyError:
         raise HTTPException(status_code=404, detail="detector_not_found")
+    # Invalidate response cache for this detector (policy-aware invalidation)
+    try:
+        invalidated = getattr(RESP_CACHE, "invalidate_for_detector", None)
+        if callable(invalidated):
+            RESP_CACHE.invalidate_for_detector(name)
+    except Exception:
+        pass
     return {"status": "ok", "name": name}
 
 
@@ -203,6 +263,13 @@ async def delete_detector(name: str, auth: AuthContext = Depends(auth_registry_w
     if name not in settings.detectors:
         raise HTTPException(status_code=404, detail="detector_not_found")
     REGISTRY.remove(name)
+    # Invalidate response cache for this detector
+    try:
+        invalidated = getattr(RESP_CACHE, "invalidate_for_detector", None)
+        if callable(invalidated):
+            RESP_CACHE.invalidate_for_detector(name)
+    except Exception:
+        pass
     return {"status": "ok", "name": name}
 
 
@@ -235,6 +302,13 @@ async def put_policy(tenant_id: str, bundle: str, body: dict, auth: AuthContext 
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"invalid_policy: {e}")
     POLICY_STORE.save_policy(pol)
+    # Invalidate response cache for this policy bundle
+    try:
+        invalidated = getattr(RESP_CACHE, "invalidate_for_policy", None)
+        if callable(invalidated):
+            RESP_CACHE.invalidate_for_policy(bundle)
+    except Exception:
+        pass
     return {"status": "ok", "tenant": tenant_id, "bundle": bundle}
 
 
@@ -245,6 +319,13 @@ async def delete_policy(tenant_id: str, bundle: str, auth: AuthContext = Depends
     ok = POLICY_STORE.delete_policy(tenant_id, bundle)
     if not ok:
         raise HTTPException(status_code=404, detail="policy_not_found")
+    # Invalidate response cache for this policy bundle
+    try:
+        invalidated = getattr(RESP_CACHE, "invalidate_for_policy", None)
+        if callable(invalidated):
+            RESP_CACHE.invalidate_for_policy(bundle)
+    except Exception:
+        pass
     return {"status": "ok", "tenant": tenant_id, "bundle": bundle}
 
 
@@ -260,15 +341,63 @@ async def _process_sync(
     idempotency_key: Optional[str],
     decision: RoutingDecision,
     routing_plan,
+    progress_cb: Optional[Callable[[float], None]] = None,
 ):
     # Assumes tenant context already validated upstream
 
+    # Compute request fingerprint for idempotency (content+tenant+policy+env+type+priority)
+    try:
+        import hashlib as _hashlib
+        import json as _json_local
+        _fp_obj = {
+            "content_hash": _hashlib.sha256((request.content or "").encode("utf-8")).hexdigest(),
+            "tenant_id": request.tenant_id,
+            "policy_bundle": request.policy_bundle,
+            "environment": request.environment,
+            "content_type": request.content_type.value if hasattr(request.content_type, "value") else str(request.content_type),
+            "priority": request.priority.value if hasattr(request.priority, "value") else str(request.priority),
+        }
+        _request_fp = _hashlib.sha256(_json_local.dumps(_fp_obj, sort_keys=True).encode("utf-8")).hexdigest()
+    except Exception:
+        _request_fp = None
+
     # Idempotency quick path (bypass for CRITICAL)
     if idempotency_key and request.priority.value != "critical":
-        cached = IDEMPOTENCY.get(idempotency_key)
-        if cached:
-            response.headers["Idempotency-Key"] = idempotency_key
-            return cached
+        # Check for conflict
+        entry = getattr(IDEMPOTENCY, "get_entry", None)
+        if callable(entry):
+            idem_entry = IDEMPOTENCY.get_entry(idempotency_key)
+            if idem_entry is not None:
+                # If a fingerprint exists and mismatches, treat as conflict
+                if idem_entry.fingerprint and _request_fp and idem_entry.fingerprint != _request_fp:
+                    now = datetime.now(timezone.utc)
+                    conflict_resp = OrchestrationResponse(
+                        request_id="req",
+                        processing_mode=request.processing_mode,
+                        detector_results=[],
+                        aggregated_payload=None,
+                        mapping_result=None,
+                        total_processing_time_ms=0,
+                        detectors_attempted=0,
+                        detectors_succeeded=0,
+                        detectors_failed=0,
+                        coverage_achieved=0.0,
+                        routing_decision=decision,
+                        fallback_used=False,
+                        timestamp=now,
+                        idempotency_key=idempotency_key,
+                        error_code="IDEMPOTENCY_CONFLICT",
+                    )
+                    response.status_code = 409
+                    return conflict_resp
+                # Otherwise, return cached value
+                response.headers["Idempotency-Key"] = idempotency_key
+                return idem_entry.value
+        else:
+            cached = IDEMPOTENCY.get(idempotency_key)
+            if cached:
+                response.headers["Idempotency-Key"] = idempotency_key
+                return cached
 
     # Response cache quick path (content_hash + detector_set + policy_bundle)
     if settings.config.cache_enabled and request.priority.value != "critical":
@@ -324,6 +453,12 @@ async def _process_sync(
     results_primary = await coordinator.execute_detector_group(
         routing_plan.primary_detectors, request.content, primary_only_plan, request.metadata or {}
     )
+    # Progress ~30% after primary detectors
+    try:
+        if callable(progress_cb):
+            progress_cb(0.3)
+    except Exception:
+        pass
 
     aggregator = ResponseAggregator()
     # Compute coverage after primary phase only
@@ -359,9 +494,27 @@ async def _process_sync(
         weights=routing_plan.weights,
         required_taxonomy_categories=routing_plan.required_taxonomy_categories,
     )
+    # Compute conflict resolution outcome (OPA-backed when enabled)
+    resolver = ConflictResolver(OPAPolicyEngine(settings))
+    try:
+        conflict_outcome = await resolver.resolve(
+            tenant_id=request.tenant_id,
+            policy_bundle=request.policy_bundle,
+            content_type=request.content_type,
+            detector_results=results,
+            weights=all_plan.weights,
+        )
+    except Exception:
+        conflict_outcome = None
     payload, coverage_achieved = aggregator.aggregate(
-        results, all_plan, tenant_id=request.tenant_id
+        results, all_plan, tenant_id=request.tenant_id, conflict_outcome=conflict_outcome
     )
+    # Progress ~60% after aggregation
+    try:
+        if callable(progress_cb):
+            progress_cb(0.6)
+    except Exception:
+        pass
     # Validate payload size (<=64KB)
     if len(_json.dumps(payload.model_dump()).encode("utf-8")) > 64 * 1024:
         raise HTTPException(status_code=400, detail="payload_too_large")
@@ -402,11 +555,17 @@ async def _process_sync(
             fallback_used = True
             response.status_code = 502
             error_code = "DETECTOR_COMMUNICATION_FAILED"
+    # Progress ~90% after mapper integration or fallback
+    try:
+        if callable(progress_cb):
+            progress_cb(0.9)
+    except Exception:
+        pass
 
     # Compose response per contract
-    detectors_attempted = len(routing_plan.primary_detectors)
+    detectors_attempted = len(results)
     detectors_succeeded = len([r for r in results if r.status.value == "success"])
-    detectors_failed = detectors_attempted - detectors_succeeded
+    detectors_failed = max(detectors_attempted - detectors_succeeded, 0)
     now = datetime.now(timezone.utc)
     duration_ms = max(int((now - start_ts).total_seconds() * 1000), 0)
     resp_obj = OrchestrationResponse(
@@ -430,6 +589,7 @@ async def _process_sync(
     if coverage_achieved < 0.8:
         response.status_code = 206
         resp_obj.error_code = "PARTIAL_COVERAGE"
+        resp_obj.fallback_used = True
 
     # If no detectors succeeded at all but attempted > 0, mark communication failure
     if detectors_attempted > 0 and detectors_succeeded == 0 and resp_obj.error_code is None:
@@ -440,7 +600,22 @@ async def _process_sync(
     for r in results:
         metrics.record_detector_latency(r.detector, r.status.value == "success", r.processing_time_ms)
     metrics.record_coverage(request.tenant_id, request.policy_bundle, coverage_achieved)
-    metrics.record_request(request.tenant_id, request.policy_bundle, "success", duration_ms)
+    # Record policy enforcement for coverage
+    sc = response.status_code if isinstance(response.status_code, int) else 200
+    if sc == 206:
+        metrics.record_policy_enforcement(request.tenant_id, request.policy_bundle, enforced=False, violation_type="coverage_below_threshold")
+    else:
+        metrics.record_policy_enforcement(request.tenant_id, request.policy_bundle, enforced=True)
+    # Request status labeling
+    if sc == 206:
+        _req_status = "partial"
+    elif sc == 408:
+        _req_status = "timeout"
+    elif 200 <= sc < 300:
+        _req_status = "success"
+    else:
+        _req_status = "error"
+    metrics.record_request(request.tenant_id, request.policy_bundle, _req_status, duration_ms)
 
     # SLA check
     if duration_ms > settings.config.sla.sync_request_sla_ms:
@@ -450,7 +625,12 @@ async def _process_sync(
 
     # Write idempotency cache
     if idempotency_key and request.priority.value != "critical":
-        IDEMPOTENCY.set(idempotency_key, resp_obj)
+        # Store with fingerprint when available
+        try:
+            IDEMPOTENCY.set(idempotency_key, resp_obj, _request_fp)  # type: ignore[arg-type]
+        except TypeError:
+            # Fallback to legacy signature
+            IDEMPOTENCY.set(idempotency_key, resp_obj)
         response.headers["Idempotency-Key"] = idempotency_key
     # Write response cache
     if settings.config.cache_enabled and request.priority.value != "critical":
@@ -465,7 +645,7 @@ async def orchestrate(
     request: OrchestrationRequest,
     response: Response,
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(auth_dep),
+    auth: AuthContext = Depends(auth_orchestrate_write),
     tenant_header: Optional[str] = Header(default=None, alias=settings.config.tenant_header),
 ):
     # Validate content size
@@ -500,18 +680,18 @@ async def orchestrate(
     if settings.config.auto_map_results:
         detector_time_est += settings.config.sla.mapper_timeout_budget_ms
     if request.processing_mode.value == "async" or detector_time_est > budget_ms:
-        # Spawn async job
-        job_id = f"job-{datetime.now(timezone.utc).timestamp()}"
-
-        async def _bg():
-            try:
-                res = await _process_sync(request, Response(), idempotency_key, decision, routing_plan)
-                ASYNC_JOBS[job_id] = JobStatusResponse(job_id=job_id, status=JobStatus.COMPLETED, progress=1.0, result=res)
-            except Exception as e:  # noqa: BLE001
-                ASYNC_JOBS[job_id] = JobStatusResponse(job_id=job_id, status=JobStatus.FAILED, progress=1.0, error=str(e))
-
-        ASYNC_JOBS[job_id] = JobStatusResponse(job_id=job_id, status=JobStatus.PENDING, progress=0.0)
-        asyncio.create_task(_bg())
+        # Spawn async job via JobManager with priority handling
+        _ensure_clients_initialized()
+        assert JOB_MANAGER is not None
+        callback_url = None
+        try:
+            if isinstance(request.metadata, dict):
+                cb = request.metadata.get("callback_url")
+                if isinstance(cb, str) and cb:
+                    callback_url = cb
+        except Exception:
+            callback_url = None
+        job_id = await JOB_MANAGER.enqueue(request, idempotency_key, decision, routing_plan, callback_url=callback_url)
 
         # Return async response shell
         response.status_code = 202
@@ -541,7 +721,7 @@ async def orchestrate(
 async def orchestrate_batch(
     requests: list[OrchestrationRequest],
     idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(auth_dep),
+    auth: AuthContext = Depends(auth_orchestrate_write),
     tenant_header: Optional[str] = Header(default=None, alias=settings.config.tenant_header),
 ):
     # Simple sequential batch for MVP
@@ -553,14 +733,58 @@ async def orchestrate_batch(
         _ensure_clients_initialized()
         router = ContentRouter(settings, health_monitor=HEALTH_MONITOR)
         plan, decision = await router.route_request(r)
-        o = await _process_sync(r, Response(), idempotency_key, decision, plan)
+        # Derive per-item idempotency child key to avoid cross-item conflicts
+        child_key: Optional[str] = None
+        if idempotency_key:
+            try:
+                import hashlib as _hashlib
+                import json as _json_local
+                _fp_obj = {
+                    "content_hash": _hashlib.sha256((r.content or "").encode("utf-8")).hexdigest(),
+                    "tenant_id": r.tenant_id,
+                    "policy_bundle": r.policy_bundle,
+                    "environment": r.environment,
+                    "content_type": r.content_type.value if hasattr(r.content_type, "value") else str(r.content_type),
+                    "priority": r.priority.value if hasattr(r.priority, "value") else str(r.priority),
+                }
+                _fp = _hashlib.sha256(_json_local.dumps(_fp_obj, sort_keys=True).encode("utf-8")).hexdigest()
+                child_key = f"{idempotency_key}:{_fp}"
+            except Exception:
+                child_key = idempotency_key
+        o = await _process_sync(r, Response(), child_key, decision, plan)
         out.append(o)
-    return {"results": out}
+    return {"results": out, "idempotency_key": idempotency_key}
 
 
 @app.get("/orchestrate/status/{job_id}", response_model=JobStatusResponse)
-async def get_status(job_id: str):
-    job = ASYNC_JOBS.get(job_id)
+async def get_status(job_id: str, auth: AuthContext = Depends(auth_orchestrate_status)):
+    _ensure_clients_initialized()
+    assert JOB_MANAGER is not None
+    job = JOB_MANAGER.get_status(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="job_not_found")
     return job
+
+
+@app.delete("/orchestrate/status/{job_id}", response_model=JobStatusResponse)
+async def cancel_job(job_id: str):
+    """Cancel a pending or running async job.
+
+    Returns current job status. If the job is not found, 404. If the job cannot be cancelled
+    (already completed/failed/cancelled), returns 409 with current status.
+    """
+    _ensure_clients_initialized()
+    assert JOB_MANAGER is not None
+    job = JOB_MANAGER.get_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    if job.status.value in ("completed", "failed", "cancelled"):
+        raise HTTPException(status_code=409, detail="job_not_cancellable")
+    ok = JOB_MANAGER.cancel(job_id)
+    job2 = JOB_MANAGER.get_status(job_id)
+    if ok and job2:
+        return job2
+    # Fallback: return latest known status
+    if job2:
+        return job2
+    raise HTTPException(status_code=404, detail="job_not_found")

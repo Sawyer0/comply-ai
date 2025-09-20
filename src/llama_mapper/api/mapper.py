@@ -823,6 +823,9 @@ class MapperAPI:
                 timeout_ms = getattr(
                     self.config_manager.serving, "mapper_timeout_ms", 500
                 )
+                # Coerce mocks/invalids to sane default
+                if not isinstance(timeout_ms, (int, float)):
+                    timeout_ms = 500
             except Exception:
                 timeout_ms = 500
             model_output = await asyncio.wait_for(
@@ -844,16 +847,31 @@ class MapperAPI:
 
                 # Record confidence score
                 self.metrics_collector.record_confidence_score(
-                    request.detector, parsed_output.confidence
+                    request.detector, getattr(parsed_output, "confidence", 0.0)
                 )
 
                 # Check confidence threshold
                 confidence_threshold = self.config_manager.confidence.threshold
-                if parsed_output.confidence >= confidence_threshold:
+                if getattr(parsed_output, "confidence", 0.0) >= confidence_threshold:
                     # Use model output
                     self.metrics_collector.record_model_success(request.detector)
                     # Enrich provenance and notes with version tags
                     self.version_manager.apply_to_provenance(provenance)
+                    # If parsed_output isn't a MappingResponse, coerce it
+                    if not isinstance(parsed_output, MappingResponse):
+                        try:
+                            parsed_output = MappingResponse(
+                                taxonomy=list(getattr(parsed_output, "taxonomy", []) or []),
+                                scores=dict(getattr(parsed_output, "scores", {}) or {}),
+                                confidence=float(getattr(parsed_output, "confidence", 0.0) or 0.0),
+                                notes=getattr(parsed_output, "notes", None),
+                                provenance=None,
+                                policy_context=getattr(parsed_output, "policy_context", None),
+                            )
+                        except Exception:
+                            # Fall back to error response if coercion fails
+                            raise RuntimeError("parsed_output_invalid")
+                    # Attach provenance and annotate notes
                     parsed_output.provenance = provenance
                     parsed_output.notes = (
                         self.version_manager.annotate_notes_with_versions(

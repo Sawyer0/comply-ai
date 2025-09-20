@@ -1,0 +1,29 @@
+{
+  "agreement": {
+    "detectors": [
+      {"detector": "det-A", "output": "safe", "confidence": 0.92},
+      {"detector": "det-B", "output": "safe", "confidence": 0.81}
+    ],
+    "content_type": "image"
+  },
+  "tie": {
+    "detectors": [
+      {"detector": "det-A", "output": "safe", "confidence": 0.80},
+      {"detector": "det-B", "output": "toxic", "confidence": 0.80}
+    ],
+    "content_type": "image"
+  },
+  "outlier": {
+    "detectors": [
+      {"detector": "det-A", "output": "safe", "confidence": 0.51},
+      {"detector": "det-B", "output": "safe", "confidence": 0.52},
+      {"detector": "det-C", "output": "toxic", "confidence": 0.90}
+    ],
+    "content_type": "text",
+    "weights": {"det-C": 0.5, "det-A": 0.25, "det-B": 0.25}
+  },
+  "missing": {
+    "detectors": [],
+    "content_type": "image"
+  }
+}
