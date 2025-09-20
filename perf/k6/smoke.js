@@ -14,9 +14,11 @@ const BASE_URL = __ENV.PERF_BASE_URL || "http://localhost:8000";
 const API_KEY_HEADER = __ENV.MAPPER_API_KEY_HEADER || "X-API-Key";
 const API_KEY = __ENV.MAPPER_PERF_API_KEY || "";
 const TENANT_ID = __ENV.MAPPER_PERF_TENANT_ID || "perf-tenant";
+const TENANT_HEADER = __ENV.MAPPER_TENANT_HEADER || "X-Tenant-ID";
 
 const headers = { "Content-Type": "application/json" };
 if (API_KEY) headers[API_KEY_HEADER] = API_KEY;
+headers[TENANT_HEADER] = TENANT_ID;
 
 const cases = [
   { detector: "deberta-toxicity", output: "toxic" },

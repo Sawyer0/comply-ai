@@ -34,7 +34,10 @@ start() {
 
   rm -f "$LOG_FILE" "$PID_FILE" || true
 
-  nohup python -u -m llama_mapper.cli serve --host "$HOST" --port "$PORT" >"$LOG_FILE" 2>&1 &
+  # Use uvicorn in factory mode with import string to support multiple workers
+  nohup uvicorn --factory "llama_mapper.api.rules_only_factory:create_rules_only_app" \
+    --host "$HOST" --port "$PORT" --workers 2 --loop uvloop --http httptools \
+    --no-access-log >"$LOG_FILE" 2>&1 &
   echo $! > "$PID_FILE"
 
   # Wait for health up to ~15s
