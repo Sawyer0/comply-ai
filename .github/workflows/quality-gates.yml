@@ -107,6 +107,18 @@ jobs:
     - name: Run unit tests
       run: |
         pytest tests/ -v --cov=src/llama_mapper --cov-report=xml --cov-report=term-missing
+    
+    - name: Run orchestrator conflict tests (coverage gate)
+      run: |
+        python -m pytest \
+          tests/unit/test_conflict_resolution_strategies.py \
+          tests/unit/test_conflict_resolution_hypothesis.py \
+          tests/unit/test_conflict_resolution_opa.py \
+          tests/integration/test_aggregator_conflict_metadata.py \
+          tests/integration/test_opa_override_strategy.py \
+          tests/integration/test_opa_failure_modes.py \
+          tests/integration/test_metrics_and_logging_conflict.py \
+          --cov=detector_orchestration.conflict --cov-report=term-missing --cov-fail-under=90 -q
         
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3

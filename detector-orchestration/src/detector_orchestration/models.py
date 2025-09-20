@@ -68,7 +68,7 @@ class RoutingDecision(BaseModel):
     selected_detectors: List[str]
     routing_reason: str
     policy_applied: str
-    coverage_requirements: Dict[str, float] = Field(default_factory=dict)
+    coverage_requirements: Dict[str, Any] = Field(default_factory=dict)
     health_status: Dict[str, bool] = Field(default_factory=dict)
 
 
@@ -138,6 +138,15 @@ class JobStatusResponse(BaseModel):
     progress: float
     result: Optional[OrchestrationResponse] = None
     error: Optional[str] = None
+
+
+class ErrorBody(BaseModel):
+    """Canonical error body (Sec 8)."""
+
+    error_code: str
+    message: Optional[str] = None
+    request_id: Optional[str] = None
+    retryable: bool = False
 
 
 class RoutingPlan(BaseModel):

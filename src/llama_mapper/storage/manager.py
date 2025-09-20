@@ -605,21 +605,23 @@ class StorageManager:
         }
 
         assert self._s3_client is not None
+        # Build kwargs explicitly so mocks see them as kwargs (not a single positional dict)
+        params = {
+            "Bucket": self.settings.s3_bucket,
+            "Key": s3_key,
+            "Body": json.dumps(record_data),
+            "ServerSideEncryption": "aws:kms",
+            "SSEKMSKeyId": self.settings.kms_key_id if self.settings.kms_key_id else None,
+            "ObjectLockMode": "GOVERNANCE",
+            "ObjectLockRetainUntilDate": datetime.now(timezone.utc)
+            + timedelta(days=365 * (self.settings.s3_retention_years or 7)),
+        }
+        # Remove None values to avoid invalid kwargs
+        params = {k: v for k, v in params.items() if v is not None}
+
         await asyncio.get_event_loop().run_in_executor(
             None,
-            self._s3_client.put_object,
-            {
-                "Bucket": self.settings.s3_bucket,
-                "Key": s3_key,
-                "Body": json.dumps(record_data),
-                "ServerSideEncryption": "aws:kms",
-                "SSEKMSKeyId": (
-                    self.settings.kms_key_id if self.settings.kms_key_id else None
-                ),
-                "ObjectLockMode": "GOVERNANCE",
-                "ObjectLockRetainUntilDate": datetime.now(timezone.utc)
-                + timedelta(days=365 * (self.settings.s3_retention_years or 7)),
-            },
+            lambda: self._s3_client.put_object(**params),
         )
 
         return s3_key

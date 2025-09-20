@@ -11,6 +11,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
 from .config import Settings
+from .metrics import OrchestrationMetricsCollector
 
 
 class _Bucket:
@@ -25,9 +26,10 @@ class OrchestratorRateLimitMiddleware(BaseHTTPMiddleware):
     Returns 403 with error_code=RATE_LIMITED per service contract.
     """
 
-    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+    def __init__(self, app: ASGIApp, settings: Settings, metrics: OrchestrationMetricsCollector | None = None) -> None:
         super().__init__(app)
         self.settings = settings
+        self.metrics = metrics
         self._buckets: Dict[str, _Bucket] = {}
 
     def _key(self, tenant: str) -> str:
@@ -42,7 +44,13 @@ class OrchestratorRateLimitMiddleware(BaseHTTPMiddleware):
 
         tenant = request.headers.get(cfg.tenant_header) or "anonymous"
         key = self._key(tenant)
-        limit = max(1, cfg.rate_limit_tenant_limit)
+        # Use per-tenant override when present; fall back to global limit
+        try:
+            override_limit = getattr(cfg, "rate_limit_tenant_overrides", {}) or {}
+            chosen_limit = int(override_limit.get(tenant, cfg.rate_limit_tenant_limit))
+        except Exception:
+            chosen_limit = cfg.rate_limit_tenant_limit
+        limit = max(1, chosen_limit)
         window = max(1, cfg.rate_limit_window_seconds)
         rate_per_sec = limit / float(window)
 
@@ -60,11 +68,21 @@ class OrchestratorRateLimitMiddleware(BaseHTTPMiddleware):
 
         if b.tokens >= 1.0:
             b.tokens -= 1.0
+            if self.metrics:
+                try:
+                    self.metrics.record_rate_limit(request.url.path, tenant, "allow")
+                except Exception:
+                    pass
             return await call_next(request)
 
         # Block with 403 RATE_LIMITED as per contract
         deficit = max(0.0, 1.0 - b.tokens)
         reset_seconds = math.ceil(deficit / rate_per_sec) if rate_per_sec > 0 else window
+        if self.metrics:
+            try:
+                self.metrics.record_rate_limit(request.url.path, tenant, "block", reset_seconds=reset_seconds)
+            except Exception:
+                pass
         return JSONResponse(
             status_code=403,
             content={

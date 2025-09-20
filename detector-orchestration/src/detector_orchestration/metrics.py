@@ -44,6 +44,24 @@ _POLICY_ENF = Counter(
     labelnames=["tenant", "policy", "status", "violation_type"],
 )
 
+# Security & tenancy metrics
+_RL_REQUESTS = Counter(
+    "orchestrator_rate_limit_requests_total",
+    "Rate limit decisions by endpoint and tenant",
+    labelnames=["endpoint", "tenant", "action"],
+)
+_RL_RESET_SECONDS = Histogram(
+    "orchestrator_rate_limit_reset_seconds",
+    "Observed reset seconds on 403 blocks",
+    labelnames=["endpoint", "tenant"],
+    buckets=(0, 1, 2, 5, 10, 30, 60, 120, 300),
+)
+_RBAC_ENF = Counter(
+    "orchestrator_rbac_enforcement_total",
+    "RBAC enforcement decisions",
+    labelnames=["endpoint", "tenant", "decision", "scope"],
+)
+
 # Redis backend health/fallback
 _REDIS_UP = Gauge(
     "orchestrator_redis_backend_up",
@@ -78,6 +96,14 @@ class OrchestrationMetricsCollector:
 
     def record_policy_enforcement(self, tenant: str, policy: str, enforced: bool, violation_type: Optional[str] = None) -> None:
         _POLICY_ENF.labels(tenant=tenant, policy=policy, status=("enforced" if enforced else "violated"), violation_type=(violation_type or "none")).inc()
+
+    def record_rate_limit(self, endpoint: str, tenant: str, action: str, reset_seconds: Optional[float] = None) -> None:
+        _RL_REQUESTS.labels(endpoint=endpoint, tenant=tenant, action=action).inc()
+        if reset_seconds is not None:
+            _RL_RESET_SECONDS.labels(endpoint=endpoint, tenant=tenant).observe(float(reset_seconds))
+
+    def record_rbac(self, endpoint: str, tenant: Optional[str], decision: str, scope: Optional[str] = None) -> None:
+        _RBAC_ENF.labels(endpoint=endpoint, tenant=(tenant or "unknown"), decision=decision, scope=(scope or "none")).inc()
 
     # Redis cache health
     def set_redis_backend_up(self, component: str, up: bool) -> None:

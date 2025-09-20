@@ -102,7 +102,15 @@ async def orchestrate_detection_batch(
 
 @app.get("/orchestrate/status/{job_id}")
 async def get_job_status(job_id: str) -> JobStatusResponse
+
+@app.delete("/orchestrate/status/{job_id}")
+async def cancel_job(job_id: str) -> JobStatusResponse
 ```
+
+Cancellation semantics:
+- Pending or running jobs can be cancelled; the service returns 200 with the updated JobStatusResponse (status="cancelled").
+- Jobs in a terminal state (completed, failed, cancelled) are not cancellable; the service returns 409 with detail job_not_cancellable.
+- Multiple concurrent cancellation requests are idempotent; one may return 200 while others typically return 409.
 
 **Input Schema (OrchestrationRequest):**
 ```python

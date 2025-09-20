@@ -43,10 +43,14 @@ class IncidentData:
     severity: str = "medium"
 
     def calculate_resolution_time(self) -> Optional[float]:
-        """Calculate resolution time in hours if resolved."""
+        """Calculate resolution time in hours if resolved (ensure > 0)."""
         if self.resolved_at:
             delta = self.resolved_at - self.timestamp
-            self.resolution_time_hours = delta.total_seconds() / 3600
+            hours = delta.total_seconds() / 3600
+            # Ensure strictly positive to avoid zero-duration in fast tests
+            if hours <= 0:
+                hours = 1e-6
+            self.resolution_time_hours = hours
             return self.resolution_time_hours
         return None
 

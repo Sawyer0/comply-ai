@@ -89,6 +89,28 @@ class OPAPolicyEngine:
             return None
         return None
 
+    async def evaluate_conflict(self, tenant_id: str, bundle: str, input_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Evaluate conflict resolution strategy and decision via OPA.
+
+        Expects a Rego package with a 'conflict' decision that returns a result like:
+        {
+          "strategy": "highest_confidence|weighted_average|majority_vote|most_restrictive|tenant_preference",
+          "preferred_detector": "optional-detector-name",
+          "tie_breaker": "optional-hint"
+        }
+        """
+        if not self.settings.config.opa_enabled or not self.settings.config.opa_url:
+            return None
+        url = f"{self.settings.config.opa_url.rstrip('/')}/v1/data/{tenant_id}/{bundle}/conflict"
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.post(url, json={"input": input_data})
+                if resp.status_code == 200:
+                    return resp.json().get("result")
+        except Exception:
+            return None
+        return None
+
 
 class PolicyManager:
     def __init__(self, store: PolicyStore, engine: OPAPolicyEngine):

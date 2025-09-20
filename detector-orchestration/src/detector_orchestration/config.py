@@ -46,6 +46,8 @@ class OrchestrationConfig(BaseModel):
     rate_limit_enabled: bool = True
     rate_limit_window_seconds: int = 60
     rate_limit_tenant_limit: int = 120
+    # Optional per-tenant overrides for rate limiting (tenant_id -> limit per window)
+    rate_limit_tenant_overrides: Dict[str, int] = {}
 
 
 class DetectorEndpoint(BaseModel):
@@ -71,6 +73,8 @@ class Settings(BaseSettings):
     # Detectors registry (simple inline for now)
     detectors: Dict[str, DetectorEndpoint] = {
         "toxicity": DetectorEndpoint(name="toxicity", endpoint="builtin:toxicity"),
+        # Alias for tests/compat with external naming
+        "deberta-toxicity": DetectorEndpoint(name="deberta-toxicity", endpoint="builtin:toxicity"),
         "regex-pii": DetectorEndpoint(
             name="regex-pii", endpoint="builtin:regex-pii", timeout_ms=1000
         ),

@@ -102,6 +102,37 @@ paths:
                   result:
                     nullable: true
                     allOf: [{ $ref: '#/components/schemas/OrchestrationResponse' }]
+    delete:
+      summary: Cancel async job
+      description: Attempt to cancel a pending or running async job.
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job cancelled (or marked for cancellation)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string }
+                  status: { type: string, enum: [cancelled, running, pending] }
+                  progress: { type: number, minimum: 0, maximum: 1 }
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Job not cancellable (already completed or failed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     OrchestrationRequest:

@@ -94,72 +94,72 @@
   - Create fallback routing when detectors fail
   - _Requirements: 2.3, 2.4, 4.1_
 
-- [ ] 7. Create response aggregator with conflict resolution
+- [x] 7. Create response aggregator with conflict resolution
 - [x] 7.1 Implement multi-detector response aggregation
   - Create ResponseAggregator with locked MapperPayload generation
   - Implement score normalization to 0-1 range with provenance tracking
   - Add coverage calculation with weighted and required-set methods
   - _Requirements: 3.1, 3.2, 3.4_
 
-- [ ] 7.2 Build conflict resolution engine with OPA policy support
+- [x] 7.2 Build conflict resolution engine with OPA policy support
   - Implement ConflictResolver with OPA-based strategy selection
   - Add default strategies per content type with OPA policy overrides
   - Create tie-breaker logic with OPA decision audit trail
   - _Requirements: 3.3, 3.4_
 
-- [ ] 8. Implement caching system with policy-aware invalidation
-- [ ] 8.1 Create response caching with composite key generation
+- [x] 8. Implement caching system with policy-aware invalidation
+- [x] 8.1 Create response caching with composite key generation
   - Implement cache key generation from content hash, detector set, and policy bundle
   - Add TTL management with CRITICAL priority bypass
   - Create cache invalidation on policy and detector changes
   - _Requirements: 4.1, 6.1_
 
-- [ ] 8.2 Build idempotency management
+- [x] 8.2 Build idempotency management
   - Implement idempotency key handling for all endpoints (not just batch)
   - Add 24-hour key retention with cached response return
   - Create idempotency validation and conflict detection
   - _Requirements: 4.1, 4.2_
 
-- [ ] 9. Create async job management system
-- [ ] 9.1 Implement async job processing
+- [x] 9. Create async job management system
+- [x] 9.1 Implement async job processing
   - Create AsyncJob model with status tracking and progress updates
   - Implement job queue management with priority handling
   - Add job status endpoints and completion notifications
   - _Requirements: 4.2, 4.3_
 
-- [ ] 9.2 Build sync-to-async conversion logic
+- [x] 9.2 Build sync-to-async conversion logic
   - Implement automatic conversion when SLA budgets are exceeded
   - Add sync request timeout handling with async fallback
   - Create job ID generation and status tracking
   - _Requirements: 4.1, 4.2_
 
-- [ ] 10. Implement comprehensive metrics collection
-- [ ] 10.1 Create orchestration metrics collector with locked metric names
+- [x] 10. Implement comprehensive metrics collection
+- [x] 10.1 Create orchestration metrics collector with locked metric names
   - Implement OrchestrationMetricsCollector with guaranteed metric names
   - Add orchestrate_requests_total, detector_latency_ms, coverage_achieved metrics
   - Create circuit_breaker_state and policy_enforcement_total tracking
   - _Requirements: 5.1, 5.2, 5.5_
 
-- [ ] 10.2 Build security and tenancy metrics
+- [x] 10.2 Build security and tenancy metrics
   - Implement RBAC enforcement tracking and rate limit metrics
   - Add content redaction validation for logs and metrics
   - Create tenant-specific metric isolation and aggregation
   - _Requirements: 5.1, 5.5_
 
-- [ ] 11. Create FastAPI orchestration service
+- [x] 11. Create FastAPI orchestration service
 - [x] 11.1 Implement core orchestration endpoints
   - Create POST /orchestrate endpoint with request validation
   - Implement POST /orchestrate/batch with idempotency key handling
   - Add GET /orchestrate/status/{job_id} for async job tracking
   - _Requirements: 4.1, 4.2, 4.3_
 
-- [ ] 11.2 Build authentication and authorization middleware
+- [x] 11.2 Build authentication and authorization middleware
   - Implement RBAC scope validation for orchestrate vs status endpoints
   - Add per-tenant rate limiting with configurable thresholds
   - Create authentication middleware with multiple auth types
   - _Requirements: 6.1, 7.5_
 
-- [ ] 11.3 Add error handling and canonical error responses
+- [x] 11.3 Add error handling and canonical error responses
   - Implement canonical error code table with retry safety indicators
   - Create error response formatting with fallback_used tracking
   - Add HTTP status code mapping for coverage and timeout scenarios

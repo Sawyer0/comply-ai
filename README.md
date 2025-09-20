@@ -195,6 +195,70 @@ src/llama_mapper/
 - vLLM/TGI for model serving
 - Structured logging with privacy filters
 
+## Developer Notes
+
+- Running tests without optional dependencies
+  - This repo includes minimal stubs so the test suite can run without installing heavy/optional packages:
+    - accelerate: `src/accelerate/__init__.py` exposes `__version__` to satisfy Transformers' Accelerate check.
+    - hvac (Vault): `src/hvac/__init__.py` provides a minimal `Client` so tests can patch `hvac.Client`. Use the real `hvac` package in production for the Vault backend.
+  - To run tests locally without extras, put both src trees on PYTHONPATH and invoke pytest, for example on PowerShell:
+    ```bash
+    $env:PYTHONPATH="C:\\Users\\Dawan\\comply-ai\\src;C:\\Users\\Dawan\\comply-ai\\detector-orchestration\\src";
+    python -m pytest -q
+    ```
+  - In CI/production, installing the real packages will take precedence over these stubs automatically.
+
+- Orchestrator test-mode auth
+  - The Detector Orchestration service allows unauthenticated requests when no API keys are configured (i.e., `settings.api_keys` is empty). This is intended for unit/integration tests and local development only.
+  - To enable auth enforcement, configure API keys in the orchestrator settings (env prefix `ORCH_`, nested delimiter `__`). For example:
+    ```bash
+    # Example: enable auth with one API key and scopes (PowerShell quoting shown)
+    $env:ORCH_API_KEYS__test_key='["registry:read","policy:read"]'
+    ```
+    With auth enabled, requests must include the default header `X-API-Key: test_key` and will receive standard 401/403 responses if missing/insufficient.
+
+## Local HTTP server for performance tests (rules_only)
+
+Use the lightweight rules-only mode to run HTTP perf tests without loading a model.
+
+WSL2 Ubuntu (recommended):
+
+```bash
+# Start server (backgrounded) in rules_only mode
+wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh start'
+
+# Check status
+wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh status'
+
+# Stop server
+wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh stop'
+```
+
+Endpoints: http://127.0.0.1:8000
+- GET /health
+- POST /map
+- POST /map/batch
+
+Run perf tests (WSL):
+
+```bash
+# Pytest HTTP conformance
+export PERF_BASE_URL=http://127.0.0.1:8000
+python -m pytest -q tests/performance/test_conformance_http.py
+
+# Locust smoke
+python -m pip install locust
+locust -f perf/locustfile.py --headless -u 10 -r 2 -t 30s --host http://127.0.0.1:8000
+
+# k6 (optional; install k6 if available)
+# k6 run perf/k6/smoke.js
+```
+
+Notes:
+- This mode uses only the rule-based FallbackMapper and the JSON schema validator.
+- It’s ideal for quick conformance checks and running HTTP client smoke tests.
+- For higher throughput, increase workers via ServingConfig or run multiple instances behind a load balancer.
+
 ## License
 
 MIT License - see LICENSE file for details.

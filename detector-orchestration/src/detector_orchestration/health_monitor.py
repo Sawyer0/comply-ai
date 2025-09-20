@@ -34,20 +34,27 @@ class HealthMonitor:
             name: HealthStatus(True, time.time(), None, 0) for name in clients
         }
         self._task: asyncio.Task | None = None
-        self._stop = asyncio.Event()
+        self._stop: asyncio.Event | None = None
 
     async def start(self) -> None:
         if self._task and not self._task.done():
             return
-        self._stop.clear()
+        # Bind event to the currently running loop to avoid cross-loop issues
+        self._stop = asyncio.Event()
         self._task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
-        self._stop.set()
+        if self._stop is not None:
+            self._stop.set()
         if self._task:
-            await self._task
+            try:
+                await self._task
+            finally:
+                self._task = None
+                self._stop = None
 
     async def _run(self) -> None:
+        assert self._stop is not None
         while not self._stop.is_set():
             await self.check_all()
             try:
