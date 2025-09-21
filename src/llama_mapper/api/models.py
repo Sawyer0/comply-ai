@@ -2,6 +2,7 @@
 Pydantic models for the FastAPI service layer.
 """
 
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
@@ -33,13 +34,17 @@ class PolicyContext(BaseModel):
 
 # ---- Handoff contract models (Sec 3) ----
 class AggregationMethod(str, Enum):
-    weighted_average = "weighted_average"
-    majority_vote = "majority_vote"
-    highest_confidence = "highest_confidence"
-    most_restrictive = "most_restrictive"
+    """Methods for aggregating multiple detector outputs."""
+
+    WEIGHTED_AVERAGE = "weighted_average"
+    MAJORITY_VOTE = "majority_vote"
+    HIGHEST_CONFIDENCE = "highest_confidence"
+    MOST_RESTRICTIVE = "most_restrictive"
 
 
 class HandoffProvenanceEntry(BaseModel):
+    """Individual detector contribution in a multi-detector aggregation."""
+
     detector: str
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0)
     output: Optional[str] = None
@@ -47,6 +52,8 @@ class HandoffProvenanceEntry(BaseModel):
 
 
 class HandoffMetadata(BaseModel):
+    """Metadata for multi-detector orchestration handoffs."""
+
     contributing_detectors: Optional[List[str]] = None
     normalized_scores: Optional[Dict[str, float]] = None
     conflict_resolution_applied: Optional[bool] = None
@@ -59,10 +66,11 @@ class HandoffMetadata(BaseModel):
     def validate_norm_scores(
         cls, v: Optional[Dict[str, float]]
     ) -> Optional[Dict[str, float]]:
+        """Validate that normalized scores are in [0,1] range."""
         if v is None:
             return v
         for label, score in v.items():
-            if not (0.0 <= score <= 1.0):
+            if not 0.0 <= score <= 1.0:
                 raise ValueError(f"normalized_scores[{label}] must be in [0,1]")
         return v
 
@@ -135,8 +143,6 @@ class MappingResponse(BaseModel):
     @classmethod
     def validate_taxonomy_format(cls, v: List[str]) -> List[str]:
         """Validate taxonomy label format."""
-        import re
-
         pattern = r"^[A-Z][A-Z0-9_]*(\.[A-Za-z0-9_]+)*$"
         for item in v:
             if not re.match(pattern, item):
@@ -150,7 +156,7 @@ class MappingResponse(BaseModel):
     def validate_scores_range(cls, v: Dict[str, float]) -> Dict[str, float]:
         """Validate that all scores are in [0,1] range."""
         for label, score in v.items():
-            if not (0.0 <= score <= 1.0):
+            if not 0.0 <= score <= 1.0:
                 raise ValueError(f'Score for "{label}" must be between 0.0 and 1.0')
         return v
 

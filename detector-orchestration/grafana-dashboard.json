@@ -1,0 +1,153 @@
+{
+  "dashboard": {
+    "title": "Detector Orchestration Service",
+    "tags": ["detector-orchestration", "compliance"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "Orchestration Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(orchestrate_requests_total[5m])",
+            "legendFormat": "{{tenant}} - {{policy}} - {{status}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "reqps",
+            "label": "Requests per second"
+          }
+        ]
+      },
+      {
+        "title": "Request Duration",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(orchestrate_request_duration_sync_ms_bucket[5m]))",
+            "legendFormat": "P95 Sync Duration"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(orchestrate_request_duration_async_ms_bucket[5m]))",
+            "legendFormat": "P95 Async Duration"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "ms",
+            "label": "Duration (ms)"
+          }
+        ]
+      },
+      {
+        "title": "Detector Health Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(detector_health_status)",
+            "legendFormat": "Healthy Detectors"
+          },
+          {
+            "expr": "count(detector_health_status)",
+            "legendFormat": "Total Detectors"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "horizontal"
+        }
+      },
+      {
+        "title": "Coverage Achieved",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "coverage_achieved",
+            "legendFormat": "{{tenant}} - {{policy}}"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "Coverage (%)"
+          }
+        ]
+      },
+      {
+        "title": "Circuit Breaker Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(circuit_breaker_state{state=\"open\"})",
+            "legendFormat": "Open Circuit Breakers"
+          }
+        ]
+      },
+      {
+        "title": "Async Jobs",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "orchestrator_async_jobs_queued",
+            "legendFormat": "Queued"
+          },
+          {
+            "expr": "orchestrator_async_jobs_active",
+            "legendFormat": "Active"
+          }
+        ]
+      },
+      {
+        "title": "Cache Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "orchestrator_cache_hit_ratio",
+            "legendFormat": "{{cache_type}} Hit Ratio"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "Hit Ratio (%)"
+          }
+        ]
+      },
+      {
+        "title": "Service Dependencies",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "orchestrator_service_dependencies_up",
+            "legendFormat": "{{dependency}}"
+          }
+        ]
+      },
+      {
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "(rate(orchestrate_requests_total{status=\"error\"}[5m]) / rate(orchestrate_requests_total[5m])) * 100",
+            "legendFormat": "Error Rate (%)"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percent",
+            "label": "Error Rate (%)"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  },
+  "overwrite": false
+}

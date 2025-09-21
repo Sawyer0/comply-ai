@@ -1,0 +1,125 @@
+# Production environment configuration
+replicaCount: 3
+
+image:
+  repository: detector-orchestration
+  pullPolicy: IfNotPresent
+  tag: "v1.0.0"
+
+# Production environment settings
+env:
+  ORCH_ENVIRONMENT: "prod"
+  ORCH_LOG_LEVEL: "WARNING"
+  ORCH_CONFIG__CACHE_BACKEND: "redis"
+  ORCH_CONFIG__CACHE_ENABLED: "true"
+  ORCH_CONFIG__OPA_ENABLED: "true"
+  ORCH_CONFIG__RATE_LIMIT_ENABLED: "true"
+  ORCH_CONFIG__AUTO_MAP_RESULTS: "true"
+  ORCH_CONFIG__MAPPER_ENDPOINT: "http://llama-mapper-prod:8000/map"
+
+# Production detector configurations (full set)
+detectors:
+  echo:
+    endpoint: "builtin:echo"
+    timeout_ms: 500
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+  toxicity:
+    endpoint: "http://detector-toxicity-prod:8000/detect"
+    timeout_ms: 3000
+    max_retries: 3
+    auth:
+      type: "api_key"
+      header: "X-API-Key"
+    weight: 1.0
+    supported_content_types: ["text"]
+  deberta_toxicity:
+    endpoint: "http://detector-deberta-toxicity-prod:8000/detect"
+    timeout_ms: 3000
+    max_retries: 3
+    auth:
+      type: "api_key"
+      header: "X-API-Key"
+    weight: 1.0
+    supported_content_types: ["text"]
+  regex_pii:
+    endpoint: "http://detector-regex-pii-prod:8000/detect"
+    timeout_ms: 1000
+    max_retries: 2
+    auth:
+      type: "api_key"
+      header: "X-API-Key"
+    weight: 1.0
+    supported_content_types: ["text"]
+
+# Redis configuration for production
+redis:
+  enabled: true
+  host: "detector-orchestration-redis-prod"
+  port: 6379
+  password: ""
+
+# OPA configuration for production
+opa:
+  enabled: true
+  image:
+    repository: openpolicyagent/opa
+    tag: "0.60.0"
+    pullPolicy: IfNotPresent
+  port: 8181
+  policies:
+    mountPath: "/policies"
+    configMap: "detector-policies-prod"
+
+# Service configuration for production
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# Resource limits for production
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+# Enable autoscaling for production
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 70
+
+# Production security context
+securityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# Production monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+
+# Pod disruption budget for production
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

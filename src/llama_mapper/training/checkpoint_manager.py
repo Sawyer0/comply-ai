@@ -15,13 +15,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import structlog
 
 try:
-    import torch  # type: ignore
-except Exception:  # torch is an optional dependency at runtime
-    torch = None  # type: ignore[assignment]
-try:
     from peft import PeftModel  # type: ignore
 except Exception:
-    # Minimal stub to allow import without peft installed; methods using it should not be called in tests
+    # Minimal stub to allow import without peft installed; methods using it
+    # should not be called in tests
     class PeftModel:  # type: ignore
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             pass
@@ -30,7 +27,7 @@ except Exception:
             pass
 
         @classmethod
-        def from_pretrained(cls, *args: Any, **kwargs: Any) -> "PeftModel":
+        def from_pretrained(cls, *_args: Any, **_kwargs: Any) -> "PeftModel":
             return cls()
 
 
@@ -175,7 +172,7 @@ class CheckpointManager:
 
         # Find the highest version number
         max_version = (0, 0, 0)
-        for version_id in self.versions.keys():
+        for version_id in self.versions:
             if "@v" in version_id:
                 try:
                     version_part = version_id.split("@v")[1]
@@ -239,10 +236,13 @@ class CheckpointManager:
             full_metadata = {
                 "training_metrics": training_metrics,
                 "model_config": (
-                    model.config.to_dict() if hasattr(model.config, "to_dict") else {}
+                    getattr(model, "config", None).to_dict()  # type: ignore[attr-defined]
+                    if (getattr(model, "config", None) is not None
+                        and hasattr(getattr(model, "config", None), "to_dict"))
+                    else {}
                 ),
                 "peft_config": (
-                    model.peft_config if hasattr(model, "peft_config") else {}
+                    getattr(model, "peft_config", None) if hasattr(model, "peft_config") else {}
                 ),
                 "tags": tags or [],
                 "created_by": "CheckpointManager",
@@ -272,8 +272,8 @@ class CheckpointManager:
             logger.info(
                 "Checkpoint saved successfully",
                 version_id=version_id,
-                checkpoint_size_mb=self._get_directory_size(checkpoint_dir)
-                / (1024 * 1024),
+                checkpoint_size_mb=self._get_directory_size(checkpoint_dir) /
+                (1024 * 1024),
             )
 
             return version_id
@@ -321,19 +321,19 @@ class CheckpointManager:
 
         try:
             # Load tokenizer
-            from transformers import AutoTokenizer
+            from transformers import AutoTokenizer  # type: ignore[import-untyped]
 
             tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir / "tokenizer")
 
             # Load PEFT model
             if base_model is not None:
                 # Load PEFT adapter onto existing base model
-                from peft import PeftModel
+                from peft import PeftModel  # type: ignore[import-untyped]
 
                 model = PeftModel.from_pretrained(base_model, checkpoint_dir / "model")
             else:
                 # Load PEFT model with base model
-                from peft import AutoPeftModelForCausalLM
+                from peft import AutoPeftModelForCausalLM  # type: ignore[import-untyped]
 
                 model = AutoPeftModelForCausalLM.from_pretrained(
                     checkpoint_dir / "model"
@@ -569,8 +569,8 @@ class CheckpointManager:
             "checkpoint_path": version.checkpoint_path,
             "created_at": version.created_at.isoformat(),
             "metadata": version.metadata,
-            "model_size_mb": self._get_directory_size(Path(version.checkpoint_path))
-            / (1024 * 1024),
+            "model_size_mb": self._get_directory_size(Path(version.checkpoint_path)) /
+            (1024 * 1024),
             "tags": version.metadata.get("tags", []),
             "training_metrics": version.metadata.get("training_metrics", {}),
         }

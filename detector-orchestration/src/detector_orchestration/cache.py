@@ -1,3 +1,9 @@
+"""Caching module for orchestrator responses and intermediate results.
+
+This module provides caching functionality for detector orchestration results,
+including Redis-based caching for production and in-memory caching for testing.
+"""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,28 +15,46 @@ import logging
 
 from .models import OrchestrationResponse
 
+try:  # pragma: no cover - optional dependency
+    import redis  # type: ignore[import-not-found]
+    from redis.exceptions import RedisError  # type: ignore[import-not-found]
+except ImportError:  # pragma: no cover - redis is optional
+    redis = None  # type: ignore[assignment]
+
+    class RedisError(Exception):
+        """Fallback Redis error used when the dependency is unavailable."""
+
+# Redis client type alias (Optional[Any] keeps typing lenient without redis installed)
+RedisClient = Any
+
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class _CacheEntry:
-    value: Any
+    """Internal cache entry with expiration."""
+    value: OrchestrationResponse
     expires_at: float
 
 
 @dataclass
 class _IdemEntry:
+    """Internal idempotency cache entry with fingerprint."""
     value: OrchestrationResponse
     fingerprint: Optional[str]
     expires_at: float
 
 
 class IdempotencyCache:
+    """Cache for idempotent orchestrator responses."""
     def __init__(self, ttl_seconds: int = 60 * 60 * 24):
         self._store: Dict[str, _IdemEntry] = {}
         self._ttl = ttl_seconds
 
     def get(self, key: str) -> Optional[OrchestrationResponse]:
+        """Retrieve the cached response for the idempotency key, if present."""
+
         e = self._store.get(key)
         if not e:
             return None
@@ -40,6 +64,8 @@ class IdempotencyCache:
         return e.value
 
     def get_entry(self, key: str) -> Optional[_IdemEntry]:
+        """Return the full idempotency entry (value + fingerprint)."""
+
         e = self._store.get(key)
         if not e:
             return None
@@ -48,35 +74,57 @@ class IdempotencyCache:
             return None
         return e
 
-    def set(self, key: str, value: OrchestrationResponse, fingerprint: Optional[str] = None) -> None:
-        self._store[key] = _IdemEntry(value=value, fingerprint=fingerprint, expires_at=time.time() + self._ttl)
+    def set(
+        self, key: str, value: OrchestrationResponse, fingerprint: Optional[str] = None
+    ) -> None:
+        """Store an idempotent response, overwriting existing values."""
+
+        self._store[key] = _IdemEntry(
+            value=value, fingerprint=fingerprint, expires_at=time.time() + self._ttl
+        )
+
+    def is_healthy(self) -> bool:
+        """In-memory cache is always healthy."""
+        return True
 
 
-class RedisIdempotencyCache:
+class RedisIdempotencyCache(IdempotencyCache):
     """Redis-backed idempotency cache for orchestrator responses."""
 
-    def __init__(self, redis_url: str, ttl_seconds: int = 60 * 60 * 24, key_prefix: str = "idem:orch:") -> None:
+    def __init__(
+        self,
+        redis_url: str,
+        ttl_seconds: int = 60 * 60 * 24,
+        key_prefix: str = "idem:orch:",
+    ) -> None:
+        super().__init__(ttl_seconds=ttl_seconds)
         self._url = redis_url
-        self._ttl = ttl_seconds
         self._prefix = key_prefix
-        self._redis = None
+        self._redis: RedisClient | None = None
         self._available = True
 
     def _ensure_client(self) -> bool:
         if self._redis is not None:
             return True
-        try:
-            import redis  # type: ignore
-
-            self._redis = redis.Redis.from_url(self._url, socket_timeout=0.2)  # type: ignore[arg-type]
-            try:
-                self._redis.ping()
-            except Exception:
-                pass
-            return True
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"RedisIdempotencyCache unavailable, falling back to memory: {e}")
+        if redis is None:
+            logger.warning(
+                "Redis dependency not installed; idempotency cache fallback active"
+            )
             self._available = False
+            return False
+        try:
+            self._redis = redis.Redis.from_url(  # type: ignore[attr-defined]
+                self._url,
+                socket_timeout=0.2,
+            )
+            self._redis.ping()
+            return True
+        except RedisError as exc:
+            logger.warning(
+                "RedisIdempotencyCache unavailable, falling back to memory: %s", exc
+            )
+            self._available = False
+            self._redis = None
             return False
 
     def get(self, key: str) -> Optional[OrchestrationResponse]:
@@ -89,24 +137,33 @@ class RedisIdempotencyCache:
         if not self._ensure_client():
             return None
         try:
-            raw = self._redis.get(f"{self._prefix}{key}")
-            if not raw:
+            client = self._redis
+            if client is None:
                 return None
-            if isinstance(raw, bytes):
-                raw = raw.decode("utf-8")
-            data = json.loads(raw)
-            # Backward/compat: handle both {..response fields..} and {"resp": {...}, "fp": "..."}
-            if isinstance(data, dict) and "resp" in data:
-                resp = OrchestrationResponse(**data.get("resp", {}))
-                fp = data.get("fp")
-                return _IdemEntry(value=resp, fingerprint=fp, expires_at=time.time() + self._ttl)
-            # Older format: whole object is the response JSON
-            resp = OrchestrationResponse(**data)
-            return _IdemEntry(value=resp, fingerprint=None, expires_at=time.time() + self._ttl)
-        except Exception:
+            raw = client.get(f"{self._prefix}{key}")
+            entry: Optional[_IdemEntry] = None
+            if raw:
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8")
+                data = json.loads(raw)
+                expiry = time.time() + self._ttl
+                if isinstance(data, dict) and "resp" in data:
+                    resp = OrchestrationResponse(**data.get("resp", {}))
+                    entry = _IdemEntry(
+                        value=resp,
+                        fingerprint=data.get("fp"),
+                        expires_at=expiry,
+                    )
+                else:
+                    resp = OrchestrationResponse(**data)
+                    entry = _IdemEntry(value=resp, fingerprint=None, expires_at=expiry)
+            return entry
+        except (RedisError, json.JSONDecodeError, TypeError):
             return None
 
-    def set(self, key: str, value: OrchestrationResponse, fingerprint: Optional[str] = None) -> None:
+    def set(
+        self, key: str, value: OrchestrationResponse, fingerprint: Optional[str] = None
+    ) -> None:
         if self._ttl <= 0:
             return
         if not self._ensure_client():
@@ -114,21 +171,30 @@ class RedisIdempotencyCache:
         try:
             payload_obj = {"resp": value.model_dump(), "fp": fingerprint}
             payload = json.dumps(payload_obj, separators=(",", ":"))
-            self._redis.set(f"{self._prefix}{key}", payload, ex=self._ttl)
-        except Exception:
-            return
+            client = self._redis
+            if client is None:
+                return
+            client.set(f"{self._prefix}{key}", payload, ex=self._ttl)
+        except RedisError as exc:
+            logger.warning("Failed to persist Redis idempotency entry: %s", exc)
 
     def is_healthy(self) -> bool:
         if not self._ensure_client():
             return False
         try:
-            self._redis.ping()
+            client = self._redis
+            if client is None:
+                return False
+            client.ping()
             return True
-        except Exception:
+        except RedisError as exc:
+            logger.warning("Redis health check failed: %s", exc)
             return False
 
 
 class ResponseCache:
+    """Cache of orchestration responses keyed by request fingerprint."""
+
     def __init__(self, ttl_seconds: int = 300):
         self._store: Dict[str, _CacheEntry] = {}
         self._ttl = ttl_seconds
@@ -137,12 +203,18 @@ class ResponseCache:
         self._by_detector: Dict[str, Set[str]] = {}
 
     @staticmethod
-    def build_key(content: str, detector_set: Tuple[str, ...], policy_bundle: str) -> str:
+    def build_key(
+        content: str, detector_set: Tuple[str, ...], policy_bundle: str
+    ) -> str:
+        """Build a deterministic cache key from content, detectors, and policy."""
+
         h = hashlib.sha256(content.encode("utf-8")).hexdigest()
         det = ",".join(sorted(detector_set))
         return hashlib.sha256(f"{h}|{det}|{policy_bundle}".encode("utf-8")).hexdigest()
 
     def get(self, key: str) -> Optional[OrchestrationResponse]:
+        """Fetch a cached orchestration response if available and not expired."""
+
         e = self._store.get(key)
         if not e:
             return None
@@ -152,6 +224,8 @@ class ResponseCache:
         return e.value
 
     def _index_key(self, key: str, value: OrchestrationResponse) -> None:
+        """Index cache keys by policy and detector for fast invalidation."""
+
         try:
             policy = value.routing_decision.policy_applied
             if policy:
@@ -160,19 +234,25 @@ class ResponseCache:
             for det in value.routing_decision.selected_detectors:
                 ds = self._by_detector.setdefault(det, set())
                 ds.add(key)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             # Be permissive; indexing is best-effort
             pass
 
     def set(self, key: str, value: OrchestrationResponse) -> None:
+        """Insert or update a cached orchestration response."""
+
         self._store[key] = _CacheEntry(value=value, expires_at=time.time() + self._ttl)
         self._index_key(key, value)
 
     def delete_key(self, key: str) -> None:
+        """Remove a specific cache entry without touching indexes."""
+
         self._store.pop(key, None)
         # Lazy cleanup of indexes: full cleanup occurs on invalidate
 
     def invalidate_for_policy(self, policy_bundle: str) -> int:
+        """Invalidate every cached response associated with the policy bundle."""
+
         keys = list(self._by_policy.get(policy_bundle, set()))
         count = 0
         for k in keys:
@@ -189,6 +269,8 @@ class ResponseCache:
         return count
 
     def invalidate_for_detector(self, detector: str) -> int:
+        """Invalidate responses using a particular detector."""
+
         keys = list(self._by_detector.get(detector, set()))
         count = 0
         for k in keys:
@@ -204,47 +286,64 @@ class ResponseCache:
                 self._by_policy.pop(pol, None)
         return count
 
+    def is_healthy(self) -> bool:
+        """In-memory cache is always healthy."""
+        return True
 
-class RedisResponseCache:
+
+class RedisResponseCache(ResponseCache):
     """Redis-backed response cache for orchestrator responses."""
 
-    def __init__(self, redis_url: str, ttl_seconds: int = 300, key_prefix: str = "resp:orch:") -> None:
+    def __init__(
+        self, redis_url: str, ttl_seconds: int = 300, key_prefix: str = "resp:orch:"
+    ) -> None:
+        super().__init__(ttl_seconds=ttl_seconds)
         self._url = redis_url
-        self._ttl = ttl_seconds
         self._prefix = key_prefix
-        self._redis = None
+        self._redis: RedisClient | None = None
         self._available = True
 
     def _ensure_client(self) -> bool:
         if self._redis is not None:
             return True
-        try:
-            import redis  # type: ignore
-
-            self._redis = redis.Redis.from_url(self._url, socket_timeout=0.2)  # type: ignore[arg-type]
-            try:
-                self._redis.ping()
-            except Exception:
-                pass
-            return True
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"RedisResponseCache unavailable, falling back to memory: {e}")
-        
+        if redis is None:
+            logger.warning(
+                "Redis dependency not installed; response cache fallback active"
+            )
             self._available = False
+            return False
+        try:
+            self._redis = redis.Redis.from_url(  # type: ignore[attr-defined]
+                self._url,
+                socket_timeout=0.2,
+            )
+            self._redis.ping()
+            return True
+        except RedisError as exc:
+            logger.warning(
+                "RedisResponseCache unavailable, falling back to memory: %s", exc
+            )
+            self._available = False
+            self._redis = None
             return False
 
     @staticmethod
-    def build_key(content: str, detector_set: Tuple[str, ...], policy_bundle: str) -> str:
+    def build_key(
+        content: str, detector_set: Tuple[str, ...], policy_bundle: str
+    ) -> str:
         # Keep deterministic key derivation same as in-memory
         h = hashlib.sha256(content.encode("utf-8")).hexdigest()
         det = ",".join(sorted(detector_set))
         return hashlib.sha256(f"{h}|{det}|{policy_bundle}".encode("utf-8")).hexdigest()
 
     def _index_key(self, key: str, value: OrchestrationResponse) -> None:
+        if not self._ensure_client():
+            return
         try:
-            if not self._ensure_client():
+            client = self._redis
+            if client is None:
                 return
-            pipe = self._redis.pipeline()  # type: ignore[union-attr]
+            pipe = client.pipeline()
             policy = value.routing_decision.policy_applied
             if policy:
                 pol_idx = f"{self._prefix}idx:policy:{policy}"
@@ -255,9 +354,8 @@ class RedisResponseCache:
                 pipe.sadd(det_idx, key)
                 pipe.expire(det_idx, self._ttl)
             pipe.execute()
-        except Exception:
-            # Best-effort indexing
-            pass
+        except RedisError as exc:
+            logger.warning("Failed to index Redis cache entry: %s", exc)
 
     def get(self, key: str) -> Optional[OrchestrationResponse]:
         if self._ttl <= 0:
@@ -265,14 +363,18 @@ class RedisResponseCache:
         if not self._ensure_client():
             return None
         try:
-            raw = self._redis.get(f"{self._prefix}{key}")
+            client = self._redis
+            if client is None:
+                return None
+            raw = client.get(f"{self._prefix}{key}")
             if not raw:
                 return None
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
             data = json.loads(raw)
             return OrchestrationResponse(**data)
-        except Exception:
+        except (RedisError, json.JSONDecodeError, TypeError) as exc:
+            logger.warning("Failed to read Redis cache entry: %s", exc)
             return None
 
     def set(self, key: str, value: OrchestrationResponse) -> None:
@@ -282,9 +384,11 @@ class RedisResponseCache:
             return
         try:
             payload = value.model_dump_json()
-            namespaced = f"{self._prefix}{key}"
-            pipe = self._redis.pipeline()  # type: ignore[union-attr]
-            pipe.set(namespaced, payload, ex=self._ttl)
+            client = self._redis
+            if client is None:
+                return
+            pipe = client.pipeline()
+            pipe.set(f"{self._prefix}{key}", payload, ex=self._ttl)
             # Also index for invalidation
             policy = value.routing_decision.policy_applied
             if policy:
@@ -296,26 +400,32 @@ class RedisResponseCache:
                 pipe.sadd(det_idx, key)
                 pipe.expire(det_idx, self._ttl)
             pipe.execute()
-        except Exception:
-            return
+        except RedisError as exc:
+            logger.warning("Failed to store Redis cache entry: %s", exc)
 
     def invalidate_for_policy(self, policy_bundle: str) -> int:
         if not self._ensure_client():
             return 0
         try:
             pol_idx = f"{self._prefix}idx:policy:{policy_bundle}"
-            keys = self._redis.smembers(pol_idx)  # type: ignore[union-attr]
+            client = self._redis
+            if client is None:
+                return 0
+            keys = client.smembers(pol_idx)
             if not keys:
                 return 0
             # Redis returns bytes items
-            key_list = [k.decode("utf-8") if isinstance(k, bytes) else str(k) for k in keys]
-            pipe = self._redis.pipeline()  # type: ignore[union-attr]
+            key_list = [
+                k.decode("utf-8") if isinstance(k, bytes) else str(k) for k in keys
+            ]
+            pipe = client.pipeline()
             for k in key_list:
                 pipe.delete(f"{self._prefix}{k}")
             pipe.delete(pol_idx)
             pipe.execute()
             return len(key_list)
-        except Exception:
+        except RedisError as exc:
+            logger.warning("Failed policy invalidation in Redis cache: %s", exc)
             return 0
 
     def invalidate_for_detector(self, detector: str) -> int:
@@ -323,24 +433,33 @@ class RedisResponseCache:
             return 0
         try:
             det_idx = f"{self._prefix}idx:detector:{detector}"
-            keys = self._redis.smembers(det_idx)  # type: ignore[union-attr]
+            client = self._redis
+            if client is None:
+                return 0
+            keys = client.smembers(det_idx)
             if not keys:
                 return 0
-            key_list = [k.decode("utf-8") if isinstance(k, bytes) else str(k) for k in keys]
-            pipe = self._redis.pipeline()  # type: ignore[union-attr]
+            key_list = [
+                k.decode("utf-8") if isinstance(k, bytes) else str(k) for k in keys
+            ]
+            pipe = client.pipeline()
             for k in key_list:
                 pipe.delete(f"{self._prefix}{k}")
             pipe.delete(det_idx)
             pipe.execute()
             return len(key_list)
-        except Exception:
+        except RedisError as exc:
+            logger.warning("Failed detector invalidation in Redis cache: %s", exc)
             return 0
 
     def is_healthy(self) -> bool:
         if not self._ensure_client():
             return False
         try:
-            self._redis.ping()
+            client = self._redis
+            if client is None:
+                return False
+            client.ping()
             return True
-        except Exception:
+        except RedisError:
             return False

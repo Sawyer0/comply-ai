@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  detector-orchestration:
+    build:
+      context: ..
+      dockerfile: detector-orchestration/Dockerfile
+    container_name: detector-orchestration-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - ORCH_ENVIRONMENT=dev
+      - ORCH_LOG_LEVEL=DEBUG
+      - ORCH_CONFIG__CACHE_BACKEND=memory
+      - ORCH_CONFIG__CACHE_ENABLED=false
+      - ORCH_CONFIG__OPA_ENABLED=false
+      - ORCH_CONFIG__RATE_LIMIT_ENABLED=false
+      - ORCH_CONFIG__AUTO_MAP_RESULTS=false
+      - ORCH_CONFIG__MAPPER_ENDPOINT=http://host.docker.internal:8000/map
+    volumes:
+      # Mount policies for development
+      - ./policies:/app/policies:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Optional: Redis for caching in development
+  redis:
+    image: redis:7-alpine
+    container_name: detector-orchestration-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    profiles:
+      - with-redis
+
+  # Optional: OPA for policy testing in development
+  opa:
+    image: openpolicyagent/opa:0.60.0
+    container_name: detector-orchestration-opa
+    ports:
+      - "8181:8181"
+    command: >
+      opa run --server
+      --addr=:8181
+      --log-level=debug
+      --log-format=json
+      /policies
+    volumes:
+      - ./policies:/policies:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    profiles:
+      - with-opa
+
+volumes:
+  redis-data:
+
+# Usage examples:
+# Start basic service: docker-compose -f docker-compose.dev.yaml up
+# Start with Redis: docker-compose -f docker-compose.dev.yaml --profile with-redis up
+# Start with OPA: docker-compose -f docker-compose.dev.yaml --profile with-opa up
+# Start with all services: docker-compose -f docker-compose.dev.yaml --profile with-redis --profile with-opa up

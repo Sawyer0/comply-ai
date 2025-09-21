@@ -1,8 +1,8 @@
 """
 Canonical error utilities for Mapper API.
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 from .models import ErrorBody
 
@@ -40,7 +40,9 @@ def is_retryable(code: str) -> bool:
     return bool(RETRYABLE.get(code, False))
 
 
-def build_error_body(request_id: str | None, code: str, message: str | None = None) -> ErrorBody:
+def build_error_body(
+    request_id: str | None, code: str, message: str | None = None
+) -> ErrorBody:
     return ErrorBody(
         error_code=code,
         message=message,

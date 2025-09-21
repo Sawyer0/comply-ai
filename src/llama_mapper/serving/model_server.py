@@ -41,17 +41,14 @@ class ModelServer(ABC):
     @abstractmethod
     async def load_model(self) -> None:
         """Load the model into memory."""
-        pass
 
     @abstractmethod
     async def generate_text(self, prompt: str, **kwargs: Any) -> str:
         """Generate text from a prompt."""
-        pass
 
     @abstractmethod
     async def health_check(self) -> bool:
         """Check if the model server is healthy."""
-        pass
 
     async def generate_mapping(
         self, detector: str, output: str, metadata: Optional[Dict] = None
@@ -84,22 +81,24 @@ class ModelServer(ABC):
         Returns:
             str: Formatted prompt for the model
         """
-        system_prompt = """You are a specialized AI assistant that maps detector outputs to a canonical taxonomy. Your task is to analyze the detector output and return a JSON response with the canonical taxonomy mapping.
-
-The response must follow this exact JSON schema:
-{
-  "taxonomy": ["CANONICAL.LABEL"],
-  "scores": {"CANONICAL.LABEL": 0.95},
-  "confidence": 0.95,
-  "notes": "Optional explanation"
-}
-
-Rules:
-1. Always return valid JSON
-2. Taxonomy labels must follow the pattern: CATEGORY.SUBCATEGORY.Type
-3. Scores must be between 0.0 and 1.0
-4. Confidence must be between 0.0 and 1.0
-5. If unsure, use OTHER.Unknown with low confidence"""
+        system_prompt = (
+            "You are a specialized AI assistant that maps detector outputs to a "
+            "canonical taxonomy. Your task is to analyze the detector output and "
+            "return a JSON response with the canonical taxonomy mapping.\n\n"
+            "The response must follow this exact JSON schema:\n"
+            "{\n"
+            '  "taxonomy": ["CANONICAL.LABEL"],\n'
+            '  "scores": {"CANONICAL.LABEL": 0.95},\n'
+            '  "confidence": 0.95,\n'
+            '  "notes": "Optional explanation"\n'
+            "}\n\n"
+            "Rules:\n"
+            "1. Always return valid JSON\n"
+            "2. Taxonomy labels must follow the pattern: CATEGORY.SUBCATEGORY.Type\n"
+            "3. Scores must be between 0.0 and 1.0\n"
+            "4. Confidence must be between 0.0 and 1.0\n"
+            "5. If unsure, use OTHER.Unknown with low confidence"
+        )
 
         user_prompt = f"""Map the following detector output to the canonical taxonomy:
 

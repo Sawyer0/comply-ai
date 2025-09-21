@@ -299,7 +299,8 @@ class ConfigManager:
         Args:
             config_path: Path to YAML configuration file. If None, uses default locations.
             tenant_id: Optional tenant identifier to apply tenant-specific overrides
-            environment: Optional environment name to apply environment overrides (e.g., development, staging, production)
+            environment: Optional environment name to apply environment overrides
+                (e.g., development, staging, production)
         """
         self.config_path = self._resolve_config_path(config_path)
         self.tenant_id = tenant_id

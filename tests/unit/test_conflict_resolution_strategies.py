@@ -15,6 +15,7 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
+    ConflictResolutionRequest,
     ConflictResolver,
     ConflictResolutionStrategy,
 )
@@ -45,12 +46,13 @@ async def test_highest_confidence_default_for_image(conflict_scenarios):
         _res(scen["detectors"][0]["detector"], scen["detectors"][0]["output"], scen["detectors"][0]["confidence"]),
         _res(scen["detectors"][1]["detector"], scen["detectors"][1]["output"], scen["detectors"][1]["confidence"]),
     ]
-    out = await resolver.resolve(
+    request = ConflictResolutionRequest(
         tenant_id="t1",
         policy_bundle="default",
         content_type=ContentType.IMAGE,
         detector_results=results,
     )
+    out = await resolver.resolve(request)
     assert out.strategy_used == ConflictResolutionStrategy.HIGHEST_CONFIDENCE
     assert out.winning_output == "safe"
     # Normalized scores within [0,1]
@@ -66,13 +68,14 @@ async def test_weighted_average_default_for_text_with_weights(conflict_scenarios
         _res(d["detector"], d["output"], d["confidence"]) for d in scen["detectors"]
     ]
     weights = scen.get("weights", {})
-    out = await resolver.resolve(
+    request = ConflictResolutionRequest(
         tenant_id="t1",
         policy_bundle="default",
         content_type=ContentType.TEXT,
         detector_results=results,
         weights=weights,
     )
+    out = await resolver.resolve(request)
     assert out.strategy_used == ConflictResolutionStrategy.WEIGHTED_AVERAGE
     # Weighted should pick the outlier toxic
     assert out.winning_output == "toxic"
@@ -87,12 +90,13 @@ async def test_majority_vote_default_for_code_with_tie_breaker(conflict_scenario
         _res("det-1", tie["detectors"][0]["output"], tie["detectors"][0]["confidence"]),
         _res("det-2", tie["detectors"][1]["output"], tie["detectors"][1]["confidence"]),
     ]
-    out = await resolver.resolve(
+    request = ConflictResolutionRequest(
         tenant_id="t1",
         policy_bundle="default",
         content_type=ContentType.CODE,
         detector_results=results,
     )
+    out = await resolver.resolve(request)
     assert out.strategy_used == ConflictResolutionStrategy.MAJORITY_VOTE
     # With a 1-1 tie, tie-breaker path is used
     assert out.tie_breaker_applied is not None
@@ -108,13 +112,14 @@ async def test_most_restrictive_default_for_document_approximates_weighted(confl
     results = [
         _res(d["detector"], d["output"], d["confidence"]) for d in scen["detectors"]
     ]
-    out = await resolver.resolve(
+    request = ConflictResolutionRequest(
         tenant_id="t1",
         policy_bundle="default",
         content_type=ContentType.DOCUMENT,
         detector_results=results,
         weights=scen.get("weights", {}),
     )
+    out = await resolver.resolve(request)
     assert out.strategy_used == ConflictResolutionStrategy.MOST_RESTRICTIVE
     assert out.winning_output == "toxic"
 

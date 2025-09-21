@@ -227,7 +227,7 @@ class FrameworkMapping:
         valid_labels = []
         invalid_labels = []
 
-        for taxonomy_label in self.mappings.keys():
+        for taxonomy_label in self.mappings:
             if taxonomy.validate_label_name(taxonomy_label):
                 valid_labels.append(taxonomy_label)
             else:
@@ -276,7 +276,7 @@ class FrameworkMapping:
 
         # Count unique controls per framework
         framework_control_counts: Dict[str, int] = {}
-        for framework_name in self.frameworks.keys():
+        for framework_name in self.frameworks:
             unique_controls = set()
             for controls in self.mappings.values():
                 for control_ref in controls:
@@ -649,4 +649,7 @@ class FrameworkMapper:
 
     def __repr__(self) -> str:
         """String representation of FrameworkMapper."""
-        return f"FrameworkMapper(path={self.frameworks_path}, loaded={self._framework_mapping is not None})"
+        return (
+            f"FrameworkMapper(path={self.frameworks_path}, "
+            f"loaded={self._framework_mapping is not None})"
+        )

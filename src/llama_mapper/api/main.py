@@ -20,6 +20,7 @@ from .mapper import create_app
 
 logger = logging.getLogger(__name__)
 
+
 async def create_service() -> FastAPI:
     """Create and configure the FastAPI service with all dependencies."""
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 import random
-import itertools
+from typing import Optional
+
 import pytest
 
 
@@ -17,6 +18,7 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
+    ConflictResolutionRequest,
     ConflictResolver,
 )
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
@@ -36,6 +38,21 @@ def _res(detector: str, output: str, conf: float) -> DetectorResult:
     )
 
 
+def _request(
+    *,
+    content_type: ContentType,
+    results: list[DetectorResult],
+    weights: Optional[dict[str, float]] = None,
+) -> ConflictResolutionRequest:
+    return ConflictResolutionRequest(
+        tenant_id="t1",
+        policy_bundle="default",
+        content_type=content_type,
+        detector_results=list(results),
+        weights=weights,
+    )
+
+
 @pytest.mark.asyncio
 async def test_order_invariance_highest_confidence():
     # Highest-confidence strategy should be invariant to permutation of results order
@@ -49,10 +66,7 @@ async def test_order_invariance_highest_confidence():
     ]
     # Baseline winner
     out0 = await resolver.resolve(
-        tenant_id="t1",
-        policy_bundle="default",
-        content_type=ContentType.IMAGE,  # highest_confidence
-        detector_results=list(base),
+        _request(content_type=ContentType.IMAGE, results=list(base))
     )
     expected_output = out0.winning_output
     expected_detector = out0.winning_detector
@@ -63,10 +77,7 @@ async def test_order_invariance_highest_confidence():
         perm = list(base)
         rnd.shuffle(perm)
         out = await resolver.resolve(
-            tenant_id="t1",
-            policy_bundle="default",
-            content_type=ContentType.IMAGE,
-            detector_results=perm,
+            _request(content_type=ContentType.IMAGE, results=perm)
         )
         assert out.winning_output == expected_output
         assert out.winning_detector == expected_detector
@@ -84,20 +95,20 @@ async def test_weight_scaling_invariance_weighted_average():
     base_weights = {"d1": 3.0, "d2": 1.0, "d3": 2.0}
 
     out_base = await resolver.resolve(
-        tenant_id="t1",
-        policy_bundle="default",
-        content_type=ContentType.TEXT,  # weighted_average default
-        detector_results=results,
-        weights=base_weights,
+        _request(
+            content_type=ContentType.TEXT,
+            results=results,
+            weights=base_weights,
+        )
     )
 
     for k in [0.1, 2.5, 10.0, 100.0]:
         scaled = {d: w * k for d, w in base_weights.items()}
         out_scaled = await resolver.resolve(
-            tenant_id="t1",
-            policy_bundle="default",
-            content_type=ContentType.TEXT,
-            detector_results=results,
-            weights=scaled,
+            _request(
+                content_type=ContentType.TEXT,
+                results=results,
+                weights=scaled,
+            )
         )
         assert out_scaled.winning_output == out_base.winning_output

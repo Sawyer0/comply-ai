@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import math
 import time
-from typing import Callable, Dict, Tuple, Awaitable
+from typing import Callable, Dict, Awaitable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request

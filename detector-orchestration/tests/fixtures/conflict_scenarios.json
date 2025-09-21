@@ -1,0 +1,77 @@
+{
+  "basic_conflict": {
+    "detector_results": [
+      {
+        "detector": "toxicity",
+        "status": "success",
+        "output": "toxic",
+        "confidence": 0.8,
+        "processing_time_ms": 1500
+      },
+      {
+        "detector": "regex-pii",
+        "status": "success",
+        "output": "clean",
+        "confidence": 0.9,
+        "processing_time_ms": 500
+      }
+    ],
+    "expected_outcome": {
+      "strategy_used": "highest_confidence",
+      "winning_output": "clean",
+      "winning_detector": "regex-pii"
+    }
+  },
+  "tie_conflict": {
+    "detector_results": [
+      {
+        "detector": "toxicity",
+        "status": "success",
+        "output": "toxic",
+        "confidence": 0.8,
+        "processing_time_ms": 1500
+      },
+      {
+        "detector": "deberta-toxicity",
+        "status": "success",
+        "output": "clean",
+        "confidence": 0.8,
+        "processing_time_ms": 2000
+      }
+    ],
+    "expected_outcome": {
+      "strategy_used": "highest_confidence",
+      "tie_breaker_applied": true
+    }
+  },
+  "multi_detector_conflict": {
+    "detector_results": [
+      {
+        "detector": "toxicity",
+        "status": "success",
+        "output": "toxic",
+        "confidence": 0.6,
+        "processing_time_ms": 1500
+      },
+      {
+        "detector": "regex-pii",
+        "status": "success",
+        "output": "clean",
+        "confidence": 0.9,
+        "processing_time_ms": 500
+      },
+      {
+        "detector": "echo",
+        "status": "success",
+        "output": "toxic",
+        "confidence": 0.7,
+        "processing_time_ms": 100
+      }
+    ],
+    "expected_outcome": {
+      "strategy_used": "weighted_average",
+      "winning_output": "clean",
+      "winning_detector": "regex-pii"
+    }
+  }
+}

@@ -38,7 +38,7 @@ except Exception:
         def __init__(self, *args: object, **kwargs: object) -> None:
             pass
 
-    def get_peft_model(model: "PreTrainedModel", lora_config: "LoraConfig") -> "PreTrainedModel":  # type: ignore
+    def get_peft_model(model: "PreTrainedModel", _lora_config: "LoraConfig") -> "PreTrainedModel":  # type: ignore
         return model
 
 
@@ -81,12 +81,12 @@ except Exception:
 
     class AutoModelForCausalLM:  # type: ignore
         @classmethod
-        def from_pretrained(cls, *args: Any, **kwargs: Any) -> PreTrainedModel:
+        def from_pretrained(cls, *_args: Any, **_kwargs: Any) -> PreTrainedModel:
             return PreTrainedModel()
 
     class AutoTokenizer:  # type: ignore
         @classmethod
-        def from_pretrained(cls, *args: Any, **kwargs: Any) -> PreTrainedTokenizer:
+        def from_pretrained(cls, *_args: Any, **_kwargs: Any) -> PreTrainedTokenizer:
             return PreTrainedTokenizer()
 
 

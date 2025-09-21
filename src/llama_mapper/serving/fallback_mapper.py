@@ -134,8 +134,8 @@ class FallbackMapper:
         # Try partial match
         for rule_output, canonical_label in detector_maps.items():
             if (
-                rule_output.lower() in output_lower
-                or output_lower in rule_output.lower()
+                rule_output.lower() in output_lower or
+                output_lower in rule_output.lower()
             ):
                 self.metrics_collector.increment_counter(
                     "fallback_partial_match_total", {"detector": detector}
@@ -280,8 +280,8 @@ class FallbackMapper:
 
                             if detector:
                                 fallback_stats["by_detector"][detector] = (
-                                    fallback_stats["by_detector"].get(detector, 0)
-                                    + count
+                                    fallback_stats["by_detector"].get(detector, 0) +
+                                    count
                                 )
                             if reason:
                                 fallback_stats["by_reason"][reason] = (
@@ -337,19 +337,24 @@ class FallbackMapper:
         if total_matches > 0:
             logger.info("Fallback match success rates:")
             logger.info(
-                f"  Exact matches: {match_types['exact_matches']} ({match_types['exact_matches']/total_matches*100:.1f}%)"
+                f"  Exact matches: {match_types['exact_matches']} "
+                f"({match_types['exact_matches'] / total_matches * 100:.1f}%)"
             )
             logger.info(
-                f"  Case-insensitive: {match_types['case_insensitive_matches']} ({match_types['case_insensitive_matches']/total_matches*100:.1f}%)"
+                f"  Case-insensitive: {match_types['case_insensitive_matches']} "
+                f"({match_types['case_insensitive_matches'] / total_matches * 100:.1f}%)"
             )
             logger.info(
-                f"  Partial matches: {match_types['partial_matches']} ({match_types['partial_matches']/total_matches*100:.1f}%)"
+                f"  Partial matches: {match_types['partial_matches']} "
+                f"({match_types['partial_matches'] / total_matches * 100:.1f}%)"
             )
             logger.info(
-                f"  No matches: {match_types['no_matches']} ({match_types['no_matches']/total_matches*100:.1f}%)"
+                f"  No matches: {match_types['no_matches']} "
+                f"({match_types['no_matches'] / total_matches * 100:.1f}%)"
             )
             logger.info(
-                f"  No mapping available: {match_types['no_mapping']} ({match_types['no_mapping']/total_matches*100:.1f}%)"
+                f"  No mapping available: {match_types['no_mapping']} "
+                f"({match_types['no_mapping'] / total_matches * 100:.1f}%)"
             )
 
         # Provide improvement suggestions
@@ -364,9 +369,10 @@ class FallbackMapper:
             )
 
         if (
-            stats["by_reason"].get("low_confidence", 0)
-            > stats["total_fallback_usage"] * 0.5
+            stats["by_reason"].get("low_confidence", 0) >
+            stats["total_fallback_usage"] * 0.5
         ):
             logger.warning(
-                "High rate of low-confidence fallbacks - consider retraining model or adjusting confidence threshold"
+                "High rate of low-confidence fallbacks - consider retraining "
+                "model or adjusting confidence threshold"
             )

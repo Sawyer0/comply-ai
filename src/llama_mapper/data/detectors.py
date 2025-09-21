@@ -390,7 +390,7 @@ class DetectorConfigLoader:
             category_coverage[category]["total"] += 1
 
         # Calculate coverage percentages
-        for category in category_coverage:
+        for category in category_coverage.keys():
             total_val = category_coverage[category]["total"]
             covered_val = category_coverage[category]["covered"]
             # Ensure float math for percentage

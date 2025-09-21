@@ -601,14 +601,14 @@ class ReportGenerator:
         <p>Generated: {{ metadata.generated_at | datetime_format }}</p>
         {% if metadata.tenant_id %}<p>Tenant: {{ metadata.tenant_id }}</p>{% endif %}
     </div>
-    
+
     <div class="version-info">
         <h3>Version Information</h3>
         <p>Taxonomy Version: {{ metadata.taxonomy_version }}</p>
         <p>Model Version: {{ metadata.model_version }}</p>
         <p>Frameworks Version: {{ metadata.frameworks_version }}</p>
     </div>
-    
+
     <div class="section">
         <h2>Coverage Metrics</h2>
         <div class="metrics">
@@ -626,7 +626,7 @@ class ReportGenerator:
             </div>
         </div>
     </div>
-    
+
     <div class="section">
         <h2>Control Mappings</h2>
         <table>
@@ -685,14 +685,14 @@ class ReportGenerator:
         <p>Generated: {{ metadata.generated_at | datetime_format }}</p>
         {% if metadata.tenant_id %}<p>Tenant: {{ metadata.tenant_id }}</p>{% endif %}
     </div>
-    
+
     <div class="version-info">
         <h3>Version Information</h3>
         <p>Taxonomy Version: {{ metadata.taxonomy_version }}</p>
         <p>Model Version: {{ metadata.model_version }}</p>
         <p>Frameworks Version: {{ metadata.frameworks_version }}</p>
     </div>
-    
+
     <div class="section">
         <h2>Coverage Summary</h2>
         <div class="metrics">
@@ -710,7 +710,7 @@ class ReportGenerator:
             </div>
         </div>
     </div>
-    
+
     {% if report_data.coverage_report.uncovered_labels %}
     <div class="section">
         <h2>Uncovered Labels</h2>

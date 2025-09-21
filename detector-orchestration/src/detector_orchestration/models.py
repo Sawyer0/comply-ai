@@ -35,6 +35,8 @@ class DetectorStatus(str, Enum):
 
 
 class OrchestrationRequest(BaseModel):
+    """Request model for detector orchestration operations."""
+
     content: str = Field(..., max_length=50000, description="Content to analyze")
     content_type: ContentType = Field(..., description="Type of content")
     tenant_id: str = Field(..., min_length=1, max_length=64)
@@ -48,6 +50,8 @@ class OrchestrationRequest(BaseModel):
 
 
 class DetectorResult(BaseModel):
+    """Result from a single detector execution."""
+
     detector: str
     status: DetectorStatus
     output: Optional[str] = None
@@ -58,6 +62,8 @@ class DetectorResult(BaseModel):
 
 
 class MapperPayload(BaseModel):
+    """Payload for mapper service containing detector results."""
+
     detector: str
     output: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -65,6 +71,8 @@ class MapperPayload(BaseModel):
 
 
 class RoutingDecision(BaseModel):
+    """Decision made by the routing engine for detector selection."""
+
     selected_detectors: List[str]
     routing_reason: str
     policy_applied: str
@@ -73,6 +81,8 @@ class RoutingDecision(BaseModel):
 
 
 class OrchestrationResponse(BaseModel):
+    """Complete response from detector orchestration including all results and metadata."""
+
     request_id: str
     job_id: Optional[str] = None
     processing_mode: ProcessingMode
@@ -92,6 +102,8 @@ class OrchestrationResponse(BaseModel):
 
 
 class Provenance(BaseModel):
+    """Provenance information for detector results and mappings."""
+
     vendor: Optional[str] = None
     detector: Optional[str] = None
     detector_version: Optional[str] = None
@@ -103,11 +115,15 @@ class Provenance(BaseModel):
 
 
 class PolicyContext(BaseModel):
+    """Policy context for detector expectations."""
+
     expected_detectors: Optional[List[str]] = None
     environment: Optional[str] = Field(None, pattern="^(dev|stage|prod)$")
 
 
 class MappingResponse(BaseModel):
+    """Response from the mapper service containing taxonomy mapping results."""
+
     taxonomy: List[str]
     scores: Dict[str, float]
     confidence: float
@@ -117,6 +133,8 @@ class MappingResponse(BaseModel):
 
 
 class DetectorCapabilities(BaseModel):
+    """Capabilities and characteristics of a detector."""
+
     supported_content_types: List[ContentType]
     max_content_length: int = 50000
     average_processing_time_ms: int | None = None
@@ -133,6 +151,8 @@ class JobStatus(str, Enum):
 
 
 class JobStatusResponse(BaseModel):
+    """Response containing the status of an asynchronous orchestration job."""
+
     job_id: str
     status: JobStatus
     progress: float
@@ -150,6 +170,8 @@ class ErrorBody(BaseModel):
 
 
 class RoutingPlan(BaseModel):
+    """Detailed routing plan for detector orchestration."""
+
     primary_detectors: List[str]
     secondary_detectors: List[str] = Field(default_factory=list)
     parallel_groups: List[List[str]] = Field(default_factory=list)

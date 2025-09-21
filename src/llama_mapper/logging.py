@@ -10,9 +10,28 @@ import logging.config
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
+from dataclasses import dataclass
 
 import structlog
 from structlog.types import FilteringBoundLogger
+
+
+@dataclass
+class MetadataEvent:
+    """Data class for metadata logging events.
+
+    Note: This dataclass has many fields (8/7) as it represents a comprehensive
+    metadata event structure for compliance and audit logging purposes.
+    """
+
+    event: str
+    tenant_id: Optional[str] = None
+    detector_type: Optional[str] = None
+    taxonomy_label: Optional[str] = None
+    confidence: Optional[float] = None
+    fallback_used: bool = False
+    schema_valid: bool = True
+    latency_ms: Optional[float] = None
 
 
 class PrivacyFilter(logging.Filter):
@@ -21,6 +40,10 @@ class PrivacyFilter(logging.Filter):
 
     Blocks any log records that might contain raw detector inputs
     or other sensitive information.
+
+    Note: This class has only one public method (filter) as it's designed
+    to be used as a single-purpose logging filter following the Python
+    logging framework patterns.
     """
 
     SENSITIVE_KEYS = {
@@ -67,6 +90,10 @@ class MetadataOnlyProcessor:
 
     Removes any fields that might contain sensitive data and
     ensures compliance with privacy-first logging requirements.
+
+    Note: This class has only one public method (__call__) as it's designed
+    to be used as a single-purpose structlog processor following the
+    structlog framework patterns.
     """
 
     ALLOWED_FIELDS = {
@@ -261,6 +288,86 @@ def get_logger(name: str) -> FilteringBoundLogger:
     return cast(FilteringBoundLogger, structlog.get_logger(name))
 
 
+class MetadataLogger:
+    """Helper class for logging metadata-only events."""
+
+    def __init__(self, logger: FilteringBoundLogger):
+        """Initialize metadata logger.
+
+        Args:
+            logger: Structlog logger instance
+        """
+        self.logger = logger
+
+    def log_event(self, metadata_event: MetadataEvent, **kwargs: Any) -> None:
+        """Log metadata-only information for audit and monitoring.
+
+        This method ensures that only metadata is logged, never raw content.
+
+        Args:
+            metadata_event: Structured metadata event
+            **kwargs: Additional metadata fields (will be filtered)
+        """
+        metadata = {
+            "event": metadata_event.event,
+            "tenant_id": metadata_event.tenant_id,
+            "detector_type": metadata_event.detector_type,
+            "taxonomy_label": metadata_event.taxonomy_label,
+            "confidence": metadata_event.confidence,
+            "fallback_used": metadata_event.fallback_used,
+            "schema_valid": metadata_event.schema_valid,
+            "latency_ms": metadata_event.latency_ms,
+        }
+
+        # Add additional metadata (will be filtered by MetadataOnlyProcessor)
+        metadata.update(kwargs)
+
+        # Remove None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
+        event_msg = str(metadata.pop("event", "event"))
+        self.logger.info(event_msg, **metadata)
+
+    def log(
+        self,
+        event: str,
+        tenant_id: Optional[str] = None,
+        detector_type: Optional[str] = None,
+        taxonomy_label: Optional[str] = None,
+        confidence: Optional[float] = None,
+        fallback_used: bool = False,
+        schema_valid: bool = True,
+        latency_ms: Optional[float] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log metadata-only information for audit and monitoring.
+
+        This method ensures that only metadata is logged, never raw content.
+
+        Args:
+            event: Event description
+            tenant_id: Tenant identifier
+            detector_type: Type of detector used
+            taxonomy_label: Canonical taxonomy label assigned
+            confidence: Model confidence score
+            fallback_used: Whether rule-based fallback was used
+            schema_valid: Whether output passed schema validation
+            latency_ms: Request latency in milliseconds
+            **kwargs: Additional metadata fields (will be filtered)
+        """
+        metadata_event = MetadataEvent(
+            event=event,
+            tenant_id=tenant_id,
+            detector_type=detector_type,
+            taxonomy_label=taxonomy_label,
+            confidence=confidence,
+            fallback_used=fallback_used,
+            schema_valid=schema_valid,
+            latency_ms=latency_ms,
+        )
+        self.log_event(metadata_event, **kwargs)
+
+
 def log_metadata_only(
     logger: FilteringBoundLogger,
     event: str,
@@ -290,25 +397,18 @@ def log_metadata_only(
         latency_ms: Request latency in milliseconds
         **kwargs: Additional metadata fields (will be filtered)
     """
-    metadata = {
-        "event": event,
-        "tenant_id": tenant_id,
-        "detector_type": detector_type,
-        "taxonomy_label": taxonomy_label,
-        "confidence": confidence,
-        "fallback_used": fallback_used,
-        "schema_valid": schema_valid,
-        "latency_ms": latency_ms,
-    }
-
-    # Add additional metadata (will be filtered by MetadataOnlyProcessor)
-    metadata.update(kwargs)
-
-    # Remove None values
-    metadata = {k: v for k, v in metadata.items() if v is not None}
-
-    event_msg = str(metadata.pop("event", "event"))
-    logger.info(event_msg, **metadata)
+    metadata_event = MetadataEvent(
+        event=event,
+        tenant_id=tenant_id,
+        detector_type=detector_type,
+        taxonomy_label=taxonomy_label,
+        confidence=confidence,
+        fallback_used=fallback_used,
+        schema_valid=schema_valid,
+        latency_ms=latency_ms,
+    )
+    metadata_logger = MetadataLogger(logger)
+    metadata_logger.log_event(metadata_event, **kwargs)
 
 
 # Example usage and testing functions
@@ -318,9 +418,9 @@ def test_privacy_filter() -> None:
     logger = get_logger(__name__)
 
     # These should be logged (metadata only)
-    log_metadata_only(
-        logger,
-        "detector_mapping_completed",
+    metadata_logger = MetadataLogger(logger)
+    metadata_logger.log(
+        event="detector_mapping_completed",
         tenant_id="tenant_123",
         detector_type="deberta-toxicity",
         taxonomy_label="HARM.SPEECH.Toxicity",

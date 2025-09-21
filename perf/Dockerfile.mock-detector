@@ -1,0 +1,21 @@
+# Mock detector service for testing detector orchestration
+FROM python:3.11-slim
+
+# Install required packages
+RUN pip install fastapi uvicorn python-multipart aiohttp
+
+# Create app directory
+WORKDIR /app
+
+# Copy mock detector code
+COPY mock_detector.py /app/mock_detector.py
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the mock detector
+CMD ["python", "mock_detector.py"]

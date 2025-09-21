@@ -1,12 +1,23 @@
+"""Configuration models for detector orchestration service.
+
+This module defines all configuration schemas used by the orchestrator,
+including SLA settings, rate limiting, and service discovery parameters.
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pathlib import Path
+
+import yaml
+
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SLAConfig(BaseModel):
+    """SLA configuration for request processing."""
     sync_request_sla_ms: int = 2000
     async_request_sla_ms: int = 30000
     mapper_timeout_budget_ms: int = 500
@@ -14,6 +25,7 @@ class SLAConfig(BaseModel):
 
 
 class OrchestrationConfig(BaseModel):
+    """Main configuration for detector orchestration."""
     max_concurrent_detectors: int = 10
     default_timeout_ms: int = 5000
     max_retries: int = 2
@@ -48,9 +60,21 @@ class OrchestrationConfig(BaseModel):
     rate_limit_tenant_limit: int = 120
     # Optional per-tenant overrides for rate limiting (tenant_id -> limit per window)
     rate_limit_tenant_overrides: Dict[str, int] = {}
+    # Incident / notification settings
+    incident_notification_webhooks: List[str] = Field(
+        default_factory=list,
+        description="Webhook endpoints to notify on incidents",
+    )
+    event_history_limit: int = Field(
+        default=500,
+        ge=10,
+        le=5000,
+        description="Number of incident events to retain for dashboard queries",
+    )
 
 
 class DetectorEndpoint(BaseModel):
+    """Configuration for a single detector endpoint."""
     name: str
     endpoint: str  # 'http://...' or 'builtin:toxicity' etc.
     timeout_ms: int = 3000
@@ -61,6 +85,7 @@ class DetectorEndpoint(BaseModel):
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
     model_config = SettingsConfigDict(env_prefix="ORCH_", env_nested_delimiter="__")
 
     # Core
@@ -74,7 +99,9 @@ class Settings(BaseSettings):
     detectors: Dict[str, DetectorEndpoint] = {
         "toxicity": DetectorEndpoint(name="toxicity", endpoint="builtin:toxicity"),
         # Alias for tests/compat with external naming
-        "deberta-toxicity": DetectorEndpoint(name="deberta-toxicity", endpoint="builtin:toxicity"),
+        "deberta-toxicity": DetectorEndpoint(
+            name="deberta-toxicity", endpoint="builtin:toxicity"
+        ),
         "regex-pii": DetectorEndpoint(
             name="regex-pii", endpoint="builtin:regex-pii", timeout_ms=1000
         ),
@@ -83,3 +110,14 @@ class Settings(BaseSettings):
 
     # Policy defaults
     required_detectors_default: List[str] = ["toxicity", "regex-pii"]
+
+    def __init__(self, _env_file: Optional[str] = None, **values: Any) -> None:
+        file_values: Dict[str, Any] = {}
+        if _env_file:
+            cfg_path = Path(_env_file)
+            if cfg_path.exists():
+                loaded = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+                if isinstance(loaded, dict):
+                    file_values = loaded
+        merged = {**file_values, **values}
+        super().__init__(**merged)

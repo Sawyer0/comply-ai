@@ -1,3 +1,5 @@
+"""Command-line interface utilities for detector orchestration policies."""
+
 from __future__ import annotations
 
 import argparse
@@ -9,12 +11,16 @@ from .policy import PolicyStore, PolicyValidationCLI, TenantPolicy
 
 
 def _cmd_policy_validate(args: argparse.Namespace) -> int:
+    """Validate a policy definition file and emit a JSON status payload."""
+
     ok, msg = PolicyValidationCLI.validate_policy_file(args.file)
     print(json.dumps({"ok": ok, "message": msg}))
     return 0 if ok else 1
 
 
 def _cmd_policy_write(args: argparse.Namespace) -> int:
+    """Persist a policy JSON payload to the policy store."""
+
     settings = Settings()
     store = PolicyStore(settings.config.policy_dir)
     data = json.loads(Path(args.file).read_text(encoding="utf-8"))
@@ -29,6 +35,8 @@ def _cmd_policy_write(args: argparse.Namespace) -> int:
 
 
 def _cmd_policy_list(args: argparse.Namespace) -> int:
+    """List the bundles available for a tenant."""
+
     settings = Settings()
     store = PolicyStore(settings.config.policy_dir)
     bundles = store.list_policies(args.tenant)
@@ -37,6 +45,8 @@ def _cmd_policy_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_policy_get(args: argparse.Namespace) -> int:
+    """Retrieve a policy from the store and optionally write it to disk."""
+
     settings = Settings()
     store = PolicyStore(settings.config.policy_dir)
     pol = store.get_policy(args.tenant, args.bundle)
@@ -52,7 +62,11 @@ def _cmd_policy_get(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="orch", description="Detector Orchestration CLI")
+    """Entry point for the detector orchestration CLI."""
+
+    parser = argparse.ArgumentParser(
+        prog="orch", description="Detector Orchestration CLI"
+    )
     sub = parser.add_subparsers(dest="cmd")
 
     pval = sub.add_parser("policy-validate", help="Validate a policy JSON file")
@@ -79,9 +93,11 @@ def main() -> int:
     if not hasattr(args, "func"):
         parser.print_help()
         return 1
-    return args.func(args)
+    result = args.func(args)
+    if isinstance(result, int):
+        return result
+    return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

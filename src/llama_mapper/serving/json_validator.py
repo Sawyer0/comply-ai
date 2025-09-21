@@ -336,7 +336,7 @@ class JSONValidator:
             return None
 
     def create_fallback_response(
-        self, detector: str, original_output: str, error_message: str
+        self, detector: str, _original_output: str, error_message: str
     ) -> MappingResponse:
         """
         Create a fallback response when validation fails completely.

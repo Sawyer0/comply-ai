@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Optional
+
 import pytest
 
 
@@ -15,6 +17,7 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
+    ConflictResolutionRequest,
     ConflictResolver,
     ConflictResolutionStrategy,
 )
@@ -45,6 +48,21 @@ class FakeOPA:
         return self._decision
 
 
+def _request(
+    *,
+    content_type: ContentType,
+    results: list[DetectorResult],
+    weights: Optional[dict[str, float]] = None,
+) -> ConflictResolutionRequest:
+    return ConflictResolutionRequest(
+        tenant_id="t1",
+        policy_bundle="default",
+        content_type=content_type,
+        detector_results=list(results),
+        weights=weights,
+    )
+
+
 @pytest.mark.asyncio
 async def test_opa_overrides_default_strategy(conflict_scenarios, opa_decision_fixtures):
     # Default for TEXT is WEIGHTED_AVERAGE, but OPA requests HIGHEST_CONFIDENCE
@@ -54,12 +72,13 @@ async def test_opa_overrides_default_strategy(conflict_scenarios, opa_decision_f
         _res(tie["detectors"][1]["detector"], tie["detectors"][1]["output"], tie["detectors"][1]["confidence"]),
     ]
     resolver = ConflictResolver(opa_engine=FakeOPA(opa_decision_fixtures["highest_confidence"]))
+    weights = {tie["detectors"][0]["detector"]: 10.0}
     out = await resolver.resolve(
-        tenant_id="t1",
-        policy_bundle="default",
-        content_type=ContentType.TEXT,
-        detector_results=results,
-        weights={tie["detectors"][0]["detector"]: 10.0},  # weight would bias first, but OPA overrides
+        _request(
+            content_type=ContentType.TEXT,
+            results=results,
+            weights=weights,
+        )
     )
     assert out.strategy_used == ConflictResolutionStrategy.HIGHEST_CONFIDENCE
     assert out.winning_output == "safe"
@@ -77,10 +96,7 @@ async def test_opa_tenant_preference_picks_preferred_detector_output(conflict_sc
         _res(d["detector"], d["output"], d["confidence"]) for d in scen["detectors"]
     ]
     out = await resolver.resolve(
-        tenant_id="t1",
-        policy_bundle="default",
-        content_type=ContentType.TEXT,
-        detector_results=results,
+        _request(content_type=ContentType.TEXT, results=results)
     )
     assert out.strategy_used == ConflictResolutionStrategy.TENANT_PREFERENCE
     assert out.winning_detector == "det-C"
@@ -98,10 +114,7 @@ async def test_opa_failure_falls_back_to_default(conflict_scenarios):
     ]
     resolver = ConflictResolver(opa_engine=FakeOPA(RuntimeError("opa down")))
     out = await resolver.resolve(
-        tenant_id="t1",
-        policy_bundle="default",
-        content_type=ContentType.TEXT,
-        detector_results=results,
+        _request(content_type=ContentType.TEXT, results=results)
     )
     assert out.strategy_used == ConflictResolutionStrategy.WEIGHTED_AVERAGE
     # No weights -> sums equal; alphabetical fallback resolves to 'safe'
