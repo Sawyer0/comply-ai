@@ -132,7 +132,7 @@ class TaxonomyMigrator:
             else:
                 # Keep as is; if label no longer exists, route to OTHER.Unknown
                 if self.new_taxonomy and not any(
-                    l.name == canonical for l in self.new_taxonomy.get_all_labels()
+                    label.name == canonical for label in self.new_taxonomy.get_all_labels()
                 ):
                     new_maps[det_label] = "OTHER.Unknown"
                     unknown_after += 1
@@ -149,7 +149,7 @@ class TaxonomyMigrator:
         details: List[Dict[str, Any]] = []
         for detector, maps in detector_mappings.items():
             total += len(maps)
-            new_map, remapped, unknown = self.apply_to_mapping(maps, plan)
+            _new_map, remapped, unknown = self.apply_to_mapping(maps, plan)
             remapped_total += remapped
             unknown_total += unknown
             details.append(

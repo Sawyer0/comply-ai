@@ -13,6 +13,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol
 
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
+
 import structlog
 
 from ..config.settings import Settings
@@ -89,7 +91,8 @@ class AWSSecretsBackend:
             self._client.rotate_secret(SecretId=ref.name)
             _audit("rotate", ref, success=True)
             return "scheduled"
-        except Exception:
+        except (ClientError, NoCredentialsError, PartialCredentialsError) as e:
+            # AWS SDK operations can fail due to permissions, credentials, or service issues
             _audit("rotate", ref, success=False)
             return None
 
@@ -128,7 +131,8 @@ class VaultSecretsBackend:
         path = f"secret/data/{ref.name}"
         try:
             payload = json.loads(value)
-        except Exception:
+        except (json.JSONDecodeError, TypeError, ValueError) as e:
+            # JSON parsing failed - treat value as plain string
             payload = {"value": value}
         self._client.secrets.kv.v2.create_or_update_secret(path=path, secret=payload)  # type: ignore[attr-defined]
         _audit("put", ref, success=True)

@@ -1,0 +1,63 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "detector-orchestration.fullname" . }}
+  labels:
+    {{- include "detector-orchestration.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "detector-orchestration.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "detector-orchestration.selectorLabels" . | nindent 14 }}
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Release.Namespace }}
+      ports:
+        - protocol: TCP
+          port: 8000
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow outbound traffic to detectors
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow outbound traffic to Redis
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow outbound traffic to OPA
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "detector-orchestration.selectorLabels" . | nindent 14 }}
+              component: opa
+      ports:
+        - protocol: TCP
+          port: 8181
+    # Allow outbound traffic to mapper
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 8000
+{{- end }}

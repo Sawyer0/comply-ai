@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from .config import Settings
 from .models import OrchestrationRequest, RoutingDecision, RoutingPlan
@@ -9,12 +9,19 @@ from .policy import PolicyManager, CoverageMethod
 
 
 class ContentRouter:
-    def __init__(self, settings: Settings, health_monitor: HealthMonitor | None = None, policy_manager: PolicyManager | None = None):
+    def __init__(
+        self,
+        settings: Settings,
+        health_monitor: HealthMonitor | None = None,
+        policy_manager: PolicyManager | None = None,
+    ):
         self.settings = settings
         self.health_monitor = health_monitor
         self.policy_manager = policy_manager
 
-    async def route_request(self, request: OrchestrationRequest) -> tuple[RoutingPlan, RoutingDecision]:
+    async def route_request(
+        self, request: OrchestrationRequest
+    ) -> tuple[RoutingPlan, RoutingDecision]:
         # Candidate set from config and request
         candidates = (
             request.required_detectors
@@ -35,16 +42,16 @@ class ContentRouter:
 
         # Policy decision (OPA or tenant policy)
         if self.policy_manager:
-            decision = await self.policy_manager.decide(
+            policy_decision = await self.policy_manager.decide(
                 tenant_id=request.tenant_id,
                 bundle=request.policy_bundle,
                 content_type=request.content_type,
                 candidate_detectors=typed,
             )
-            selected_policy = decision.selected_detectors
-            coverage_method = decision.coverage_method.value
-            coverage_requirements = decision.coverage_requirements
-            routing_reason = "policy+" + decision.routing_reason
+            selected_policy = policy_decision.selected_detectors
+            coverage_method = policy_decision.coverage_method.value
+            coverage_requirements = dict(policy_decision.coverage_requirements)
+            routing_reason = "policy+" + policy_decision.routing_reason
         else:
             selected_policy = typed
             coverage_method = CoverageMethod.REQUIRED_SET.value
@@ -55,10 +62,36 @@ class ContentRouter:
         selected: List[str] = []
         health_status: Dict[str, bool] = {}
         for name in selected_policy:
-            is_healthy = self.health_monitor.is_healthy(name) if self.health_monitor else True
+            is_healthy = (
+                self.health_monitor.is_healthy(name) if self.health_monitor else True
+            )
             health_status[name] = is_healthy
             if is_healthy:
                 selected.append(name)
+
+        cr_weights: Dict[str, float] = {}
+        raw_weights: Any = (
+            coverage_requirements.get("weights")
+            if isinstance(coverage_requirements, dict)
+            else {}
+        )
+        if isinstance(raw_weights, dict):
+            cr_weights = {
+                k: float(v)
+                for k, v in raw_weights.items()
+                if isinstance(v, (int, float))
+            }
+
+        raw_taxonomy: Any = (
+            coverage_requirements.get("required_taxonomy_categories")
+            if isinstance(coverage_requirements, dict)
+            else []
+        )
+        taxonomy_list: List[str] = (
+            [cat for cat in raw_taxonomy if isinstance(cat, str)]
+            if isinstance(raw_taxonomy, list)
+            else []
+        )
 
         routing_plan = RoutingPlan(
             primary_detectors=selected,
@@ -66,19 +99,19 @@ class ContentRouter:
             timeout_config={d: self.settings.detectors[d].timeout_ms for d in selected},
             retry_config={d: self.settings.detectors[d].max_retries for d in selected},
             coverage_method=coverage_method,
-            weights=(coverage_requirements.get("weights", {}) if isinstance(coverage_requirements, dict) else {}),
-            required_taxonomy_categories=(
-                coverage_requirements.get("required_taxonomy_categories", [])
-                if isinstance(coverage_requirements, dict)
-                else []
-            ),
+            weights=cr_weights,
+            required_taxonomy_categories=taxonomy_list,
         )
 
         decision = RoutingDecision(
             selected_detectors=selected,
             routing_reason=routing_reason,
             policy_applied=request.policy_bundle,
-            coverage_requirements=(coverage_requirements if isinstance(coverage_requirements, dict) else {"min_success_fraction": 1.0}),
+            coverage_requirements=(
+                coverage_requirements
+                if isinstance(coverage_requirements, dict)
+                else {"min_success_fraction": 1.0}
+            ),
             health_status=health_status,
         )
         return routing_plan, decision

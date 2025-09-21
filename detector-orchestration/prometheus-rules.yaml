@@ -1,0 +1,146 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: detector-orchestration-alerts
+  labels:
+    app: detector-orchestration
+spec:
+  groups:
+  - name: detector-orchestration.rules
+    rules:
+    # Service availability and readiness
+    - alert: OrchestratorNotReady
+      expr: orchestrator_ready == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Detector orchestration service is not ready"
+        description: "Orchestrator readiness probe is failing for more than 5 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#orchestratornotready"
+
+    - alert: OrchestratorServiceDependencyDown
+      expr: orchestrator_service_dependencies_up == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Orchestrator service dependency is down"
+        description: "One or more service dependencies (detectors, health monitor, circuit breaker, etc.) are not available."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#orchestratorservicedependencydown"
+
+    # Detector health monitoring
+    - alert: AllDetectorsUnhealthy
+      expr: sum(detector_health_status) == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "All detectors are unhealthy"
+        description: "All configured detectors are reporting as unhealthy for more than 5 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#alldetectorsunhealthy"
+
+    - alert: DetectorUnhealthy
+      expr: detector_health_status == 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Detector is unhealthy"
+        description: "Detector {{ $labels.detector }} has been unhealthy for more than 15 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#detectorunhealthy"
+
+    # Circuit breaker alerts
+    - alert: CircuitBreakerTripped
+      expr: circuit_breaker_state{state="open"} == 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Circuit breaker is open"
+        description: "Circuit breaker for detector {{ $labels.detector }} has been open for more than 5 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#circuitbreakertripped"
+
+    # Performance and SLA alerts
+    - alert: OrchestrationLatencyHigh
+      expr: histogram_quantile(0.95, rate(orchestrate_request_duration_sync_ms_bucket[5m])) > 2000
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Orchestration sync request latency is high"
+        description: "95th percentile sync request latency exceeded 2 seconds for more than 10 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#orchestrationlatencyhigh"
+
+    - alert: OrchestrationErrorRateHigh
+      expr: (rate(orchestrate_requests_total{status="error"}[5m]) / rate(orchestrate_requests_total[5m])) * 100 > 5
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Orchestration error rate is high"
+        description: "Error rate exceeded 5% over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#orchestrationerrorratehigh"
+
+    - alert: CoverageBelowThreshold
+      expr: avg_over_time(coverage_achieved[15m]) < 0.8
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Coverage below threshold"
+        description: "Average coverage achieved is below 80% for more than 15 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#coveragebelowthreshold"
+
+    # Async job monitoring
+    - alert: AsyncJobsQueueHigh
+      expr: orchestrator_async_jobs_queued > 100
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Async jobs queue is high"
+        description: "Number of queued async jobs exceeded 100 for more than 10 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#asyncjobsqueuehigh"
+
+    - alert: AsyncJobsStuck
+      expr: orchestrator_async_jobs_active > 50
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Async jobs may be stuck"
+        description: "Number of active async jobs exceeded 50 for more than 30 minutes, indicating potential stuck jobs."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#asyncjobsstuck"
+
+    # Cache performance
+    - alert: CacheHitRatioLow
+      expr: orchestrator_cache_hit_ratio < 0.7
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cache hit ratio is low"
+        description: "Cache hit ratio dropped below 70% for more than 15 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#cachehitratiolow"
+
+    # Redis backend issues
+    - alert: RedisBackendDown
+      expr: orchestrator_redis_backend_up == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis backend is down"
+        description: "Redis backend for caching/idempotency is not healthy for more than 5 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#redisbackenddown"
+
+    - alert: RedisFallbackHigh
+      expr: rate(orchestrator_redis_backend_fallback_total[15m]) > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis fallback rate is high"
+        description: "Redis backend fallback occurrences detected over the last 15 minutes."
+        runbook_url: "https://github.com/your-org/comply-ai/blob/main/docs/runbook/alert-runbooks.md#redisfallbackhigh"

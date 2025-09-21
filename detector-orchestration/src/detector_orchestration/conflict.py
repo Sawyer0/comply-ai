@@ -1,15 +1,20 @@
+"""Conflict resolution strategies for orchestrated detector responses."""
+
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .models import ContentType, DetectorResult
 from .policy import OPAPolicyEngine
 
 
 class ConflictResolutionStrategy(str, Enum):
+    """Available resolution strategies for detector disagreements."""
+
     HIGHEST_CONFIDENCE = "highest_confidence"
     MAJORITY_VOTE = "majority_vote"
     WEIGHTED_AVERAGE = "weighted_average"
@@ -18,246 +23,619 @@ class ConflictResolutionStrategy(str, Enum):
 
 
 class ConflictResolutionOutcome(BaseModel):
+    """Detailed decision returned after resolving detector conflicts."""
+
     strategy_used: ConflictResolutionStrategy
     winning_output: Optional[str] = None
     winning_detector: Optional[str] = None
-    conflicting_detectors: List[str] = []
+    conflicting_detectors: List[str] = Field(default_factory=list)
     tie_breaker_applied: Optional[str] = None
     confidence_delta: float = 0.0
-    normalized_scores: Dict[str, float] = {}
-    audit_decision: Dict[str, Any] = {}
+    normalized_scores: Dict[str, float] = Field(default_factory=dict)
+    audit_decision: Dict[str, Any] = Field(default_factory=dict)
 
 
-class ConflictResolver:
-    """Resolves conflicting detector outputs using policy (OPA) or sensible defaults.
+@dataclass(frozen=True)
+class ConflictResolutionRequest:
+    """Input payload provided to the conflict resolver."""
 
-    Notes:
-    - Never assigns canonical taxonomy. Operates only on raw detector outputs.
-    - Produces normalized score hints per raw output label for downstream mapper context.
-    - When OPA is enabled, will call tenant/bundle conflict decision endpoint to choose strategy.
-    """
+    tenant_id: str
+    policy_bundle: str
+    content_type: ContentType
+    detector_results: List[DetectorResult]
+    weights: Optional[Dict[str, float]] = None
+
+
+@dataclass(frozen=True)
+class ResolutionContext:
+    """Intermediate aggregates used when resolving detector conflicts."""
+
+    successes: Sequence[DetectorResult]
+    groups: Dict[str, List[DetectorResult]]
+    normalized_scores: Dict[str, float]
+    weights: Dict[str, float]
+
+    @property
+    def unique_outputs(self) -> List[str]:
+        """Unique output labels observed across successful detectors."""
+
+        return list(self.groups.keys())
+
+    def has_conflict(self) -> bool:
+        """Return True when multiple distinct outputs are present."""
+
+        return len(self.unique_outputs) > 1
+
+
+@dataclass(frozen=True)
+class TrivialResolution:  # pylint: disable=too-few-public-methods
+    """Resolution details for scenarios with no actual conflict."""
+
+    winning_output: Optional[str]
+    winning_detector: Optional[str]
+    confidence_delta: float
+    conflicting_detectors: List[str]
+
+    def to_outcome(
+        self, normalized_scores: Dict[str, float]
+    ) -> ConflictResolutionOutcome:
+        """Convert the trivial decision into a full outcome payload."""
+
+        return ConflictResolutionOutcome(
+            strategy_used=ConflictResolutionStrategy.HIGHEST_CONFIDENCE,
+            winning_output=self.winning_output,
+            winning_detector=self.winning_detector,
+            conflicting_detectors=self.conflicting_detectors,
+            tie_breaker_applied=None,
+            confidence_delta=self.confidence_delta,
+            normalized_scores=normalized_scores,
+            audit_decision={},
+        )
+
+
+@dataclass(frozen=True)
+class StrategySelection:
+    """Selected resolution strategy and related policy hints."""
+
+    strategy: ConflictResolutionStrategy
+    preferred_detector: Optional[str]
+    tie_breaker_hint: Optional[str]
+    audit_decision: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class StrategyDecision:
+    """Result returned by the strategy executor."""
+
+    winning_output: Optional[str]
+    winning_detector: Optional[str]
+    tie_breaker_applied: Optional[str]
+    confidence_delta: float
+    conflicting_detectors: List[str]
+
+
+@dataclass(frozen=True)
+class GroupMetrics:
+    """Aggregate statistics computed for each output group."""
+
+    counts: Dict[str, int]
+    max_confidence: Dict[str, float]
+    weighted_scores: Dict[str, float]
+
+
+@dataclass(frozen=True)
+class StrategyHints:
+    """Hints provided by policy or defaults when applying a strategy."""
+
+    preferred_detector: Optional[str]
+    primary_hint: str
+    tie_breaker_hint: Optional[str] = None
+
+    def has_preference(self) -> bool:
+        """Return True when a detector has been explicitly preferred."""
+
+        return self.preferred_detector is not None
+
+
+class ConflictResolver:  # pylint: disable=too-few-public-methods
+    """Resolves conflicting detector outputs using policies or sensible defaults."""
 
     def __init__(self, opa_engine: Optional[OPAPolicyEngine] = None):
         self.opa_engine = opa_engine
 
     async def resolve(
-        self,
-        *,
-        tenant_id: str,
-        policy_bundle: str,
-        content_type: ContentType,
-        detector_results: List[DetectorResult],
-        weights: Optional[Dict[str, float]] = None,
+        self, request: ConflictResolutionRequest
     ) -> ConflictResolutionOutcome:
-        successes = [r for r in detector_results if r.status.value == "success" and (r.output is not None)]
-        # Deduplicate identical detector-output pairs if needed
-        # Group by output value
+        """Resolve detector disagreements according to policy guidance."""
+
+        context = self._build_context(
+            results=request.detector_results, weights=request.weights
+        )
+
+        trivial = self._resolve_trivial_case(context)
+        if trivial:
+            return trivial.to_outcome(context.normalized_scores)
+
+        selection = await self._select_strategy(request, context)
+        decision = self._execute_strategy(selection, context)
+
+        return ConflictResolutionOutcome(
+            strategy_used=selection.strategy,
+            winning_output=decision.winning_output,
+            winning_detector=decision.winning_detector,
+            conflicting_detectors=decision.conflicting_detectors,
+            tie_breaker_applied=decision.tie_breaker_applied,
+            confidence_delta=decision.confidence_delta,
+            normalized_scores=context.normalized_scores,
+            audit_decision=selection.audit_decision,
+        )
+
+    def _build_context(
+        self, results: Sequence[DetectorResult], weights: Optional[Dict[str, float]]
+    ) -> ResolutionContext:
+        successes = [
+            r
+            for r in results
+            if r.status.value == "success" and r.output is not None
+        ]
         groups: Dict[str, List[DetectorResult]] = {}
-        for r in successes:
-            key = (r.output or "none").strip()
-            groups.setdefault(key, []).append(r)
+        for result in successes:
+            key = (result.output or "none").strip()
+            groups.setdefault(key, []).append(result)
 
-        # Build normalized score hints per raw output label (0..1)
-        norm_scores: Dict[str, float] = {}
-        for out, rs in groups.items():
-            if not rs:
-                norm_scores[out] = 0.0
-                continue
-            # Weighted sum of confidences as hint
-            if weights:
-                total_w = sum(weights.get(r.detector, 1.0) for r in rs) or 1.0
-                score = sum((weights.get(r.detector, 1.0) * (r.confidence or 0.0)) for r in rs) / total_w
-                norm_scores[out] = float(max(0.0, min(score, 1.0)))
-            else:
-                # Average confidence
-                avg = sum((r.confidence or 0.0) for r in rs) / float(len(rs))
-                norm_scores[out] = float(max(0.0, min(avg, 1.0)))
-
-        unique_outputs = list(groups.keys())
-        # Trivial case: 0 or 1 unique outputs
-        if len(unique_outputs) <= 1:
-            out = unique_outputs[0] if unique_outputs else None
-            # Find winning detector (highest confidence) if any
-            winning_detector = None
-            delta = 0.0
-            if successes:
-                ordered = sorted(successes, key=lambda r: (r.confidence or 0.0), reverse=True)
-                winning_detector = ordered[0].detector
-                if len(ordered) > 1:
-                    delta = (ordered[0].confidence or 0.0) - (ordered[1].confidence or 0.0)
-            return ConflictResolutionOutcome(
-                strategy_used=ConflictResolutionStrategy.HIGHEST_CONFIDENCE,
-                winning_output=out,
-                winning_detector=winning_detector,
-                conflicting_detectors=[r.detector for r in successes if (r.output or "none").strip() != (out or "none")],
-                tie_breaker_applied=None,
-                confidence_delta=float(delta),
-                normalized_scores=norm_scores,
-                audit_decision={},
+        normalized_scores: Dict[str, float] = {}
+        normalized_weights = {**(weights or {})}
+        for output, grouped_results in groups.items():
+            normalized_scores[output] = self._normalized_score(
+                grouped_results, normalized_weights
             )
 
-        # Strategy selection via OPA (if available)
-        selected_strategy: Optional[ConflictResolutionStrategy] = None
+        return ResolutionContext(
+            successes=successes,
+            groups=groups,
+            normalized_scores=normalized_scores,
+            weights=normalized_weights,
+        )
+
+    def _normalized_score(
+        self, results: Sequence[DetectorResult], weights: Dict[str, float]
+    ) -> float:
+        if not results:
+            return 0.0
+        weighted_sum = 0.0
+        total_weight = 0.0
+        for result in results:
+            weight = weights.get(result.detector, 1.0)
+            weighted_sum += weight * (result.confidence or 0.0)
+            total_weight += weight
+        if total_weight == 0:
+            return 0.0
+        score = weighted_sum / total_weight
+        return float(max(0.0, min(score, 1.0)))
+
+    def _resolve_trivial_case(
+        self, context: ResolutionContext
+    ) -> Optional[TrivialResolution]:
+        outputs = context.unique_outputs
+        if len(outputs) <= 1:
+            winning_output = outputs[0] if outputs else None
+            ordered = sorted(
+                context.successes,
+                key=lambda res: (res.confidence or 0.0),
+                reverse=True,
+            )
+            winning_detector = ordered[0].detector if ordered else None
+            delta = 0.0
+            if len(ordered) > 1:
+                delta = (ordered[0].confidence or 0.0) - (
+                    ordered[1].confidence or 0.0
+                )
+            conflicting = [
+                res.detector
+                for res in context.successes
+                if (res.output or "none").strip()
+                != (winning_output or "none").strip()
+            ]
+            return TrivialResolution(
+                winning_output=winning_output,
+                winning_detector=winning_detector,
+                confidence_delta=float(delta),
+                conflicting_detectors=conflicting,
+            )
+        return None
+
+    async def _select_strategy(
+        self, request: ConflictResolutionRequest, context: ResolutionContext
+    ) -> StrategySelection:
+        strategy: Optional[ConflictResolutionStrategy] = None
         preferred_detector: Optional[str] = None
         tie_breaker_hint: Optional[str] = None
         audit_decision: Dict[str, Any] = {}
 
         if self.opa_engine is not None:
-            try:
-                opa_input = {
-                    "content_type": content_type.value,
-                    "candidates": [
-                        {"detector": r.detector, "output": r.output, "confidence": r.confidence}
-                        for r in successes
-                    ],
-                    "weights": weights or {},
-                    "unique_outputs": unique_outputs,
-                }
-                decision = await self.opa_engine.evaluate_conflict(tenant_id, policy_bundle, opa_input)  # type: ignore[attr-defined]
-                if isinstance(decision, dict):
-                    audit_decision = decision
-                    s = decision.get("strategy")
-                    if isinstance(s, str):
-                        try:
-                            selected_strategy = ConflictResolutionStrategy(s)
-                        except Exception:  # noqa: BLE001
-                            selected_strategy = None
-                    preferred_detector = decision.get("preferred_detector")
-                    tie_breaker_hint = decision.get("tie_breaker")
-            except Exception:
-                # Fail open to defaults
-                selected_strategy = None
+            decision = await self.opa_engine.evaluate_conflict(
+                request.tenant_id,
+                request.policy_bundle,
+                self._build_opa_input(context, request),
+            )
+            if isinstance(decision, dict):
+                audit_decision = decision
+                raw_strategy = decision.get("strategy")
+                if isinstance(raw_strategy, str):
+                    try:
+                        strategy = ConflictResolutionStrategy(raw_strategy)
+                    except ValueError:
+                        strategy = None
+                preferred_detector_val = decision.get("preferred_detector")
+                if isinstance(preferred_detector_val, str):
+                    preferred_detector = preferred_detector_val
+                tie_breaker_val = decision.get("tie_breaker")
+                if isinstance(tie_breaker_val, str):
+                    tie_breaker_hint = tie_breaker_val
 
-        # Default strategy by content type when OPA not decisive
-        if selected_strategy is None:
-            if content_type == ContentType.TEXT:
-                selected_strategy = ConflictResolutionStrategy.WEIGHTED_AVERAGE
-            elif content_type == ContentType.IMAGE:
-                selected_strategy = ConflictResolutionStrategy.HIGHEST_CONFIDENCE
-            elif content_type == ContentType.DOCUMENT:
-                selected_strategy = ConflictResolutionStrategy.MOST_RESTRICTIVE
-            elif content_type == ContentType.CODE:
-                selected_strategy = ConflictResolutionStrategy.MAJORITY_VOTE
-            else:
-                selected_strategy = ConflictResolutionStrategy.HIGHEST_CONFIDENCE
+        if strategy is None:
+            strategy = self._default_strategy(request.content_type)
 
-        # Compute winner based on selected strategy
-        winning_output, winning_detector, tie_breaker_used, delta = self._apply_strategy(
-            selected_strategy, groups, weights or {}, preferred_detector, tie_breaker_hint
-        )
-
-        conflicting = [r.detector for r in successes if (r.output or "none").strip() != (winning_output or "none")]
-
-        return ConflictResolutionOutcome(
-            strategy_used=selected_strategy,
-            winning_output=winning_output,
-            winning_detector=winning_detector,
-            conflicting_detectors=conflicting,
-            tie_breaker_applied=tie_breaker_used,
-            confidence_delta=float(delta),
-            normalized_scores=norm_scores,
+        return StrategySelection(
+            strategy=strategy,
+            preferred_detector=preferred_detector,
+            tie_breaker_hint=tie_breaker_hint,
             audit_decision=audit_decision,
         )
 
-    def _apply_strategy(
-        self,
-        strategy: ConflictResolutionStrategy,
-        groups: Dict[str, List[DetectorResult]],
-        weights: Dict[str, float],
-        preferred_detector: Optional[str],
-        tie_breaker_hint: Optional[str],
-    ) -> Tuple[Optional[str], Optional[str], Optional[str], float]:
-        """Returns: (winning_output, winning_detector, tie_breaker_used, delta)"""
-        # Prepare aggregates
-        out_counts: Dict[str, int] = {out: len(rs) for out, rs in groups.items()}
-        out_conf_max: Dict[str, float] = {
-            out: max((r.confidence or 0.0) for r in rs) if rs else 0.0 for out, rs in groups.items()
+    def _build_opa_input(
+        self, context: ResolutionContext, request: ConflictResolutionRequest
+    ) -> Dict[str, Any]:
+        return {
+            "content_type": request.content_type.value,
+            "candidates": [
+                {
+                    "detector": result.detector,
+                    "output": result.output,
+                    "confidence": result.confidence,
+                }
+                for result in context.successes
+            ],
+            "weights": context.weights,
+            "unique_outputs": context.unique_outputs,
         }
-        out_weighted: Dict[str, float] = {}
-        for out, rs in groups.items():
-            if rs:
-                out_weighted[out] = sum((weights.get(r.detector, 1.0) * (r.confidence or 0.0)) for r in rs)
-            else:
-                out_weighted[out] = 0.0
 
-        # Helper to pick by metric with deterministic tie-breakers
-        def pick_by_metric(metric: Dict[str, float], primary_tie_breaker: str) -> Tuple[Optional[str], Optional[str], Optional[str], float]:
-            # Highest metric wins; delta is diff between top two
-            ordered = sorted(metric.items(), key=lambda kv: kv[1], reverse=True)
-            if not ordered:
-                return None, None, None, 0.0
-            winner_out, winner_score = ordered[0]
-            if len(ordered) > 1 and ordered[1][1] == winner_score:
-                # Tie — apply tie-breakers
-                tied = [o for o, v in ordered if v == winner_score]
-                # Tie-breaker 1: preferred detector if provided and it produced any tied output
-                if preferred_detector:
-                    for out in tied:
-                        if any(r.detector == preferred_detector for r in groups.get(out, [])):
-                            win_det = preferred_detector
-                            delta = 0.0
-                            return out, win_det, f"preferred_detector:{preferred_detector}", delta
-                # Tie-breaker 2: use highest individual confidence among tied outputs
-                # If all tied outputs also have the exact same highest individual confidence,
-                # fall back to alphabetical determinism instead of arbitrary order.
-                tied_conf_values = {out: out_conf_max.get(out, 0.0) for out in tied}
-                if len(set(tied_conf_values.values())) == 1:
-                    best_out = sorted(tied)[0]
-                    dets = sorted([r.detector for r in groups.get(best_out, [])])
-                    det = dets[0] if dets else None
-                    return best_out, det, f"{primary_tie_breaker}->alphabetical", 0.0
-                best_out = None
-                best_conf = -1.0
-                best_det = None
-                for out in tied:
-                    for r in groups.get(out, []):
-                        c = r.confidence or 0.0
-                        if c > best_conf:
-                            best_conf = c
-                            best_out = out
-                            best_det = r.detector
-                if best_out is not None:
-                    return best_out, best_det, f"{primary_tie_breaker}->highest_confidence", 0.0
-                # Tie-breaker 3: alphabetical by output for determinism
-                best_out = sorted(tied)[0]
-                # Pick first detector alphabetically that produced it
-                dets = sorted([r.detector for r in groups.get(best_out, [])])
-                det = dets[0] if dets else None
-                return best_out, det, f"{primary_tie_breaker}->alphabetical", 0.0
-            # No tie
-            # Choose detector with highest confidence for the winning output
-            rs = groups.get(winner_out, [])
-            det = None
-            best = -1.0
-            for r in rs:
-                c = r.confidence or 0.0
-                if c > best:
-                    best = c
-                    det = r.detector
-            # Delta between top two metric scores
-            second = ordered[1][1] if len(ordered) > 1 else 0.0
-            return winner_out, det, None, float(winner_score - second)
+    def _default_strategy(
+        self, content_type: ContentType
+    ) -> ConflictResolutionStrategy:
+        if content_type == ContentType.TEXT:
+            return ConflictResolutionStrategy.WEIGHTED_AVERAGE
+        if content_type == ContentType.IMAGE:
+            return ConflictResolutionStrategy.HIGHEST_CONFIDENCE
+        if content_type == ContentType.DOCUMENT:
+            return ConflictResolutionStrategy.MOST_RESTRICTIVE
+        if content_type == ContentType.CODE:
+            return ConflictResolutionStrategy.MAJORITY_VOTE
+        return ConflictResolutionStrategy.HIGHEST_CONFIDENCE
 
-        if strategy == ConflictResolutionStrategy.HIGHEST_CONFIDENCE:
-            # Build per-output highest individual confidence
-            return pick_by_metric(out_conf_max, "highest_confidence")
-        elif strategy == ConflictResolutionStrategy.WEIGHTED_AVERAGE:
-            return pick_by_metric(out_weighted, "weighted_average")
-        elif strategy == ConflictResolutionStrategy.MAJORITY_VOTE:
-            # Use counts; tie-break with weighted then highest confidence
-            out, det, tb, _ = pick_by_metric({k: float(v) for k, v in out_counts.items()}, "majority_vote")
-            return out, det, tb, 0.0
-        elif strategy == ConflictResolutionStrategy.MOST_RESTRICTIVE:
-            # Without taxonomy semantics, approximate with weighted then highest confidence
-            return pick_by_metric(out_weighted, "most_restrictive")
-        elif strategy == ConflictResolutionStrategy.TENANT_PREFERENCE:
-            # Prefer provided detector if it exists
-            if preferred_detector:
-                for out, rs in groups.items():
-                    for r in rs:
-                        if r.detector == preferred_detector:
-                            return out, preferred_detector, "preferred_detector", 0.0
-            # Fallback to weighted
-            return pick_by_metric(out_weighted, "tenant_preference")
-        # Fallback
-        return pick_by_metric(out_conf_max, "highest_confidence")
+    def _execute_strategy(
+        self, selection: StrategySelection, context: ResolutionContext
+    ) -> StrategyDecision:
+        metrics = self._compute_metrics(context)
+
+        if selection.strategy == ConflictResolutionStrategy.HIGHEST_CONFIDENCE:
+            hints = StrategyHints(
+                preferred_detector=selection.preferred_detector,
+                primary_hint="highest_confidence",
+                tie_breaker_hint=selection.tie_breaker_hint,
+            )
+            return self._select_by_metric(
+                metric=metrics.max_confidence,
+                context=context,
+                hints=hints,
+            )
+        if selection.strategy == ConflictResolutionStrategy.WEIGHTED_AVERAGE:
+            hints = StrategyHints(
+                preferred_detector=selection.preferred_detector,
+                primary_hint="weighted_average",
+                tie_breaker_hint=selection.tie_breaker_hint,
+            )
+            return self._select_by_metric(
+                metric=metrics.weighted_scores,
+                context=context,
+                hints=hints,
+            )
+        if selection.strategy == ConflictResolutionStrategy.MAJORITY_VOTE:
+            counts_metric = {key: float(value) for key, value in metrics.counts.items()}
+            hints = StrategyHints(
+                preferred_detector=selection.preferred_detector,
+                primary_hint="majority_vote",
+                tie_breaker_hint=selection.tie_breaker_hint,
+            )
+            choice = self._select_by_metric(
+                metric=counts_metric,
+                context=context,
+                hints=hints,
+            )
+            return StrategyDecision(
+                winning_output=choice.winning_output,
+                winning_detector=choice.winning_detector,
+                tie_breaker_applied=choice.tie_breaker_applied,
+                confidence_delta=0.0,
+                conflicting_detectors=choice.conflicting_detectors,
+            )
+        if selection.strategy == ConflictResolutionStrategy.MOST_RESTRICTIVE:
+            hints = StrategyHints(
+                preferred_detector=selection.preferred_detector,
+                primary_hint="most_restrictive",
+                tie_breaker_hint=selection.tie_breaker_hint,
+            )
+            return self._select_by_metric(
+                metric=metrics.weighted_scores,
+                context=context,
+                hints=hints,
+            )
+        if selection.strategy == ConflictResolutionStrategy.TENANT_PREFERENCE:
+            return self._tenant_preference_choice(selection, context, metrics)
+        hints = StrategyHints(
+            preferred_detector=selection.preferred_detector,
+            primary_hint="fallback_highest_confidence",
+            tie_breaker_hint=selection.tie_breaker_hint,
+        )
+        return self._select_by_metric(
+            metric=metrics.max_confidence,
+            context=context,
+            hints=hints,
+        )
+
+    def _tenant_preference_choice(
+        self,
+        selection: StrategySelection,
+        context: ResolutionContext,
+        metrics: GroupMetrics,
+    ) -> StrategyDecision:
+        preferred = selection.preferred_detector
+        if preferred:
+            for output, results in context.groups.items():
+                if any(res.detector == preferred for res in results):
+                    return StrategyDecision(
+                        winning_output=output,
+                        winning_detector=preferred,
+                        tie_breaker_applied="preferred_detector",
+                        confidence_delta=0.0,
+                        conflicting_detectors=self._conflicting_detectors(
+                            context, output
+                        ),
+                    )
+        hints = StrategyHints(
+            preferred_detector=preferred,
+            primary_hint="tenant_preference",
+            tie_breaker_hint=selection.tie_breaker_hint,
+        )
+        chosen = self._select_by_metric(
+            metric=metrics.weighted_scores,
+            context=context,
+            hints=hints,
+        )
+        return StrategyDecision(
+            winning_output=chosen.winning_output,
+            winning_detector=chosen.winning_detector,
+            tie_breaker_applied=chosen.tie_breaker_applied,
+            confidence_delta=chosen.confidence_delta,
+            conflicting_detectors=self._conflicting_detectors(
+                context, chosen.winning_output
+            ),
+        )
+
+    def _compute_metrics(self, context: ResolutionContext) -> GroupMetrics:
+        counts: Dict[str, int] = {}
+        max_confidence: Dict[str, float] = {}
+        weighted_scores: Dict[str, float] = {}
+        for output, results in context.groups.items():
+            counts[output] = len(results)
+            max_confidence[output] = (
+                max((res.confidence or 0.0) for res in results)
+                if results
+                else 0.0
+            )
+            total_weight = 0.0
+            weighted_sum = 0.0
+            for res in results:
+                weight = context.weights.get(res.detector, 1.0)
+                total_weight += weight
+                weighted_sum += weight * (res.confidence or 0.0)
+            score = weighted_sum / total_weight if total_weight else 0.0
+            weighted_scores[output] = float(max(0.0, min(score, 1.0)))
+        return GroupMetrics(
+            counts=counts,
+            max_confidence=max_confidence,
+            weighted_scores=weighted_scores,
+        )
+
+    def _select_by_metric(
+        self,
+        *,
+        metric: Dict[str, float],
+        context: ResolutionContext,
+        hints: StrategyHints,
+    ) -> StrategyDecision:
+        ordered = sorted(metric.items(), key=lambda item: item[1], reverse=True)
+        if not ordered:
+            return StrategyDecision(
+                winning_output=None,
+                winning_detector=None,
+                tie_breaker_applied=hints.tie_breaker_hint,
+                confidence_delta=0.0,
+                conflicting_detectors=self._conflicting_detectors(context, None),
+            )
+
+        best_output, best_value = ordered[0]
+        second_value = ordered[1][1] if len(ordered) > 1 else None
+        if second_value is None or best_value > second_value:
+            detector = self._highest_confidence_detector(
+                context.groups.get(best_output, [])
+            )
+            delta = float(best_value - (second_value or 0.0))
+            return StrategyDecision(
+                winning_output=best_output,
+                winning_detector=detector,
+                tie_breaker_applied=hints.tie_breaker_hint,
+                confidence_delta=delta,
+                conflicting_detectors=self._conflicting_detectors(
+                    context, best_output
+                ),
+            )
+
+        return self._resolve_metric_tie(
+            ordered=ordered,
+            context=context,
+            hints=hints,
+        )
+
+    def _resolve_metric_tie(
+        self,
+        *,
+        ordered: List[Tuple[str, float]],
+        context: ResolutionContext,
+        hints: StrategyHints,
+    ) -> StrategyDecision:
+        top_value = ordered[0][1]
+        tied_outputs = [
+            output
+            for output, value in ordered
+            if value == top_value
+        ]
+
+        preferred = self._preferred_detector_tiebreak(
+            tied_outputs=tied_outputs,
+            context=context,
+            hints=hints,
+        )
+        if preferred:
+            return preferred
+
+        highest_confidence = self._highest_confidence_tiebreak(
+            tied_outputs=tied_outputs,
+            context=context,
+            hints=hints,
+        )
+        if highest_confidence:
+            return highest_confidence
+
+        return self._alphabetical_tiebreak(
+            tied_outputs=tied_outputs,
+            context=context,
+            primary_hint=hints.primary_hint,
+        )
+
+    def _preferred_detector_tiebreak(
+        self,
+        *,
+        tied_outputs: List[str],
+        context: ResolutionContext,
+        hints: StrategyHints,
+    ) -> Optional[StrategyDecision]:
+        preferred = hints.preferred_detector
+        if preferred is None:
+            return None
+        for output in tied_outputs:
+            results = context.groups.get(output, [])
+            if any(res.detector == preferred for res in results):
+                return StrategyDecision(
+                    winning_output=output,
+                    winning_detector=preferred,
+                    tie_breaker_applied=f"{hints.primary_hint}->preferred_detector",
+                    confidence_delta=0.0,
+                    conflicting_detectors=self._conflicting_detectors(
+                        context, output
+                    ),
+                )
+        return None
+
+    def _highest_confidence_tiebreak(
+        self,
+        *,
+        tied_outputs: List[str],
+        context: ResolutionContext,
+        hints: StrategyHints,
+    ) -> Optional[StrategyDecision]:
+        best_output: Optional[str] = None
+        best_detector: Optional[str] = None
+        best_confidence = -1.0
+        duplicate_best = False
+
+        for output in tied_outputs:
+            results = context.groups.get(output, [])
+            confidence = (
+                max((res.confidence or 0.0) for res in results)
+                if results
+                else 0.0
+            )
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best_output = output
+                best_detector = self._highest_confidence_detector(results)
+                duplicate_best = False
+            elif confidence == best_confidence:
+                duplicate_best = True
+
+        if best_output is None or duplicate_best:
+            return None
+
+        return StrategyDecision(
+            winning_output=best_output,
+            winning_detector=best_detector,
+            tie_breaker_applied=f"{hints.primary_hint}->highest_confidence",
+            confidence_delta=0.0,
+            conflicting_detectors=self._conflicting_detectors(
+                context, best_output
+            ),
+        )
+
+    def _alphabetical_tiebreak(
+        self,
+        *,
+        tied_outputs: List[str],
+        context: ResolutionContext,
+        primary_hint: str,
+    ) -> StrategyDecision:
+        winning_output = sorted(tied_outputs)[0]
+        detectors = sorted(
+            res.detector for res in context.groups.get(winning_output, [])
+        )
+        detector = detectors[0] if detectors else None
+        return StrategyDecision(
+            winning_output=winning_output,
+            winning_detector=detector,
+            tie_breaker_applied=f"{primary_hint}->alphabetical",
+            confidence_delta=0.0,
+            conflicting_detectors=self._conflicting_detectors(
+                context, winning_output
+            ),
+        )
+
+    def _highest_confidence_detector(
+        self, results: Sequence[DetectorResult]
+    ) -> Optional[str]:
+        if not results:
+            return None
+        best_confidence = max(result.confidence or 0.0 for result in results)
+        best_detector_names = sorted(
+            result.detector
+            for result in results
+            if (result.confidence or 0.0) == best_confidence
+        )
+        return best_detector_names[0] if best_detector_names else None
+
+    def _conflicting_detectors(
+        self, context: ResolutionContext, winning_output: Optional[str]
+    ) -> List[str]:
+        target = (winning_output or "none").strip()
+        return [
+            result.detector
+            for result in context.successes
+            if (result.output or "none").strip() != target
+        ]
+
+
+__all__ = [
+    "ConflictResolutionStrategy",
+    "ConflictResolutionOutcome",
+    "ConflictResolutionRequest",
+    "ConflictResolver",
+]

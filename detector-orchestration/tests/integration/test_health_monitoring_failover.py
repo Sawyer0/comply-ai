@@ -1,0 +1,616 @@
+"""Integration tests for health monitoring and failover scenarios."""
+
+from __future__ import annotations
+
+if __package__ is None or __package__ == "":
+    import os
+    import sys
+
+    _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+    if _ROOT not in sys.path:
+        sys.path.insert(0, _ROOT)
+
+from typing import Any, Iterable
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+from detector_orchestration.api.main import app
+from detector_orchestration.models import (
+    ContentType,
+    DetectorResult,
+    DetectorStatus,
+    OrchestrationRequest,
+    OrchestrationResponse,
+    Priority,
+    ProcessingMode,
+    RoutingDecision,
+    RoutingPlan,
+)
+
+
+class MockDetectorClient:
+    """Mock detector client for health monitoring tests."""
+
+    def __init__(self, name: str, healthy: bool = True, fail_health_check: bool = False):
+        self.name = name
+        self.healthy = healthy
+        self.fail_health_check = fail_health_check
+        self.call_count = 0
+
+    async def get_capabilities(self):
+        """Mock capabilities response."""
+        return MagicMock()
+
+    async def detect(self, content: str, metadata: dict[str, Any] | None = None):
+        """Mock detect method."""
+        self.call_count += 1
+        if not self.healthy:
+            raise Exception("Detector is unhealthy")
+        return {
+            "detector": self.name,
+            "status": "success",
+            "output": f"Result from {self.name}",
+            "confidence": 0.8,
+            "processing_time_ms": 100,
+        }
+
+
+@pytest.fixture
+def test_client():
+    """Provide test client for FastAPI app."""
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def mock_detector_clients():
+    """Provide mock detector clients for testing."""
+    return {
+        "healthy-detector-1": MockDetectorClient("healthy-detector-1", healthy=True),
+        "healthy-detector-2": MockDetectorClient("healthy-detector-2", healthy=True),
+        "unhealthy-detector": MockDetectorClient("unhealthy-detector", healthy=False),
+        "health-check-failing": MockDetectorClient("health-check-failing", healthy=True, fail_health_check=True),
+    }
+
+
+@pytest.fixture
+def sample_orchestration_request() -> OrchestrationRequest:
+    """Provide a sample orchestration request."""
+    return OrchestrationRequest(
+        content="This is test content for health monitoring",
+        content_type=ContentType.TEXT,
+        tenant_id="test-tenant",
+        policy_bundle="default",
+        environment="dev",
+        processing_mode=ProcessingMode.SYNC,
+        priority=Priority.NORMAL,
+        metadata={"test": True},
+    )
+
+
+def build_routing_decision(
+    selected_detectors: list[str],
+    healthy_detectors: Iterable[str],
+    *,
+    policy_applied: str = "default",
+    routing_reason: str = "integration-test",
+    coverage_requirements: dict[str, Any] | None = None,
+) -> RoutingDecision:
+    """Construct a routing decision matching the latest model signature."""
+
+    healthy_set = set(healthy_detectors)
+    return RoutingDecision(
+        selected_detectors=selected_detectors,
+        routing_reason=routing_reason,
+        policy_applied=policy_applied,
+        coverage_requirements=dict(coverage_requirements or {"coverage_threshold": 0.8}),
+        health_status={detector: detector in healthy_set for detector in selected_detectors},
+    )
+
+
+class TestHealthMonitoringFailover:
+    """Tests for health monitoring and automatic failover."""
+
+    def test_detector_health_monitoring(
+        self,
+        test_client: TestClient,
+        mock_detector_clients: dict,
+    ):
+        """Test that health monitoring correctly identifies healthy/unhealthy detectors."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS", mock_detector_clients):
+            with patch("detector_orchestration.api.main.HEALTH_MONITOR") as mock_health_monitor:
+                mock_health_monitor.is_healthy = MagicMock(side_effect=lambda name: name != "unhealthy-detector")
+
+                response = test_client.get(
+                    "/health",
+                    headers={"Authorization": "Bearer test-token"},
+                )
+
+                assert response.status_code == 200
+                health_data = response.json()
+
+                assert health_data["status"] == "healthy"
+                assert health_data["detectors_total"] == 4
+                # Only healthy detectors should be healthy
+                assert health_data["detectors_healthy"] == 3  # 3 out of 4 are healthy
+
+    def test_automatic_failover_to_healthy_detectors(
+        self,
+        test_client: TestClient,
+        sample_orchestration_request: OrchestrationRequest,
+        mock_detector_clients: dict,
+    ):
+        """Test that routing automatically fails over to healthy detectors."""
+        # Set up scenario where some detectors are unhealthy
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS", mock_detector_clients):
+            with patch("detector_orchestration.api.main.HEALTH_MONITOR") as mock_health_monitor:
+                # Mock health status: only healthy-detector-1 and healthy-detector-2 are healthy
+                def mock_is_healthy(name):
+                    return name in ["healthy-detector-1", "healthy-detector-2"]
+
+                mock_health_monitor.is_healthy = MagicMock(side_effect=mock_is_healthy)
+
+                # Mock routing to select both healthy and unhealthy detectors initially
+                mock_routing_plan = RoutingPlan(
+                    primary_detectors=["healthy-detector-1", "unhealthy-detector", "healthy-detector-2"],
+                    parallel_groups=[["healthy-detector-1", "unhealthy-detector", "healthy-detector-2"]],
+                    timeout_config={
+                        "healthy-detector-1": 3000,
+                        "unhealthy-detector": 3000,
+                        "healthy-detector-2": 3000
+                    },
+                    retry_config={
+                        "healthy-detector-1": 1,
+                        "unhealthy-detector": 1,
+                        "healthy-detector-2": 1
+                    },
+                    coverage_method="weighted",
+                    weights={
+                        "healthy-detector-1": 1.0,
+                        "unhealthy-detector": 1.0,
+                        "healthy-detector-2": 1.0
+                    },
+                    required_taxonomy_categories=[],
+                )
+
+                selected = ["healthy-detector-1", "unhealthy-detector", "healthy-detector-2"]
+                healthy = [d for d in selected if mock_is_healthy(d)]
+                mock_decision = build_routing_decision(
+                    selected_detectors=selected,
+                    healthy_detectors=healthy,
+                    coverage_requirements={
+                        "coverage_threshold": 0.9,
+                        "coverage_method": "weighted",
+                    },
+                )
+
+                with patch("detector_orchestration.api.main.ContentRouter") as mock_router_class:
+                    mock_router = MagicMock()
+                    mock_router.route_request = AsyncMock(return_value=(mock_routing_plan, mock_decision))
+                    mock_router_class.return_value = mock_router
+
+                    with patch("detector_orchestration.api.main.DetectorCoordinator") as mock_coord_class:
+                        mock_coord = MagicMock()
+                        # Only healthy detectors should succeed
+                        mock_coord.execute_detector_group = AsyncMock(return_value=[
+                            DetectorResult(
+                                detector="healthy-detector-1",
+                                status=DetectorStatus.SUCCESS,
+                                output="Success from healthy-detector-1",
+                                confidence=0.8,
+                                processing_time_ms=100,
+                            ),
+                            DetectorResult(
+                                detector="healthy-detector-2",
+                                status=DetectorStatus.SUCCESS,
+                                output="Success from healthy-detector-2",
+                                confidence=0.9,
+                                processing_time_ms=120,
+                            ),
+                        ])
+                        mock_coord_class.return_value = mock_coord
+
+                        with patch("detector_orchestration.api.main.ResponseAggregator") as mock_agg_class:
+                            mock_agg = MagicMock()
+                            mock_agg.aggregate = MagicMock(return_value=(
+                                MagicMock(),  # payload
+                                0.95,  # coverage
+                            ))
+                            mock_agg_class.return_value = mock_agg
+
+                response = test_client.post(
+                                "/orchestrate",
+                                json=sample_orchestration_request.model_dump(),
+                                headers={
+                                    "Authorization": "Bearer test-token",
+                                    "X-Tenant-ID": "test-tenant",
+                                },
+                            )
+
+                assert response.status_code == 200
+                result = OrchestrationResponse(**response.json())
+
+                # Should succeed with only healthy detectors
+                assert result.detectors_attempted == 2  # Only healthy ones
+                assert result.detectors_succeeded == 2
+                assert result.detectors_failed == 0
+                assert result.coverage_achieved == 0.95
+                assert result.fallback_used is False
+
+    def test_circuit_breaker_activation(
+        self,
+        test_client: TestClient,
+        sample_orchestration_request: OrchestrationRequest,
+    ):
+        """Test circuit breaker activation when detectors consistently fail."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
+            mock_clients.__getitem__ = lambda self, key: MockDetectorClient(f"circuit-{key}", healthy=False)
+            mock_clients.keys = lambda: ["circuit-detector"]
+            mock_clients.__iter__ = lambda self: iter([("circuit-detector", MockDetectorClient("circuit-detector", healthy=False))])
+
+            with patch("detector_orchestration.api.main.BREAKERS") as mock_breakers:
+                mock_breaker = MagicMock()
+                mock_breaker.is_open = MagicMock(return_value=True)  # Circuit breaker open
+                mock_breakers.get = MagicMock(return_value=mock_breaker)
+
+                mock_routing_plan = RoutingPlan(
+                    primary_detectors=["circuit-detector"],
+                    parallel_groups=[["circuit-detector"]],
+                    timeout_config={"circuit-detector": 3000},
+                    retry_config={"circuit-detector": 1},
+                    coverage_method="weighted",
+                    weights={"circuit-detector": 1.0},
+                    required_taxonomy_categories=[],
+                )
+
+                mock_decision = build_routing_decision(
+                    selected_detectors=["circuit-detector"],
+                    healthy_detectors=[],
+                    routing_reason="circuit-breaker-open",
+                    coverage_requirements={
+                        "coverage_threshold": 0.9,
+                        "coverage_method": "weighted",
+                    },
+                )
+
+                with patch("detector_orchestration.api.main.ContentRouter") as mock_router_class:
+                    mock_router = MagicMock()
+                    mock_router.route_request = AsyncMock(return_value=(mock_routing_plan, mock_decision))
+                    mock_router_class.return_value = mock_router
+
+                response = test_client.post(
+                        "/orchestrate",
+                        json=sample_orchestration_request.model_dump(),
+                        headers={
+                            "Authorization": "Bearer test-token",
+                            "X-Tenant-ID": "test-tenant",
+                        },
+                    )
+
+                # Should return 502 due to circuit breaker
+                assert response.status_code == 502
+                result = OrchestrationResponse(**response.json())
+
+                assert result.error_code == "DETECTOR_COMMUNICATION_FAILED"
+                assert result.fallback_used is True
+
+    def test_circuit_breaker_recovery(
+        self,
+        test_client: TestClient,
+        sample_orchestration_request: OrchestrationRequest,
+    ):
+        """Test circuit breaker recovery when detector becomes healthy."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
+            mock_clients.__getitem__ = lambda self, key: MockDetectorClient(f"recovery-{key}", healthy=True)
+            mock_clients.keys = lambda: ["recovery-detector"]
+            mock_clients.__iter__ = lambda self: iter([("recovery-detector", MockDetectorClient("recovery-detector", healthy=True))])
+
+            with patch("detector_orchestration.api.main.BREAKERS") as mock_breakers:
+                mock_breaker = MagicMock()
+                # Initially closed, then open, then half-open for recovery
+                mock_breaker.is_open = MagicMock(side_effect=[False, True, False])
+                mock_breaker.is_half_open = MagicMock(return_value=False)
+                mock_breakers.get = MagicMock(return_value=mock_breaker)
+
+                mock_routing_plan = RoutingPlan(
+                    primary_detectors=["recovery-detector"],
+                    parallel_groups=[["recovery-detector"]],
+                    timeout_config={"recovery-detector": 3000},
+                    retry_config={"recovery-detector": 1},
+                    coverage_method="weighted",
+                    weights={"recovery-detector": 1.0},
+                    required_taxonomy_categories=[],
+                )
+
+                mock_decision = build_routing_decision(
+                    selected_detectors=["recovery-detector"],
+                    healthy_detectors=["recovery-detector"],
+                    routing_reason="circuit-breaker-recovery",
+                    coverage_requirements={
+                        "coverage_threshold": 1.0,
+                        "coverage_method": "weighted",
+                    },
+                )
+
+                with patch("detector_orchestration.api.main.ContentRouter") as mock_router_class:
+                    mock_router = MagicMock()
+                    mock_router.route_request = AsyncMock(return_value=(mock_routing_plan, mock_decision))
+                    mock_router_class.return_value = mock_router
+
+                    with patch("detector_orchestration.api.main.DetectorCoordinator") as mock_coord_class:
+                        mock_coord = MagicMock()
+                        mock_coord.execute_detector_group = AsyncMock(return_value=[
+                            DetectorResult(
+                                detector="recovery-detector",
+                                status=DetectorStatus.SUCCESS,
+                                output="Recovery successful",
+                                confidence=0.8,
+                                processing_time_ms=100,
+                            ),
+                        ])
+                        mock_coord_class.return_value = mock_coord
+
+                        with patch("detector_orchestration.api.main.ResponseAggregator") as mock_agg_class:
+                            mock_agg = MagicMock()
+                            mock_agg.aggregate = MagicMock(return_value=(
+                                MagicMock(),  # payload
+                                1.0,  # coverage
+                            ))
+                            mock_agg_class.return_value = mock_agg
+
+                response = test_client.post(
+                                "/orchestrate",
+                                json=sample_orchestration_request.model_dump(),
+                                headers={
+                                    "Authorization": "Bearer test-token",
+                                    "X-Tenant-ID": "test-tenant",
+                                },
+                            )
+
+                assert response.status_code == 200
+                result = OrchestrationResponse(**response.json())
+
+                # Should succeed during recovery
+                assert result.detectors_attempted == 1
+                assert result.detectors_succeeded == 1
+                assert result.detectors_failed == 0
+                assert result.error_code is None
+
+    def test_policy_enforcement_with_coverage_validation(
+        self,
+        test_client: TestClient,
+        sample_orchestration_request: OrchestrationRequest,
+    ):
+        """Test policy enforcement for coverage requirements."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
+            mock_clients.__getitem__ = lambda self, key: MockDetectorClient(f"policy-{key}", healthy=True)
+            mock_clients.keys = lambda: ["policy-detector-1", "policy-detector-2"]
+            mock_clients.__iter__ = lambda self: iter([
+                ("policy-detector-1", MockDetectorClient("policy-detector-1", healthy=True)),
+                ("policy-detector-2", MockDetectorClient("policy-detector-2", healthy=True))
+            ])
+
+            mock_routing_plan = RoutingPlan(
+                primary_detectors=["policy-detector-1", "policy-detector-2"],
+                parallel_groups=[["policy-detector-1", "policy-detector-2"]],
+                timeout_config={"policy-detector-1": 3000, "policy-detector-2": 3000},
+                retry_config={"policy-detector-1": 1, "policy-detector-2": 1},
+                coverage_method="weighted",
+                weights={"policy-detector-1": 0.6, "policy-detector-2": 0.4},  # Sum to 1.0
+                required_taxonomy_categories=["security", "compliance"],
+            )
+
+            mock_decision = build_routing_decision(
+                selected_detectors=["policy-detector-1", "policy-detector-2"],
+                healthy_detectors=["policy-detector-1", "policy-detector-2"],
+                routing_reason="policy-enforcement",
+                coverage_requirements={
+                    "coverage_threshold": 0.8,
+                    "coverage_method": "weighted",
+                    "required_taxonomy_categories": ["security", "compliance"],
+                },
+            )
+
+            with patch("detector_orchestration.api.main.ContentRouter") as mock_router_class:
+                mock_router = MagicMock()
+                mock_router.route_request = AsyncMock(return_value=(mock_routing_plan, mock_decision))
+                mock_router_class.return_value = mock_router
+
+            with patch("detector_orchestration.api.main.DetectorCoordinator") as mock_coord_class:
+                mock_coord = MagicMock()
+                mock_coord.execute_detector_group = AsyncMock(return_value=[
+                        DetectorResult(
+                            detector="policy-detector-1",
+                            status=DetectorStatus.SUCCESS,
+                            output="Policy result 1",
+                            confidence=0.7,
+                            processing_time_ms=100,
+                        ),
+                        DetectorResult(
+                            detector="policy-detector-2",
+                            status=DetectorStatus.SUCCESS,
+                            output="Policy result 2",
+                            confidence=0.5,
+                            processing_time_ms=120,
+                        ),
+                ])
+                mock_coord_class.return_value = mock_coord
+
+                with patch("detector_orchestration.api.main.ResponseAggregator") as mock_agg_class:
+                    mock_agg = MagicMock()
+                    # Return coverage below threshold to test policy violation
+                    mock_agg.aggregate = MagicMock(return_value=(
+                        MagicMock(),  # payload
+                        0.75,  # coverage below 0.8 threshold
+                    ))
+                    mock_agg_class.return_value = mock_agg
+
+                    with patch("detector_orchestration.api.main.metrics") as mock_metrics:
+                        mock_metrics.record_policy_enforcement = MagicMock()
+
+                response = test_client.post(
+                            "/orchestrate",
+                            json=sample_orchestration_request.model_dump(),
+                            headers={
+                                "Authorization": "Bearer test-token",
+                                "X-Tenant-ID": "test-tenant",
+                            },
+                        )
+
+                assert response.status_code == 206  # Partial content due to policy violation
+                result = OrchestrationResponse(**response.json())
+
+                assert result.coverage_achieved == 0.75
+                assert result.error_code == "PARTIAL_COVERAGE"
+                assert result.fallback_used is True
+
+                # Check that policy enforcement was recorded
+                mock_metrics.record_policy_enforcement.assert_called()
+                call_args = mock_metrics.record_policy_enforcement.call_args
+                assert call_args[0][0] == "test-tenant"  # tenant_id
+                assert call_args[0][1] == "default"  # policy_bundle
+                assert call_args[0][2] is False  # enforced = False due to violation
+                assert call_args[0][3] == "coverage_below_threshold"  # violation_type
+
+    def test_health_check_endpoint_functionality(
+        self,
+        test_client: TestClient,
+        mock_detector_clients: dict,
+    ):
+        """Test the health check endpoint with various detector states."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS", mock_detector_clients):
+            with patch("detector_orchestration.api.main.HEALTH_MONITOR") as mock_health_monitor:
+                # Test with mixed health status
+                def mock_is_healthy(name):
+                    return name in ["healthy-detector-1", "healthy-detector-2"]
+
+                mock_health_monitor.is_healthy = MagicMock(side_effect=mock_is_healthy)
+
+                response = test_client.get(
+                    "/health",
+                    headers={"Authorization": "Bearer test-token"},
+                )
+
+                assert response.status_code == 200
+                health_data = response.json()
+
+                assert health_data["status"] == "healthy"
+                assert health_data["detectors_total"] == 4
+                assert health_data["detectors_healthy"] == 2
+
+    def test_detector_specific_health_checks(
+        self,
+        test_client: TestClient,
+        mock_detector_clients: dict,
+    ):
+        """Test individual detector health check endpoints."""
+        detector_name = "healthy-detector-1"
+
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS", mock_detector_clients):
+            with patch("detector_orchestration.api.main.HEALTH_MONITOR") as mock_health_monitor:
+                mock_health_monitor.is_healthy = MagicMock(return_value=True)
+
+                response = test_client.get(
+                    f"/detectors/{detector_name}",
+                    headers={"Authorization": "Bearer test-token"},
+                )
+
+                assert response.status_code == 200
+                detector_data = response.json()
+
+                assert detector_data["name"] == detector_name
+                assert detector_data["healthy"] is True
+
+    def test_gradual_detector_degradation_handling(
+        self,
+        test_client: TestClient,
+        sample_orchestration_request: OrchestrationRequest,
+    ):
+        """Test handling of gradually degrading detector health."""
+        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
+            # Create a detector that fails intermittently
+            intermittent_detector = MockDetectorClient("intermittent-detector", healthy=True)
+
+            async def intermittent_detect(content: str, metadata: dict[str, Any] | None = None):
+                intermittent_detector.call_count += 1
+                if intermittent_detector.call_count % 3 == 0:  # Fail every 3rd call
+                    raise Exception("Intermittent failure")
+                return {
+                    "detector": "intermittent-detector",
+                    "status": "success",
+                    "output": f"Result from intermittent-detector (call {intermittent_detector.call_count})",
+                    "confidence": 0.8,
+                    "processing_time_ms": 100,
+                }
+
+            intermittent_detector.detect = intermittent_detect
+            mock_clients.__getitem__ = lambda self, key: intermittent_detector
+            mock_clients.keys = lambda: ["intermittent-detector"]
+            mock_clients.__iter__ = lambda self: iter([("intermittent-detector", intermittent_detector)])
+
+            mock_routing_plan = RoutingPlan(
+                primary_detectors=["intermittent-detector"],
+                parallel_groups=[["intermittent-detector"]],
+                timeout_config={"intermittent-detector": 3000},
+                retry_config={"intermittent-detector": 3},  # Allow retries
+                coverage_method="weighted",
+                weights={"intermittent-detector": 1.0},
+                required_taxonomy_categories=[],
+            )
+
+            mock_decision = build_routing_decision(
+                selected_detectors=["intermittent-detector"],
+                healthy_detectors=["intermittent-detector"],
+                routing_reason="retry-strategy",
+                coverage_requirements={
+                    "coverage_threshold": 1.0,
+                    "coverage_method": "weighted",
+                },
+            )
+
+            with patch("detector_orchestration.api.main.ContentRouter") as mock_router_class:
+                mock_router = MagicMock()
+                mock_router.route_request = AsyncMock(return_value=(mock_routing_plan, mock_decision))
+                mock_router_class.return_value = mock_router
+
+            with patch("detector_orchestration.api.main.DetectorCoordinator") as mock_coord_class:
+                mock_coord = MagicMock()
+                # Simulate retry behavior - first fails, retry succeeds
+                mock_coord.execute_detector_group = AsyncMock(return_value=[
+                    DetectorResult(
+                        detector="intermittent-detector",
+                        status=DetectorStatus.SUCCESS,
+                        output="Success after retry",
+                        confidence=0.8,
+                        processing_time_ms=100,
+                    ),
+                ])
+                mock_coord_class.return_value = mock_coord
+
+                with patch("detector_orchestration.api.main.ResponseAggregator") as mock_agg_class:
+                    mock_agg = MagicMock()
+                    mock_agg.aggregate = MagicMock(return_value=(
+                        MagicMock(),  # payload
+                        1.0,  # coverage
+                    ))
+                    mock_agg_class.return_value = mock_agg
+
+                response = test_client.post(
+                        "/orchestrate",
+                        json=sample_orchestration_request.model_dump(),
+                        headers={
+                            "Authorization": "Bearer test-token",
+                            "X-Tenant-ID": "test-tenant",
+                        },
+                    )
+
+                assert response.status_code == 200
+                result = OrchestrationResponse(**response.json())
+
+                # Should succeed with retries
+                assert result.detectors_attempted == 1
+                assert result.detectors_succeeded == 1
+                assert result.detectors_failed == 0
+                assert mock_coord.execute_detector_group.call_count == 2  # Initial + 1 retry

@@ -55,8 +55,6 @@ class TenantConfig:
 class TenantIsolationError(Exception):
     """Exception raised when tenant isolation is violated."""
 
-    pass
-
 
 class TenantIsolationManager:
     """
@@ -209,7 +207,10 @@ class TenantIsolationManager:
             and tenant_context.allowed_tenants
         ):
             allowed_list = "', '".join(tenant_context.allowed_tenants)
-            tenant_filter = f"{table_prefix}tenant_id IN ('{tenant_context.tenant_id}', '{allowed_list}')"
+            tenant_filter = (
+                f"{table_prefix}tenant_id IN "
+                f"('{tenant_context.tenant_id}', '{allowed_list}')"
+            )
 
         # For admin access, no filtering needed
         if tenant_context.access_level == TenantAccessLevel.ADMIN:

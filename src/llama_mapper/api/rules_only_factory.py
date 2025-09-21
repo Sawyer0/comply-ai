@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 
-from ..config.manager import ConfigManager
-from ..serving import FallbackMapper, GenerationConfig, JSONValidator, create_model_server
 from ..api.mapper import create_app
+from ..config.manager import ConfigManager
 from ..monitoring.metrics_collector import MetricsCollector
+from ..serving import (
+    FallbackMapper,
+    GenerationConfig,
+    JSONValidator,
+    create_model_server,
+)
 
 
 def create_rules_only_app() -> FastAPI:
@@ -34,7 +39,9 @@ def create_rules_only_app() -> FastAPI:
         backend=config_manager.serving.backend,
         model_path=config_manager.model.name,
         generation_config=gen_cfg,
-        gpu_memory_utilization=getattr(config_manager.serving, "gpu_memory_utilization", 0.9),
+        gpu_memory_utilization=getattr(
+            config_manager.serving, "gpu_memory_utilization", 0.9
+        ),
     )
 
     # Prefer local .kiro artifacts

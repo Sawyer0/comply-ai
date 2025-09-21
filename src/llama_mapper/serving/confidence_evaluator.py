@@ -8,9 +8,10 @@ with support for confidence calibration and threshold tuning.
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import numpy as np
+from numpy.typing import NDArray
 
 try:
     import torch  # type: ignore
@@ -138,7 +139,7 @@ class ConfidenceCalibrator:
         self.isotonic_regressor = reg
         logger.info("Isotonic regression calibration completed")
 
-    def apply_calibration(self, logits: np.ndarray) -> np.ndarray:
+    def apply_calibration(self, logits: np.ndarray) -> NDArray[np.float64]:
         """
         Apply calibration to model logits.
 
@@ -162,21 +163,26 @@ class ConfidenceCalibrator:
             calibrated_max = 1 / (1 + np.exp(self.platt_a * max_probs + self.platt_b))
             # Scale all probabilities proportionally
             scale_factor = calibrated_max / (max_probs + 1e-8)
-            return np.asarray(probs * scale_factor[:, np.newaxis])
+            return cast(
+                NDArray[np.float64], np.asarray(probs * scale_factor[:, np.newaxis])
+            )
         elif self.method == "isotonic":
             probs = self._softmax(logits)
             max_probs = np.max(probs, axis=1)
             assert self.isotonic_regressor is not None
             calibrated_max = self.isotonic_regressor.predict(max_probs)
             scale_factor = calibrated_max / (max_probs + 1e-8)
-            return np.asarray(probs * scale_factor[:, np.newaxis])
+            return cast(
+                NDArray[np.float64], np.asarray(probs * scale_factor[:, np.newaxis])
+            )
         else:
             return self._softmax(logits)
 
-    def _softmax(self, logits: np.ndarray) -> np.ndarray:
+    def _softmax(self, logits: np.ndarray) -> NDArray[np.float64]:
         """Compute softmax probabilities."""
         exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-        return np.asarray(exp_logits / np.sum(exp_logits, axis=1, keepdims=True))
+        result = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+        return cast(NDArray[np.float64], np.asarray(result))
 
     def save(self, path: Union[str, Path]) -> None:
         """Save calibrator state."""
@@ -251,15 +257,16 @@ class ConfidenceEvaluator:
         if (torch is not None) and isinstance(logits, torch.Tensor):  # type: ignore[attr-defined]
             logits_np = logits.detach().cpu().numpy()
         elif isinstance(logits, list):
-            logits_np = np.array(logits)
+            logits_np = np.array(logits, dtype=float)
         else:
-            logits_np = logits
+            logits_np = np.asarray(logits, dtype=float)
 
         # Ensure 2D array
         if logits_np.ndim == 1:
             logits_np = logits_np.reshape(1, -1)
 
         # Apply calibration if available
+        probs: NDArray[np.float64]
         if self.calibrator and self.calibrator.is_calibrated:
             probs = self.calibrator.apply_calibration(logits_np)
         else:
@@ -381,14 +388,14 @@ class ConfidenceEvaluator:
         Returns:
             Dict[str, float]: Recommended thresholds for different criteria
         """
-        confidences = np.array(validation_confidences)
-        correct = np.array(validation_correct)
+        confidences = np.asarray(validation_confidences, dtype=float)
+        correct = np.asarray(validation_correct, dtype=bool)
 
-        recommendations = {}
+        recommendations: Dict[str, float] = {}
 
         # Find threshold that maximizes F1 score
         thresholds = np.linspace(0.1, 0.9, 81)
-        best_f1 = 0
+        best_f1 = 0.0
         best_f1_threshold = 0.5
 
         for threshold in thresholds:
@@ -396,8 +403,8 @@ class ConfidenceEvaluator:
             if np.sum(above_threshold) == 0:
                 continue
 
-            precision = np.mean(correct[above_threshold])
-            recall = np.sum(above_threshold) / len(above_threshold)
+            precision = float(np.mean(correct[above_threshold]))
+            recall = float(np.sum(above_threshold) / len(above_threshold))
 
             if precision + recall > 0:
                 f1 = 2 * precision * recall / (precision + recall)
@@ -411,7 +418,7 @@ class ConfidenceEvaluator:
         for threshold in sorted(thresholds, reverse=True):
             above_threshold = confidences >= threshold
             if np.sum(above_threshold) > 0:
-                precision = np.mean(correct[above_threshold])
+                precision = float(np.mean(correct[above_threshold]))
                 if precision >= 0.95:
                     recommendations["precision_95"] = threshold
                     break
@@ -419,7 +426,7 @@ class ConfidenceEvaluator:
         # Find threshold for 90% recall
         for threshold in thresholds:
             above_threshold = confidences >= threshold
-            recall = np.sum(above_threshold) / len(above_threshold)
+            recall = float(np.sum(above_threshold) / len(above_threshold))
             if recall >= 0.90:
                 recommendations["recall_90"] = threshold
                 break
@@ -432,7 +439,7 @@ class ConfidenceEvaluator:
     ) -> Dict[str, float]:
         """Evaluate calibration quality metrics."""
         # Before calibration
-        uncalibrated_probs = self._softmax(logits)
+        uncalibrated_probs: NDArray[np.float64] = self._softmax(logits)
         uncalibrated_conf = np.max(uncalibrated_probs, axis=1)
         uncalibrated_pred = np.argmax(uncalibrated_probs, axis=1)
         uncalibrated_correct = (uncalibrated_pred == labels).astype(float)
@@ -448,13 +455,15 @@ class ConfidenceEvaluator:
 
         # Expected Calibration Error (ECE)
         def compute_ece(
-            confidences: np.ndarray, correct: np.ndarray, n_bins: int = 10
+            confidences: NDArray[np.float64],
+            correct: NDArray[np.float64],
+            n_bins: int = 10,
         ) -> float:
             bin_boundaries = np.linspace(0, 1, n_bins + 1)
             bin_lowers = bin_boundaries[:-1]
             bin_uppers = bin_boundaries[1:]
 
-            ece = 0
+            ece = 0.0
             for bin_lower, bin_upper in zip(bin_lowers, bin_uppers):
                 in_bin = (confidences > bin_lower) & (confidences <= bin_upper)
                 prop_in_bin = in_bin.mean()
@@ -477,10 +486,11 @@ class ConfidenceEvaluator:
             "calibrated_accuracy": float(np.mean(calibrated_correct)),
         }
 
-    def _softmax(self, logits: np.ndarray) -> np.ndarray:
+    def _softmax(self, logits: np.ndarray) -> NDArray[np.float64]:
         """Compute softmax probabilities."""
         exp_logits = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-        return np.asarray(exp_logits / np.sum(exp_logits, axis=1, keepdims=True))
+        result = exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+        return cast(NDArray[np.float64], np.asarray(result))
 
     def get_stats(self) -> Dict[str, Any]:
         """

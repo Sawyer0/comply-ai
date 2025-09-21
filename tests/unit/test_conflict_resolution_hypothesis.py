@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pytest
 from hypothesis import given, settings, assume
@@ -18,7 +18,10 @@ def _ensure_orchestrator_on_path() -> None:
 
 _ensure_orchestrator_on_path()
 
-from detector_orchestration.conflict import ConflictResolver  # type: ignore  # noqa: E402
+from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
+    ConflictResolutionRequest,
+    ConflictResolver,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
     DetectorResult,
     DetectorStatus,
@@ -33,6 +36,23 @@ def _res(detector: str, output: str, conf: float) -> DetectorResult:
         output=output,
         confidence=conf,
         processing_time_ms=1,
+    )
+
+
+def _request(
+    *,
+    content_type: ContentType,
+    results: List[DetectorResult],
+    weights: Optional[dict[str, float]] = None,
+    tenant: str = "t",
+    policy_bundle: str = "b",
+) -> ConflictResolutionRequest:
+    return ConflictResolutionRequest(
+        tenant_id=tenant,
+        policy_bundle=policy_bundle,
+        content_type=content_type,
+        detector_results=list(results),
+        weights=weights,
     )
 
 
@@ -56,12 +76,12 @@ async def test_order_invariance_hypothesis(results: List[DetectorResult]):
     assume("safe" in outs and "toxic" in outs)
     resolver = ConflictResolver()
     base = await resolver.resolve(
-        tenant_id="t", policy_bundle="b", content_type=ContentType.IMAGE, detector_results=list(results)
+        _request(content_type=ContentType.IMAGE, results=list(results))
     )
     # Simple permutation (reverse) suffices; Hypothesis varies input lists
     rev = list(reversed(results))
     out = await resolver.resolve(
-        tenant_id="t", policy_bundle="b", content_type=ContentType.IMAGE, detector_results=rev
+        _request(content_type=ContentType.IMAGE, results=rev)
     )
     assert out.winning_output == base.winning_output
 
@@ -94,19 +114,19 @@ async def test_weight_scaling_invariance_hypothesis(
 
     resolver = ConflictResolver()
     base = await resolver.resolve(
-        tenant_id="t",
-        policy_bundle="b",
-        content_type=ContentType.TEXT,
-        detector_results=results,
-        weights=base_weights,
+        _request(
+            content_type=ContentType.TEXT,
+            results=results,
+            weights=base_weights,
+        )
     )
     scaled = {k: v * scale for k, v in base_weights.items()}
     out = await resolver.resolve(
-        tenant_id="t",
-        policy_bundle="b",
-        content_type=ContentType.TEXT,
-        detector_results=results,
-        weights=scaled,
+        _request(
+            content_type=ContentType.TEXT,
+            results=results,
+            weights=scaled,
+        )
     )
     assert out.winning_output == base.winning_output
 
@@ -129,7 +149,7 @@ async def test_weight_scaling_invariance_hypothesis(
 async def test_normalized_scores_bounds_hypothesis(results: List[DetectorResult]):
     resolver = ConflictResolver()
     out = await resolver.resolve(
-        tenant_id="t", policy_bundle="b", content_type=ContentType.IMAGE, detector_results=results
+        _request(content_type=ContentType.IMAGE, results=results)
     )
     for v in out.normalized_scores.values():
         assert 0.0 <= v <= 1.0
@@ -152,10 +172,7 @@ async def test_tie_determinism_alphabetical_highest_confidence(c: float):
     ]
     resolver = ConflictResolver()
     out = await resolver.resolve(
-        tenant_id="t",
-        policy_bundle="b",
-        content_type=ContentType.IMAGE,  # highest_confidence strategy
-        detector_results=results,
+        _request(content_type=ContentType.IMAGE, results=results)
     )
     # Alphabetical fallback between 'safe' and 'toxic' should pick 'safe'
     assert out.winning_output in ("safe", "toxic")
@@ -181,10 +198,7 @@ async def test_tie_determinism_alphabetical_highest_confidence(c: float):
 async def test_monotonicity_majority_vote(results: List[DetectorResult], extra_conf: float):
     resolver = ConflictResolver()
     base = await resolver.resolve(
-        tenant_id="t",
-        policy_bundle="b",
-        content_type=ContentType.CODE,  # majority_vote
-        detector_results=results,
+        _request(content_type=ContentType.CODE, results=results)
     )
     # If no winner (tie or single unique output), skip
     if base.winning_output not in ("safe", "toxic"):
@@ -193,10 +207,7 @@ async def test_monotonicity_majority_vote(results: List[DetectorResult], extra_c
     extra = _res("extra", base.winning_output or "safe", extra_conf)
     augmented = list(results) + [extra]
     out = await resolver.resolve(
-        tenant_id="t",
-        policy_bundle="b",
-        content_type=ContentType.CODE,
-        detector_results=augmented,
+        _request(content_type=ContentType.CODE, results=augmented)
     )
     assert out.winning_output == base.winning_output
 
@@ -219,7 +230,7 @@ async def test_monotonicity_majority_vote(results: List[DetectorResult], extra_c
 async def test_empty_and_small_lists_do_not_crash(results: List[DetectorResult]):
     resolver = ConflictResolver()
     out = await resolver.resolve(
-        tenant_id="t", policy_bundle="b", content_type=ContentType.IMAGE, detector_results=results
+        _request(content_type=ContentType.IMAGE, results=results)
     )
     for v in out.normalized_scores.values():
         assert 0.0 <= v <= 1.0

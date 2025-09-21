@@ -1,0 +1,214 @@
+# Default values for detector-orchestration
+replicaCount: 1
+
+image:
+  repository: detector-orchestration
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+# Environment variables configuration
+env:
+  ORCH_ENVIRONMENT: "prod"
+  ORCH_LOG_LEVEL: "INFO"
+  ORCH_CONFIG__MAX_CONCURRENT_DETECTORS: "10"
+  ORCH_CONFIG__DEFAULT_TIMEOUT_MS: "5000"
+  ORCH_CONFIG__MAX_RETRIES: "2"
+  ORCH_CONFIG__SLA__SYNC_REQUEST_SLA_MS: "2000"
+  ORCH_CONFIG__SLA__ASYNC_REQUEST_SLA_MS: "30000"
+  ORCH_CONFIG__SLA__MAPPER_TIMEOUT_BUDGET_MS: "500"
+  ORCH_CONFIG__SLA__SYNC_TO_ASYNC_THRESHOLD_MS: "1500"
+  ORCH_CONFIG__HEALTH_CHECK_INTERVAL_SECONDS: "30"
+  ORCH_CONFIG__UNHEALTHY_THRESHOLD: "3"
+  ORCH_CONFIG__RESPONSE_CACHE_TTL_SECONDS: "300"
+  ORCH_CONFIG__CACHE_ENABLED: "true"
+  ORCH_CONFIG__CACHE_BACKEND: "redis"
+  ORCH_CONFIG__REDIS_URL: "redis://redis:6379"
+  ORCH_CONFIG__REDIS_PREFIX: "orch:"
+  ORCH_CONFIG__MAX_CONTENT_LENGTH: "50000"
+  ORCH_CONFIG__SECONDARY_ON_COVERAGE_BELOW: "true"
+  ORCH_CONFIG__SECONDARY_MIN_COVERAGE: "1.0"
+  ORCH_CONFIG__RETRY_ON_TIMEOUTS: "true"
+  ORCH_CONFIG__RETRY_ON_FAILURES: "true"
+  ORCH_CONFIG__AUTO_MAP_RESULTS: "true"
+  ORCH_CONFIG__MAPPER_ENDPOINT: "http://llama-mapper:8000/map"
+  ORCH_CONFIG__CIRCUIT_BREAKER_FAILURE_THRESHOLD: "5"
+  ORCH_CONFIG__CIRCUIT_BREAKER_RECOVERY_TIMEOUT_SECONDS: "60"
+  ORCH_CONFIG__POLICY_DIR: "/app/policies"
+  ORCH_CONFIG__OPA_ENABLED: "false"
+  ORCH_CONFIG__OPA_URL: "http://opa:8181"
+  ORCH_CONFIG__API_KEY_HEADER: "X-API-Key"
+  ORCH_CONFIG__TENANT_HEADER: "X-Tenant-ID"
+  ORCH_CONFIG__RATE_LIMIT_ENABLED: "true"
+  ORCH_CONFIG__RATE_LIMIT_WINDOW_SECONDS: "60"
+  ORCH_CONFIG__RATE_LIMIT_TENANT_LIMIT: "120"
+
+# Detector configurations
+detectors:
+  toxicity:
+    endpoint: "builtin:toxicity"
+    timeout_ms: 3000
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+  deberta_toxicity:
+    endpoint: "builtin:toxicity"
+    timeout_ms: 3000
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+  regex_pii:
+    endpoint: "builtin:regex-pii"
+    timeout_ms: 1000
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+  echo:
+    endpoint: "builtin:echo"
+    timeout_ms: 500
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+
+# API Keys and RBAC configuration
+apiKeys:
+  # Example keys with scopes - in production use secrets
+  orchestrate_key: ["orchestrate:write", "orchestrate:status"]
+  registry_key: ["registry:read", "registry:write"]
+  policy_key: ["policy:read", "policy:write"]
+
+mapperApiKey: "mapper-secret-key"
+
+# Redis configuration
+redis:
+  enabled: true
+  host: "redis"
+  port: 6379
+  password: ""
+
+# OPA configuration
+opa:
+  enabled: false
+  image:
+    repository: openpolicyagent/opa
+    tag: "0.60.0"
+    pullPolicy: IfNotPresent
+  port: 8181
+  policies:
+    # Mount policies from configmaps or external source
+    mountPath: "/policies"
+    configMap: "detector-policies"
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: detector-orchestration.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Health check configuration
+healthCheck:
+  enabled: true
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+
+# Autoscaling configuration
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selector, tolerations, and affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Pod security context
+securityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+# Container security context
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# Volume mounts for policies and other configs
+extraVolumes: []
+extraVolumeMounts: []
+
+# Init containers
+initContainers: []
+
+# Sidecars
+sidecars: []
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# RBAC
+rbac:
+  create: true
+
+# Network policies
+networkPolicy:
+  enabled: false

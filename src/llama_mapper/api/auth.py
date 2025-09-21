@@ -142,7 +142,9 @@ def build_api_key_auth(
         key_info: Optional[APIKeyInfo]
         try:
             key_info = api_keys.get(api_key)  # type: ignore[arg-type]
-        except Exception:
+        except (AttributeError, TypeError, KeyError) as _e:
+            # API key lookup failed - this can happen if api_keys structure is unexpected
+            # Treat as invalid key to be safe
             key_info = None
         if not key_info or not key_info.active:
             raise HTTPException(status_code=401, detail="Invalid or inactive API key")

@@ -1,0 +1,88 @@
+{
+  "tenant_policies": {
+    "tenant-critical": {
+      "default": {
+        "allowed_text_detectors": ["toxicity", "deberta-toxicity", "regex-pii"],
+        "allowed_image_detectors": ["toxicity", "deberta-toxicity"],
+        "required_detectors": ["toxicity", "deberta-toxicity"],
+        "detector_priorities": {
+          "toxicity": 1,
+          "deberta-toxicity": 1,
+          "regex-pii": 2
+        },
+        "conflict_resolution": "required_detector_consensus",
+        "min_coverage_threshold": 0.9,
+        "sla_requirements": {
+          "max_processing_time_ms": 1000,
+          "min_coverage": 0.95
+        }
+      }
+    },
+    "tenant-sensitive": {
+      "default": {
+        "allowed_text_detectors": ["toxicity", "regex-pii"],
+        "allowed_image_detectors": ["toxicity"],
+        "required_detectors": ["toxicity"],
+        "detector_priorities": {
+          "toxicity": 1,
+          "regex-pii": 2
+        },
+        "conflict_resolution": "highest_confidence",
+        "min_coverage_threshold": 0.8,
+        "sla_requirements": {
+          "max_processing_time_ms": 2000,
+          "min_coverage": 0.85
+        }
+      }
+    },
+    "tenant-standard": {
+      "default": {
+        "allowed_text_detectors": ["echo", "toxicity", "regex-pii"],
+        "allowed_image_detectors": ["echo", "toxicity"],
+        "required_detectors": [],
+        "detector_priorities": {
+          "echo": 3,
+          "toxicity": 1,
+          "regex-pii": 2
+        },
+        "conflict_resolution": "majority_vote",
+        "min_coverage_threshold": 0.7,
+        "sla_requirements": {
+          "max_processing_time_ms": 3000,
+          "min_coverage": 0.75
+        }
+      },
+      "strict": {
+        "allowed_text_detectors": ["toxicity", "deberta-toxicity"],
+        "allowed_image_detectors": ["toxicity"],
+        "required_detectors": ["toxicity"],
+        "detector_priorities": {
+          "toxicity": 1,
+          "deberta-toxicity": 2
+        },
+        "conflict_resolution": "highest_confidence",
+        "min_coverage_threshold": 0.9,
+        "sla_requirements": {
+          "max_processing_time_ms": 2000,
+          "min_coverage": 0.9
+        }
+      }
+    },
+    "tenant-basic": {
+      "default": {
+        "allowed_text_detectors": ["echo"],
+        "allowed_image_detectors": ["echo"],
+        "required_detectors": [],
+        "detector_priorities": {
+          "echo": 1
+        },
+        "conflict_resolution": "highest_confidence",
+        "min_coverage_threshold": 0.5,
+        "sla_requirements": {
+          "max_processing_time_ms": 5000,
+          "min_coverage": 0.5
+        }
+      }
+    }
+  }
+}

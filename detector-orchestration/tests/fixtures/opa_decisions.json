@@ -1,0 +1,47 @@
+{
+  "detector_selection": {
+    "input": {
+      "tenant_id": "test-tenant",
+      "content_type": "text",
+      "candidate_detectors": ["toxicity", "regex-pii", "echo"],
+      "environment": "dev"
+    },
+    "expected_output": {
+      "selected_detectors": ["toxicity", "regex-pii"],
+      "coverage_method": "required_set",
+      "coverage_requirements": {
+        "min_success_fraction": 1.0
+      }
+    }
+  },
+  "conflict_resolution": {
+    "input": {
+      "detector_outputs": [
+        {"detector": "toxicity", "output": "toxic", "confidence": 0.8},
+        {"detector": "regex-pii", "output": "clean", "confidence": 0.9}
+      ],
+      "content_type": "text"
+    },
+    "expected_output": {
+      "strategy": "highest_confidence",
+      "preferred_detector": "regex-pii",
+      "winning_output": "clean"
+    }
+  },
+  "weighted_coverage": {
+    "input": {
+      "tenant_id": "premium-tenant",
+      "content_type": "text",
+      "candidate_detectors": ["toxicity", "regex-pii", "echo"],
+      "environment": "prod"
+    },
+    "expected_output": {
+      "selected_detectors": ["toxicity", "regex-pii"],
+      "coverage_method": "weighted",
+      "coverage_requirements": {
+        "weights": {"toxicity": 0.7, "regex-pii": 0.3},
+        "min_success_fraction": 0.8
+      }
+    }
+  }
+}

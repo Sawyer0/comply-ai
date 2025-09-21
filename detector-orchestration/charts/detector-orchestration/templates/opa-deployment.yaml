@@ -1,0 +1,79 @@
+{{- if .Values.opa.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "detector-orchestration.fullname" . }}-opa
+  labels:
+    {{- include "detector-orchestration.labels" . | nindent 4 }}
+    component: opa
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "detector-orchestration.selectorLabels" . | nindent 6 }}
+      component: opa
+  template:
+    metadata:
+      labels:
+        {{- include "detector-orchestration.selectorLabels" . | nindent 8 }}
+        component: opa
+    spec:
+      containers:
+        - name: opa
+          image: "{{ .Values.opa.image.repository }}:{{ .Values.opa.image.tag }}"
+          imagePullPolicy: {{ .Values.opa.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.opa.port }}
+              name: http
+          args:
+            - "run"
+            - "--server"
+            - "--addr=:{{ .Values.opa.port }}"
+            - "--log-level=info"
+            - "/policies"
+          volumeMounts:
+            - name: policies
+              mountPath: /policies
+              readOnly: true
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.opa.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.opa.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: policies
+          configMap:
+            name: {{ .Values.opa.policies.configMap }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "detector-orchestration.fullname" . }}-opa
+  labels:
+    {{- include "detector-orchestration.labels" . | nindent 4 }}
+    component: opa
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.opa.port }}
+      targetPort: {{ .Values.opa.port }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "detector-orchestration.selectorLabels" . | nindent 4 }}
+    component: opa
+{{- end }}

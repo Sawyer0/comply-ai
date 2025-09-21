@@ -83,7 +83,8 @@ def _redact_value(value: Any) -> Any:
             fields = {f.name: _redact_value(getattr(value, f.name)) for f in value.__dataclass_fields__.values()}  # type: ignore[attr-defined]
             # Cast to Any to satisfy type checker; runtime type remains the same dataclass
             return cast(Any, replace(value, **fields))  # type: ignore[type-var]
-        except Exception:
+        except (AttributeError, TypeError, ValueError) as e:
+            # Dataclass redaction failed - return original value to avoid data loss
             return value
     return value
 
@@ -119,7 +120,8 @@ def redact_request_model(request: Any) -> Any:
             "tenant_id": getattr(request, "tenant_id", None),
         }
         return obj
-    except Exception:
+    except (AttributeError, TypeError) as e:
+        # Object redaction failed - return safe fallback
         return {
             "detector": None,
             "output": "[REDACTED]",

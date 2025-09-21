@@ -1,0 +1,93 @@
+# Staging environment configuration
+replicaCount: 2
+
+image:
+  repository: detector-orchestration
+  pullPolicy: Always
+  tag: "staging"
+
+# Staging environment settings
+env:
+  ORCH_ENVIRONMENT: "staging"
+  ORCH_LOG_LEVEL: "INFO"
+  ORCH_CONFIG__CACHE_BACKEND: "redis"
+  ORCH_CONFIG__CACHE_ENABLED: "true"
+  ORCH_CONFIG__OPA_ENABLED: "true"
+  ORCH_CONFIG__RATE_LIMIT_ENABLED: "true"
+  ORCH_CONFIG__AUTO_MAP_RESULTS: "true"
+  ORCH_CONFIG__MAPPER_ENDPOINT: "http://llama-mapper-staging:8000/map"
+
+# Staging detector configurations (subset for testing)
+detectors:
+  echo:
+    endpoint: "builtin:echo"
+    timeout_ms: 500
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+  toxicity:
+    endpoint: "http://detector-toxicity-staging:8000/detect"
+    timeout_ms: 3000
+    max_retries: 2
+    auth:
+      type: "api_key"
+      header: "X-API-Key"
+    weight: 1.0
+    supported_content_types: ["text"]
+
+# Redis configuration for staging
+redis:
+  enabled: true
+  host: "detector-orchestration-redis"
+  port: 6379
+  password: "staging-redis-password"
+
+# OPA configuration for staging
+opa:
+  enabled: true
+  image:
+    repository: openpolicyagent/opa
+    tag: "0.60.0"
+    pullPolicy: IfNotPresent
+  port: 8181
+  policies:
+    mountPath: "/policies"
+    configMap: "detector-policies-staging"
+
+# Service configuration for staging
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# Resource limits for staging
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 200m
+    memory: 256Mi
+
+# Enable autoscaling for staging (conservative)
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Staging security context
+securityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL

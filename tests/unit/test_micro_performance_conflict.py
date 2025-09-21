@@ -17,7 +17,10 @@ def _ensure_orchestrator_on_path() -> None:
 
 _ensure_orchestrator_on_path()
 
-from detector_orchestration.conflict import ConflictResolver  # type: ignore  # noqa: E402
+from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
+    ConflictResolutionRequest,
+    ConflictResolver,
+)
 from detector_orchestration.aggregator import ResponseAggregator  # type: ignore  # noqa: E402
 from detector_orchestration.models import DetectorResult, DetectorStatus, ContentType, RoutingPlan  # type: ignore  # noqa: E402
 
@@ -38,14 +41,15 @@ async def test_conflict_resolver_micro_performance():
 
     resolver = ConflictResolver()
     start = time.perf_counter()
+    request = ConflictResolutionRequest(
+        tenant_id="t",
+        policy_bundle="b",
+        content_type=ContentType.IMAGE,
+        detector_results=results,
+    )
     # Run 200 resolves (should be well under a few seconds even on CI)
     for _ in range(200):
-        out = await resolver.resolve(
-            tenant_id="t",
-            policy_bundle="b",
-            content_type=ContentType.IMAGE,
-            detector_results=results,
-        )
+        out = await resolver.resolve(request)
     duration = time.perf_counter() - start
     # Generous threshold to avoid flakes; adjust as needed
     assert duration < 2.5

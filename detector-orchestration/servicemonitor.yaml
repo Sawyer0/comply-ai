@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: detector-orchestration
+  labels:
+    app: detector-orchestration
+spec:
+  selector:
+    matchLabels:
+      app: detector-orchestration
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 15s
+    scrapeTimeout: 5s
+    metricRelabelings:
+    # Ensure locked metric names are preserved
+    - sourceLabels: [__name__]
+      targetLabel: __name__
+      regex: '(orchestrate_requests_total|orchestrate_request_duration_ms|detector_latency_ms|detector_health_status|circuit_breaker_state|coverage_achieved|policy_enforcement_total|orchestrator_.*)'

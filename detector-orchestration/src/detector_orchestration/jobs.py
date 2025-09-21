@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Dict, Optional, Tuple
+from typing import Awaitable, Callable, Dict, Optional
 import uuid
 
 import httpx
@@ -31,7 +31,13 @@ def _priority_value(p: Priority) -> int:
 
 
 RunFn = Callable[
-    [OrchestrationRequest, Optional[str], RoutingDecision, RoutingPlan, Optional[Callable[[float], None]]],
+    [
+        OrchestrationRequest,
+        Optional[str],
+        RoutingDecision,
+        RoutingPlan,
+        Optional[Callable[[float], None]],
+    ],
     Awaitable[OrchestrationResponse],
 ]
 
@@ -85,6 +91,12 @@ class JobManager:
             t.cancel()
         self._worker_tasks.clear()
 
+    async def health_check(self) -> bool:
+        """Return True when worker tasks are active."""
+        if not self._started:
+            return False
+        return any(task and not task.done() for task in self._worker_tasks)
+
     def _next_seq(self) -> int:
         self._seq += 1
         return self._seq
@@ -115,7 +127,9 @@ class JobManager:
         )
         self._jobs[job_id] = job
         prio = _priority_value(request.priority)
-        await self._queue.put(_QueueItem(prio=prio, seq=self._next_seq(), job_id=job_id))
+        await self._queue.put(
+            _QueueItem(prio=prio, seq=self._next_seq(), job_id=job_id)
+        )
         return job_id
 
     async def track_task(
@@ -123,21 +137,13 @@ class JobManager:
         job_id: str,
         task: "asyncio.Task[OrchestrationResponse]",
         *,
-        callback_url: Optional[str] = None,
+        _callback_url: Optional[str] = None,
     ) -> None:
         # Register an existing running task into the job manager for status tracking
         job = self._jobs.get(job_id)
-        if not job:
-            # Create a synthetic job entry
-            job = AsyncJob(
-                job_id=job_id,
-                request=task.get_coro().cr_frame.f_locals.get("request"),  # type: ignore[attr-defined]
-                idempotency_key=task.get_coro().cr_frame.f_locals.get("idempotency_key"),  # type: ignore[attr-defined]
-                decision=task.get_coro().cr_frame.f_locals.get("decision"),  # type: ignore[attr-defined]
-                routing_plan=task.get_coro().cr_frame.f_locals.get("routing_plan"),  # type: ignore[attr-defined]
-                callback_url=callback_url,
-            )
-            self._jobs[job_id] = job
+        if job is None:
+            # Without an existing job context we cannot safely track the task.
+            return
         job.status = JobStatus.RUNNING
         job.updated_at = datetime.now(timezone.utc)
 
@@ -166,9 +172,11 @@ class JobManager:
             try:
                 item = await self._queue.get()
                 job = self._jobs.get(item.job_id)
-                if not job:
+                if job is None:
                     self._queue.task_done()
                     continue
+                # At this point the job is guaranteed to exist in the registry
+                job = self._jobs[item.job_id]
                 # Skip cancelled jobs
                 if job.status == JobStatus.CANCELLED:
                     self._queue.task_done()
@@ -182,8 +190,16 @@ class JobManager:
 
                 try:
                     res = await self._run_fn(
-                        job.request, job.idempotency_key, job.decision, job.routing_plan, _progress_cb
+                        job.request,
+                        job.idempotency_key,
+                        job.decision,
+                        job.routing_plan,
+                        _progress_cb,
                     )
+                    try:
+                        res.job_id = job.job_id
+                    except Exception:
+                        pass
                     # If job was cancelled during execution, keep it cancelled; otherwise mark completed
                     if job.status != JobStatus.CANCELLED:
                         job.result = res

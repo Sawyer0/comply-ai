@@ -8,15 +8,15 @@ and returns a structured result suitable for CLI reporting.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher, get_close_matches
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, cast
 
-from difflib import SequenceMatcher, get_close_matches
 import yaml as _yaml
 
-from ..data.taxonomy import TaxonomyLoader, Taxonomy
-from ..data.frameworks import FrameworkMapper
 from ..data.detectors import DetectorConfigLoader
+from ..data.frameworks import FrameworkMapper
+from ..data.taxonomy import Taxonomy, TaxonomyLoader
 
 
 @dataclass
@@ -113,7 +113,8 @@ def validate_configuration(data_dir: Optional[Path] = None) -> ValidationResult:
             invalid_labels = label_check.get("invalid", [])
             if invalid_labels:
                 fw_errors.append(
-                    f"Framework mappings reference unknown taxonomy labels: {sorted(set(invalid_labels))}"
+                    "Framework mappings reference unknown taxonomy labels: "
+                    f"{sorted(set(invalid_labels))}"
                 )
             ref_check = fw.validate_framework_references()
             invalid_refs = ref_check.get("invalid", [])
@@ -176,11 +177,14 @@ def validate_configuration(data_dir: Optional[Path] = None) -> ValidationResult:
 
 # --------- Detector auto-fix helpers ---------
 
+
 def _all_taxonomy_labels(taxonomy: Taxonomy) -> List[str]:
     return sorted(list(taxonomy.get_all_label_names()))
 
 
-def _suggest_labels_for(bad_label: str, taxonomy: Taxonomy, max_suggestions: int = 5) -> List[Tuple[str, float]]:
+def _suggest_labels_for(
+    bad_label: str, taxonomy: Taxonomy, max_suggestions: int = 5
+) -> List[Tuple[str, float]]:
     """Suggest taxonomy labels for an invalid label using aliases and fuzzy matching."""
     suggestions: List[Tuple[str, float]] = []
 
@@ -231,7 +235,9 @@ def build_detector_fix_plan(data_dir: Optional[Path] = None) -> Dict[str, object
         proposed: Dict[str, str] = {}
         for bad in invalid_labels:
             ranked = _suggest_labels_for(bad, tax)
-            sugg_map[bad] = [{"label": lab, "score": round(score, 4)} for lab, score in ranked]
+            sugg_map[bad] = [
+                {"label": lab, "score": round(score, 4)} for lab, score in ranked
+            ]
             if ranked:
                 proposed[bad] = ranked[0][0]
         items.append(
@@ -247,7 +253,9 @@ def build_detector_fix_plan(data_dir: Optional[Path] = None) -> Dict[str, object
     return {"data_dir": str(base_dir), "items": items, "total_invalid": total_invalid}
 
 
-def apply_detector_fix_plan(plan: Dict[str, object], apply_threshold: float = 0.86) -> Dict[str, object]:
+def apply_detector_fix_plan(
+    plan: Dict[str, object], apply_threshold: float = 0.86
+) -> Dict[str, object]:
     """Apply detector fix plan to YAML files where the best suggestion is confident enough.
 
     Only applies when a suggestion has score >= apply_threshold.

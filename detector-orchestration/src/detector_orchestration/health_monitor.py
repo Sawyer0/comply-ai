@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Dict
 
 from .clients import DetectorClient
@@ -61,6 +60,11 @@ class HealthMonitor:
                 await asyncio.wait_for(self._stop.wait(), timeout=self.interval_seconds)
             except asyncio.TimeoutError:
                 continue
+
+    async def health_check(self) -> bool:
+        """Return True when background monitoring is running."""
+        task = self._task
+        return bool(task and not task.done())
 
     async def check_all(self) -> Dict[str, HealthStatus]:
         for name, client in self.clients.items():

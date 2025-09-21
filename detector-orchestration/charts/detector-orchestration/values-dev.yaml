@@ -1,0 +1,66 @@
+# Development environment configuration
+replicaCount: 1
+
+image:
+  repository: detector-orchestration
+  pullPolicy: Always
+  tag: "dev"
+
+# Development environment settings
+env:
+  ORCH_ENVIRONMENT: "dev"
+  ORCH_LOG_LEVEL: "DEBUG"
+  ORCH_CONFIG__CACHE_BACKEND: "memory"
+  ORCH_CONFIG__CACHE_ENABLED: "false"
+  ORCH_CONFIG__OPA_ENABLED: "false"
+  ORCH_CONFIG__RATE_LIMIT_ENABLED: "false"
+  ORCH_CONFIG__AUTO_MAP_RESULTS: "false"
+  ORCH_CONFIG__MAPPER_ENDPOINT: "http://host.docker.internal:8000/map"
+
+# Development detector configurations
+detectors:
+  echo:
+    endpoint: "builtin:echo"
+    timeout_ms: 500
+    max_retries: 1
+    auth: {}
+    weight: 1.0
+    supported_content_types: ["text"]
+
+# Disable Redis for development
+redis:
+  enabled: false
+
+# Disable OPA for development
+opa:
+  enabled: false
+
+# Resource limits for development
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Enable port forwarding for development
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# Disable autoscaling for development
+autoscaling:
+  enabled: false
+
+# Development security context (less restrictive)
+securityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true

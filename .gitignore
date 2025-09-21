@@ -3,6 +3,7 @@ venv/
 env/
 .venv/
 .env/
+*-venv/
 
 # Python
 __pycache__/
@@ -69,6 +70,7 @@ venv.bak/
 AGENTS.md
 .vscode/
 .idea/
+.cursor/
 .cursorignore
 *.swp
 *.swo
@@ -89,6 +91,9 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Linting output files
+pylint_output*.txt
 
 # Temporary files
 *.tmp

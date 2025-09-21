@@ -1,0 +1,14 @@
+apiVersion: v2
+name: detector-orchestration
+description: A Helm chart for Detector Orchestration Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - detector-orchestration
+  - microservice
+  - orchestration
+home: https://github.com/your-org/comply-ai
+maintainers:
+  - name: AI Safety Team
+    email: dawansawyer@gmail.com
