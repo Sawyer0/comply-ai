@@ -1,0 +1,1787 @@
+openapi: 3.1.0
+info:
+  title: Detector Orchestration Service
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /health/ready:
+    get:
+      summary: Readiness
+      operationId: readiness_health_ready_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /metrics:
+    get:
+      summary: Metrics Endpoint
+      operationId: metrics_endpoint_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /detectors:
+    get:
+      summary: List Detectors
+      operationId: list_detectors_detectors_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Detectors Detectors Get
+      security:
+      - APIKeyHeader: []
+    post:
+      summary: Register Detector
+      operationId: register_detector_detectors_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectorRegistration'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Register Detector Detectors Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - APIKeyHeader: []
+  /detectors/{name}:
+    put:
+      summary: Update Detector
+      operationId: update_detector_detectors__name__put
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectorRegistration'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Update Detector Detectors  Name  Put
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      summary: Delete Detector
+      operationId: delete_detector_detectors__name__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Name
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Delete Detector Detectors  Name  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /policies/{tenant_id}:
+    get:
+      summary: List Policies
+      operationId: list_policies_policies__tenant_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Policies Policies  Tenant Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /policies/{tenant_id}/{bundle}:
+    post:
+      summary: Submit Policy
+      operationId: submit_policy_policies__tenant_id___bundle__post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: bundle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Submit Policy Policies  Tenant Id   Bundle  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      summary: Delete Policy
+      operationId: delete_policy_policies__tenant_id___bundle__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: bundle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Bundle
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Delete Policy Policies  Tenant Id   Bundle  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /policies/{tenant_id}/{bundle}/versions:
+    get:
+      summary: List Policy Versions
+      operationId: list_policy_versions_policies__tenant_id___bundle__versions_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: bundle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Bundle
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Policy Versions Policies  Tenant Id   Bundle  Versions
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /policies/{tenant_id}/{bundle}/versions/{version_id}/review:
+    post:
+      summary: Review Policy Version
+      operationId: review_policy_version_policies__tenant_id___bundle__versions__version_id__review_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: bundle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Bundle
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Version Id
+      - name: decision
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/ApprovalDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Review Policy Version Policies  Tenant Id   Bundle  Versions  Version
+                  Id  Review Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /policies/{tenant_id}/{bundle}/versions/{version_id}/rollback:
+    post:
+      summary: Rollback Policy Version
+      operationId: rollback_policy_version_policies__tenant_id___bundle__versions__version_id__rollback_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: bundle
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Bundle
+      - name: version_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Version Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Rollback Policy Version Policies  Tenant Id   Bundle  Versions  Version
+                  Id  Rollback Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /events/stream:
+    get:
+      summary: Stream Events
+      operationId: stream_events_events_stream_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+      security:
+      - APIKeyHeader: []
+  /events/incidents:
+    get:
+      summary: List Incidents
+      operationId: list_incidents_events_incidents_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Incidents Events Incidents Get
+      security:
+      - APIKeyHeader: []
+  /orchestrate:
+    post:
+      summary: Orchestrate Endpoint
+      operationId: orchestrate_endpoint_orchestrate_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Tenant-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Tenant-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrchestrationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Orchestrate Endpoint Orchestrate Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /orchestrate/batch:
+    post:
+      summary: Orchestrate Batch Endpoint
+      operationId: orchestrate_batch_endpoint_orchestrate_batch_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: X-Tenant-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Tenant-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrchestrationRequest'
+              title: Requests
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Orchestrate Batch Endpoint Orchestrate Batch Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /orchestrate/status/{job_id}:
+    get:
+      summary: Get Job Status
+      operationId: get_job_status_orchestrate_status__job_id__get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Get Job Status Orchestrate Status  Job Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      summary: Cancel Job
+      operationId: cancel_job_orchestrate_status__job_id__delete
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Job Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                title: Response Cancel Job Orchestrate Status  Job Id  Delete
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    ApprovalDecision:
+      type: string
+      enum:
+      - approved
+      - rejected
+      - changes_requested
+      title: ApprovalDecision
+      description: Enumeration of possible decisions for policy approval workflow.
+    ContentType:
+      type: string
+      enum:
+      - text
+      - image
+      - document
+      - code
+      title: ContentType
+    DetectorRegistration:
+      properties:
+        name:
+          type: string
+          title: Name
+        endpoint:
+          type: string
+          title: Endpoint
+        timeout_ms:
+          type: integer
+          title: Timeout Ms
+          default: 3000
+        max_retries:
+          type: integer
+          title: Max Retries
+          default: 1
+        supported_content_types:
+          items:
+            type: string
+          type: array
+          title: Supported Content Types
+          default:
+          - text
+        auth:
+          additionalProperties: true
+          type: object
+          title: Auth
+          default: {}
+      type: object
+      required:
+      - name
+      - endpoint
+      title: DetectorRegistration
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    OrchestrationRequest:
+      properties:
+        content:
+          type: string
+          maxLength: 50000
+          title: Content
+          description: Content to analyze
+        content_type:
+          $ref: '#/components/schemas/ContentType'
+          description: Type of content
+        tenant_id:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Tenant Id
+        policy_bundle:
+          type: string
+          title: Policy Bundle
+          description: Policy bundle identifier
+        environment:
+          type: string
+          enum:
+          - dev
+          - stage
+          - prod
+          title: Environment
+          default: dev
+        processing_mode:
+          $ref: '#/components/schemas/ProcessingMode'
+          default: sync
+        priority:
+          $ref: '#/components/schemas/Priority'
+          default: normal
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+        required_detectors:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Required Detectors
+        excluded_detectors:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Excluded Detectors
+      type: object
+      required:
+      - content
+      - content_type
+      - tenant_id
+      - policy_bundle
+      title: OrchestrationRequest
+      description: Request model for detector orchestration operations.
+    Priority:
+      type: string
+      enum:
+      - low
+      - normal
+      - high
+      - critical
+      title: Priority
+    ProcessingMode:
+      type: string
+      enum:
+      - sync
+      - async
+      title: ProcessingMode
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    OrchestrationResponse:
+      $defs:
+        DetectorResult:
+          description: Result from a single detector execution.
+          properties:
+            detector:
+              title: Detector
+              type: string
+            status:
+              $ref: '#/components/schemas/DetectorStatus'
+            output:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Output
+            metadata:
+              anyOf:
+              - additionalProperties: true
+                type: object
+              - type: 'null'
+              default: null
+              title: Metadata
+            error:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Error
+            processing_time_ms:
+              default: 0
+              title: Processing Time Ms
+              type: integer
+            confidence:
+              anyOf:
+              - type: number
+              - type: 'null'
+              default: null
+              title: Confidence
+          required:
+          - detector
+          - status
+          title: DetectorResult
+          type: object
+        DetectorStatus:
+          enum:
+          - success
+          - failed
+          - timeout
+          - unavailable
+          - skipped
+          title: DetectorStatus
+          type: string
+        MapperPayload:
+          description: Payload for mapper service containing detector results.
+          properties:
+            detector:
+              title: Detector
+              type: string
+            output:
+              title: Output
+              type: string
+            metadata:
+              additionalProperties: true
+              title: Metadata
+              type: object
+            tenant_id:
+              title: Tenant Id
+              type: string
+          required:
+          - detector
+          - output
+          - tenant_id
+          title: MapperPayload
+          type: object
+        MappingResponse:
+          description: Response from the mapper service containing taxonomy mapping
+            results.
+          properties:
+            taxonomy:
+              items:
+                type: string
+              title: Taxonomy
+              type: array
+            scores:
+              additionalProperties:
+                type: number
+              title: Scores
+              type: object
+            confidence:
+              title: Confidence
+              type: number
+            notes:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Notes
+            provenance:
+              anyOf:
+              - $ref: '#/components/schemas/Provenance'
+              - type: 'null'
+              default: null
+            policy_context:
+              anyOf:
+              - $ref: '#/components/schemas/PolicyContext'
+              - type: 'null'
+              default: null
+          required:
+          - taxonomy
+          - scores
+          - confidence
+          title: MappingResponse
+          type: object
+        PolicyContext:
+          description: Policy context for detector expectations.
+          properties:
+            expected_detectors:
+              anyOf:
+              - items:
+                  type: string
+                type: array
+              - type: 'null'
+              default: null
+              title: Expected Detectors
+            environment:
+              anyOf:
+              - pattern: ^(dev|stage|prod)$
+                type: string
+              - type: 'null'
+              default: null
+              title: Environment
+          title: PolicyContext
+          type: object
+        ProcessingMode:
+          enum:
+          - sync
+          - async
+          title: ProcessingMode
+          type: string
+        Provenance:
+          description: Provenance information for detector results and mappings.
+          properties:
+            vendor:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Vendor
+            detector:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector
+            detector_version:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector Version
+            raw_ref:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Raw Ref
+            route:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Route
+            model:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Model
+            tenant_id:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Tenant Id
+            ts:
+              anyOf:
+              - format: date-time
+                type: string
+              - type: 'null'
+              default: null
+              title: Ts
+          title: Provenance
+          type: object
+        RoutingDecision:
+          description: Decision made by the routing engine for detector selection.
+          properties:
+            selected_detectors:
+              items:
+                type: string
+              title: Selected Detectors
+              type: array
+            routing_reason:
+              title: Routing Reason
+              type: string
+            policy_applied:
+              title: Policy Applied
+              type: string
+            coverage_requirements:
+              additionalProperties: true
+              title: Coverage Requirements
+              type: object
+            health_status:
+              additionalProperties:
+                type: boolean
+              title: Health Status
+              type: object
+          required:
+          - selected_detectors
+          - routing_reason
+          - policy_applied
+          title: RoutingDecision
+          type: object
+      description: Complete response from detector orchestration including all results
+        and metadata.
+      properties:
+        request_id:
+          title: Request Id
+          type: string
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Job Id
+        processing_mode:
+          $ref: '#/components/schemas/ProcessingMode'
+        detector_results:
+          items:
+            $ref: '#/components/schemas/DetectorResult'
+          title: Detector Results
+          type: array
+        aggregated_payload:
+          anyOf:
+          - $ref: '#/components/schemas/MapperPayload'
+          - type: 'null'
+          default: null
+        mapping_result:
+          anyOf:
+          - $ref: '#/components/schemas/MappingResponse'
+          - type: 'null'
+          default: null
+        total_processing_time_ms:
+          title: Total Processing Time Ms
+          type: integer
+        detectors_attempted:
+          title: Detectors Attempted
+          type: integer
+        detectors_succeeded:
+          title: Detectors Succeeded
+          type: integer
+        detectors_failed:
+          title: Detectors Failed
+          type: integer
+        coverage_achieved:
+          title: Coverage Achieved
+          type: number
+        routing_decision:
+          $ref: '#/components/schemas/RoutingDecision'
+        fallback_used:
+          title: Fallback Used
+          type: boolean
+        timestamp:
+          format: date-time
+          title: Timestamp
+          type: string
+        error_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error Code
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Idempotency Key
+      required:
+      - request_id
+      - processing_mode
+      - detector_results
+      - total_processing_time_ms
+      - detectors_attempted
+      - detectors_succeeded
+      - detectors_failed
+      - coverage_achieved
+      - routing_decision
+      - fallback_used
+      - timestamp
+      title: OrchestrationResponse
+      type: object
+    DetectorResult:
+      $defs:
+        DetectorStatus:
+          enum:
+          - success
+          - failed
+          - timeout
+          - unavailable
+          - skipped
+          title: DetectorStatus
+          type: string
+      description: Result from a single detector execution.
+      properties:
+        detector:
+          title: Detector
+          type: string
+        status:
+          $ref: '#/components/schemas/DetectorStatus'
+        output:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Output
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          default: null
+          title: Metadata
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error
+        processing_time_ms:
+          default: 0
+          title: Processing Time Ms
+          type: integer
+        confidence:
+          anyOf:
+          - type: number
+          - type: 'null'
+          default: null
+          title: Confidence
+      required:
+      - detector
+      - status
+      title: DetectorResult
+      type: object
+    MapperPayload:
+      description: Payload for mapper service containing detector results.
+      properties:
+        detector:
+          title: Detector
+          type: string
+        output:
+          title: Output
+          type: string
+        metadata:
+          additionalProperties: true
+          title: Metadata
+          type: object
+        tenant_id:
+          title: Tenant Id
+          type: string
+      required:
+      - detector
+      - output
+      - tenant_id
+      title: MapperPayload
+      type: object
+    RoutingDecision:
+      description: Decision made by the routing engine for detector selection.
+      properties:
+        selected_detectors:
+          items:
+            type: string
+          title: Selected Detectors
+          type: array
+        routing_reason:
+          title: Routing Reason
+          type: string
+        policy_applied:
+          title: Policy Applied
+          type: string
+        coverage_requirements:
+          additionalProperties: true
+          title: Coverage Requirements
+          type: object
+        health_status:
+          additionalProperties:
+            type: boolean
+          title: Health Status
+          type: object
+      required:
+      - selected_detectors
+      - routing_reason
+      - policy_applied
+      title: RoutingDecision
+      type: object
+    RoutingPlan:
+      description: Detailed routing plan for detector orchestration.
+      properties:
+        primary_detectors:
+          items:
+            type: string
+          title: Primary Detectors
+          type: array
+        secondary_detectors:
+          items:
+            type: string
+          title: Secondary Detectors
+          type: array
+        parallel_groups:
+          items:
+            items:
+              type: string
+            type: array
+          title: Parallel Groups
+          type: array
+        sequential_dependencies:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          title: Sequential Dependencies
+          type: object
+        timeout_config:
+          additionalProperties:
+            type: integer
+          title: Timeout Config
+          type: object
+        retry_config:
+          additionalProperties:
+            type: integer
+          title: Retry Config
+          type: object
+        coverage_method:
+          default: required_set
+          title: Coverage Method
+          type: string
+        weights:
+          additionalProperties:
+            type: number
+          title: Weights
+          type: object
+        required_taxonomy_categories:
+          items:
+            type: string
+          title: Required Taxonomy Categories
+          type: array
+      required:
+      - primary_detectors
+      title: RoutingPlan
+      type: object
+    DetectorStatus:
+      type: string
+      enum:
+      - SUCCESS
+      - FAILED
+      - TIMEOUT
+      - UNAVAILABLE
+      - SKIPPED
+      title: DetectorStatus
+    Provenance:
+      description: Provenance information for detector results and mappings.
+      properties:
+        vendor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Vendor
+        detector:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Detector
+        detector_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Detector Version
+        raw_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Raw Ref
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Route
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Model
+        tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Tenant Id
+        ts:
+          anyOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+          default: null
+          title: Ts
+      title: Provenance
+      type: object
+    PolicyContext:
+      description: Policy context for detector expectations.
+      properties:
+        expected_detectors:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          default: null
+          title: Expected Detectors
+        environment:
+          anyOf:
+          - pattern: ^(dev|stage|prod)$
+            type: string
+          - type: 'null'
+          default: null
+          title: Environment
+      title: PolicyContext
+      type: object
+    MappingResponse:
+      $defs:
+        PolicyContext:
+          description: Policy context for detector expectations.
+          properties:
+            expected_detectors:
+              anyOf:
+              - items:
+                  type: string
+                type: array
+              - type: 'null'
+              default: null
+              title: Expected Detectors
+            environment:
+              anyOf:
+              - pattern: ^(dev|stage|prod)$
+                type: string
+              - type: 'null'
+              default: null
+              title: Environment
+          title: PolicyContext
+          type: object
+        Provenance:
+          description: Provenance information for detector results and mappings.
+          properties:
+            vendor:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Vendor
+            detector:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector
+            detector_version:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector Version
+            raw_ref:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Raw Ref
+            route:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Route
+            model:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Model
+            tenant_id:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Tenant Id
+            ts:
+              anyOf:
+              - format: date-time
+                type: string
+              - type: 'null'
+              default: null
+              title: Ts
+          title: Provenance
+          type: object
+      description: Response from the mapper service containing taxonomy mapping results.
+      properties:
+        taxonomy:
+          items:
+            type: string
+          title: Taxonomy
+          type: array
+        scores:
+          additionalProperties:
+            type: number
+          title: Scores
+          type: object
+        confidence:
+          title: Confidence
+          type: number
+        notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Notes
+        provenance:
+          anyOf:
+          - $ref: '#/components/schemas/Provenance'
+          - type: 'null'
+          default: null
+        policy_context:
+          anyOf:
+          - $ref: '#/components/schemas/PolicyContext'
+          - type: 'null'
+          default: null
+      required:
+      - taxonomy
+      - scores
+      - confidence
+      title: MappingResponse
+      type: object
+    DetectorCapabilities:
+      $defs:
+        ContentType:
+          enum:
+          - text
+          - image
+          - document
+          - code
+          title: ContentType
+          type: string
+      description: Capabilities and characteristics of a detector.
+      properties:
+        supported_content_types:
+          items:
+            $ref: '#/components/schemas/ContentType'
+          title: Supported Content Types
+          type: array
+        max_content_length:
+          default: 50000
+          title: Max Content Length
+          type: integer
+        average_processing_time_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          default: null
+          title: Average Processing Time Ms
+        confidence_calibrated:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Confidence Calibrated
+        batch_supported:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          default: null
+          title: Batch Supported
+      required:
+      - supported_content_types
+      title: DetectorCapabilities
+      type: object
+    JobStatus:
+      type: string
+      enum:
+      - PENDING
+      - RUNNING
+      - COMPLETED
+      - FAILED
+      - CANCELLED
+      title: JobStatus
+    JobStatusResponse:
+      $defs:
+        DetectorResult:
+          description: Result from a single detector execution.
+          properties:
+            detector:
+              title: Detector
+              type: string
+            status:
+              $ref: '#/components/schemas/DetectorStatus'
+            output:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Output
+            metadata:
+              anyOf:
+              - additionalProperties: true
+                type: object
+              - type: 'null'
+              default: null
+              title: Metadata
+            error:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Error
+            processing_time_ms:
+              default: 0
+              title: Processing Time Ms
+              type: integer
+            confidence:
+              anyOf:
+              - type: number
+              - type: 'null'
+              default: null
+              title: Confidence
+          required:
+          - detector
+          - status
+          title: DetectorResult
+          type: object
+        DetectorStatus:
+          enum:
+          - success
+          - failed
+          - timeout
+          - unavailable
+          - skipped
+          title: DetectorStatus
+          type: string
+        JobStatus:
+          enum:
+          - pending
+          - running
+          - completed
+          - failed
+          - cancelled
+          title: JobStatus
+          type: string
+        MapperPayload:
+          description: Payload for mapper service containing detector results.
+          properties:
+            detector:
+              title: Detector
+              type: string
+            output:
+              title: Output
+              type: string
+            metadata:
+              additionalProperties: true
+              title: Metadata
+              type: object
+            tenant_id:
+              title: Tenant Id
+              type: string
+          required:
+          - detector
+          - output
+          - tenant_id
+          title: MapperPayload
+          type: object
+        MappingResponse:
+          description: Response from the mapper service containing taxonomy mapping
+            results.
+          properties:
+            taxonomy:
+              items:
+                type: string
+              title: Taxonomy
+              type: array
+            scores:
+              additionalProperties:
+                type: number
+              title: Scores
+              type: object
+            confidence:
+              title: Confidence
+              type: number
+            notes:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Notes
+            provenance:
+              anyOf:
+              - $ref: '#/components/schemas/Provenance'
+              - type: 'null'
+              default: null
+            policy_context:
+              anyOf:
+              - $ref: '#/components/schemas/PolicyContext'
+              - type: 'null'
+              default: null
+          required:
+          - taxonomy
+          - scores
+          - confidence
+          title: MappingResponse
+          type: object
+        OrchestrationResponse:
+          description: Complete response from detector orchestration including all
+            results and metadata.
+          properties:
+            request_id:
+              title: Request Id
+              type: string
+            job_id:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Job Id
+            processing_mode:
+              $ref: '#/components/schemas/ProcessingMode'
+            detector_results:
+              items:
+                $ref: '#/components/schemas/DetectorResult'
+              title: Detector Results
+              type: array
+            aggregated_payload:
+              anyOf:
+              - $ref: '#/components/schemas/MapperPayload'
+              - type: 'null'
+              default: null
+            mapping_result:
+              anyOf:
+              - $ref: '#/components/schemas/MappingResponse'
+              - type: 'null'
+              default: null
+            total_processing_time_ms:
+              title: Total Processing Time Ms
+              type: integer
+            detectors_attempted:
+              title: Detectors Attempted
+              type: integer
+            detectors_succeeded:
+              title: Detectors Succeeded
+              type: integer
+            detectors_failed:
+              title: Detectors Failed
+              type: integer
+            coverage_achieved:
+              title: Coverage Achieved
+              type: number
+            routing_decision:
+              $ref: '#/components/schemas/RoutingDecision'
+            fallback_used:
+              title: Fallback Used
+              type: boolean
+            timestamp:
+              format: date-time
+              title: Timestamp
+              type: string
+            error_code:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Error Code
+            idempotency_key:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Idempotency Key
+          required:
+          - request_id
+          - processing_mode
+          - detector_results
+          - total_processing_time_ms
+          - detectors_attempted
+          - detectors_succeeded
+          - detectors_failed
+          - coverage_achieved
+          - routing_decision
+          - fallback_used
+          - timestamp
+          title: OrchestrationResponse
+          type: object
+        PolicyContext:
+          description: Policy context for detector expectations.
+          properties:
+            expected_detectors:
+              anyOf:
+              - items:
+                  type: string
+                type: array
+              - type: 'null'
+              default: null
+              title: Expected Detectors
+            environment:
+              anyOf:
+              - pattern: ^(dev|stage|prod)$
+                type: string
+              - type: 'null'
+              default: null
+              title: Environment
+          title: PolicyContext
+          type: object
+        ProcessingMode:
+          enum:
+          - sync
+          - async
+          title: ProcessingMode
+          type: string
+        Provenance:
+          description: Provenance information for detector results and mappings.
+          properties:
+            vendor:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Vendor
+            detector:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector
+            detector_version:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Detector Version
+            raw_ref:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Raw Ref
+            route:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Route
+            model:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Model
+            tenant_id:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Tenant Id
+            ts:
+              anyOf:
+              - format: date-time
+                type: string
+              - type: 'null'
+              default: null
+              title: Ts
+          title: Provenance
+          type: object
+        RoutingDecision:
+          description: Decision made by the routing engine for detector selection.
+          properties:
+            selected_detectors:
+              items:
+                type: string
+              title: Selected Detectors
+              type: array
+            routing_reason:
+              title: Routing Reason
+              type: string
+            policy_applied:
+              title: Policy Applied
+              type: string
+            coverage_requirements:
+              additionalProperties: true
+              title: Coverage Requirements
+              type: object
+            health_status:
+              additionalProperties:
+                type: boolean
+              title: Health Status
+              type: object
+          required:
+          - selected_detectors
+          - routing_reason
+          - policy_applied
+          title: RoutingDecision
+          type: object
+      description: Response containing the status of an asynchronous orchestration
+        job.
+      properties:
+        job_id:
+          title: Job Id
+          type: string
+        status:
+          $ref: '#/components/schemas/JobStatus'
+        progress:
+          title: Progress
+          type: number
+        result:
+          anyOf:
+          - $ref: '#/components/schemas/OrchestrationResponse'
+          - type: 'null'
+          default: null
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Error
+      required:
+      - job_id
+      - status
+      - progress
+      title: JobStatusResponse
+      type: object
+    ErrorBody:
+      description: Canonical error body (Sec 8).
+      properties:
+        error_code:
+          title: Error Code
+          type: string
+        message:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Message
+        request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
+          title: Request Id
+        retryable:
+          default: false
+          title: Retryable
+          type: boolean
+      required:
+      - error_code
+      title: ErrorBody
+      type: object
+    BatchOrchestrationRequest:
+      type: object
+      title: BatchOrchestrationRequest
+      properties:
+        requests:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OrchestrationRequest'
+      required:
+      - requests
+    BatchOrchestrationResponse:
+      type: object
+      title: BatchOrchestrationResponse
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrchestrationResponse'
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              tenant_id:
+                type: string
+              error:
+                type: string
+      required:
+      - results
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key

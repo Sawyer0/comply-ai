@@ -34,6 +34,8 @@ def mock_json_validator():
         taxonomy=["HARM.SPEECH.Toxicity"],
         scores={"HARM.SPEECH.Toxicity": 0.95},
         confidence=0.95,
+        notes=None,
+        version_info=None,
     )
     return validator
 
@@ -47,6 +49,7 @@ def mock_fallback_mapper():
         scores={"OTHER.Unknown": 0.0},
         confidence=0.0,
         notes="Fallback mapping used",
+        version_info=None,
     )
     return mapper
 
@@ -133,6 +136,8 @@ def test_map_endpoint_fallback(
         taxonomy=["HARM.SPEECH.Toxicity"],
         scores={"HARM.SPEECH.Toxicity": 0.95},
         confidence=0.3,  # Below threshold
+        notes=None,
+        version_info=None,
     )
     mock_config_manager.confidence.threshold = 0.6
 
@@ -144,10 +149,10 @@ def test_map_endpoint_fallback(
     data = response.json()
     # Should get fallback response
     assert data["taxonomy"] == ["OTHER.Unknown"]
-    assert "fallback mapping" in data["notes"].lower()
+    assert "rule-based mapping" in data["notes"].lower()
 
     # Verify fallback was called
-    mock_fallback_mapper.map.assert_called_once_with("deberta-toxicity", "toxic")
+    mock_fallback_mapper.map.assert_called_once_with("deberta-toxicity", "toxic", reason="low_confidence")
 
 
 def test_batch_map_endpoint(test_app):

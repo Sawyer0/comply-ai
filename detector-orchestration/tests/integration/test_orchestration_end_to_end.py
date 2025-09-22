@@ -122,10 +122,8 @@ class TestOrchestrationEndToEnd:
     ):
         """Test successful end-to-end orchestration pipeline."""
         # Mock the detector clients
-        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
-            mock_clients.__getitem__ = lambda self, key: mock_detectors.get(key)
-            mock_clients.keys = lambda: mock_detectors.keys()
-            mock_clients.__iter__ = lambda self: iter(mock_detectors.items())
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.detector_clients = mock_detectors
 
             # Mock the router and coordinator
             mock_routing_plan = RoutingPlan(
@@ -220,21 +218,11 @@ class TestOrchestrationEndToEnd:
         # Update request to include failing detector
         sample_orchestration_request.content = "Test content with failures"
 
-        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
-            mock_clients.__getitem__ = lambda self, key: MockDetector(f"failing-{key}")
-            mock_clients.keys = lambda: ["failing-detector-1", "failing-detector-2"]
-            mock_clients.__iter__ = lambda self: iter(
-                [
-                    (
-                        "failing-detector-1",
-                        MockDetector("failing-detector-1", fail=True),
-                    ),
-                    (
-                        "failing-detector-2",
-                        MockDetector("failing-detector-2", fail=True),
-                    ),
-                ]
-            )
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.detector_clients = {
+                "failing-detector-1": MockDetector("failing-detector-1", fail=True),
+                "failing-detector-2": MockDetector("failing-detector-2", fail=True),
+            }
 
             mock_routing_plan = RoutingPlan(
                 primary_detectors=["failing-detector-1", "failing-detector-2"],
@@ -326,12 +314,10 @@ class TestOrchestrationEndToEnd:
         sample_orchestration_request: OrchestrationRequest,
     ):
         """Test orchestration with partial coverage (206 response)."""
-        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
-            mock_clients.__getitem__ = lambda self, key: MockDetector(f"partial-{key}")
-            mock_clients.keys = lambda: ["partial-detector-1"]
-            mock_clients.__iter__ = lambda self: iter(
-                [("partial-detector-1", MockDetector("partial-detector-1"))]
-            )
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.detector_clients = {
+                "partial-detector-1": MockDetector("partial-detector-1")
+            }
 
             mock_routing_plan = RoutingPlan(
                 primary_detectors=["partial-detector-1"],
@@ -415,9 +401,10 @@ class TestOrchestrationEndToEnd:
         # Set request to async mode
         sample_orchestration_request.processing_mode = ProcessingMode.ASYNC
 
-        with patch("detector_orchestration.api.main.JOB_MANAGER") as mock_job_manager:
-            mock_job_manager.enqueue = AsyncMock(return_value="test-job-123")
-            mock_job_manager.get_status = MagicMock(return_value=MagicMock())
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.job_manager = MagicMock()
+            mock_factory.job_manager.enqueue = AsyncMock(return_value="test-job-123")
+            mock_factory.job_manager.get_status = MagicMock(return_value=MagicMock())
 
             response = test_client.post(
                 "/orchestrate",
@@ -433,7 +420,7 @@ class TestOrchestrationEndToEnd:
 
             assert result.job_id == "test-job-123"
             assert result.processing_mode == ProcessingMode.ASYNC
-            mock_job_manager.enqueue.assert_called_once()
+            mock_factory.job_manager.enqueue.assert_called_once()
 
     def test_batch_orchestration(
         self,
@@ -452,7 +439,8 @@ class TestOrchestrationEndToEnd:
             for i in range(3)
         ]
 
-        with patch("detector_orchestration.api.main._process_sync") as mock_process:
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.coordinator = MagicMock()
             mock_response = OrchestrationResponse(
                 request_id="req",
                 processing_mode=ProcessingMode.SYNC,
@@ -470,7 +458,7 @@ class TestOrchestrationEndToEnd:
                 fallback_used=False,
                 timestamp=datetime.now(timezone.utc),
             )
-            mock_process.return_value = mock_response
+            mock_factory.coordinator.return_value = mock_response
 
             response = test_client.post(
                 "/orchestrate/batch",
@@ -486,7 +474,7 @@ class TestOrchestrationEndToEnd:
 
             assert "results" in result
             assert len(result["results"]) == 3
-            assert mock_process.call_count == 3  # Called once per request
+            assert mock_factory.coordinator.call_count == 3  # Called once per request
 
     def test_idempotency_handling(
         self,
@@ -496,9 +484,10 @@ class TestOrchestrationEndToEnd:
         """Test idempotency key handling."""
         idempotency_key = "test-idempotency-key-123"
 
-        with patch("detector_orchestration.api.main.IDEMPOTENCY") as mock_idempotency:
-            mock_idempotency.get = MagicMock(return_value="cached-response")
-            mock_idempotency.get_entry = MagicMock(return_value=None)
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.idempotency_cache = MagicMock()
+            mock_factory.idempotency_cache.get = MagicMock(return_value="cached-response")
+            mock_factory.idempotency_cache.get_entry = MagicMock(return_value=None)
 
             response = test_client.post(
                 "/orchestrate",
@@ -512,7 +501,7 @@ class TestOrchestrationEndToEnd:
 
             # Should return cached response
             assert response.status_code == 200
-            mock_idempotency.get.assert_called_with(idempotency_key)
+            mock_factory.idempotency_cache.get.assert_called_with(idempotency_key)
 
     def test_response_caching(
         self,
@@ -520,9 +509,10 @@ class TestOrchestrationEndToEnd:
         sample_orchestration_request: OrchestrationRequest,
     ):
         """Test response caching functionality."""
-        with patch("detector_orchestration.api.main.RESP_CACHE") as mock_cache:
-            mock_cache.get = MagicMock(return_value="cached-response")
-            mock_cache.build_key = MagicMock(return_value="test-cache-key")
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.response_cache = MagicMock()
+            mock_factory.response_cache.get = MagicMock(return_value="cached-response")
+            mock_factory.response_cache.build_key = MagicMock(return_value="test-cache-key")
 
             with patch("detector_orchestration.api.main.settings") as mock_settings:
                 mock_settings.config.cache_enabled = True
@@ -538,7 +528,7 @@ class TestOrchestrationEndToEnd:
 
                 # Should return cached response
                 assert response.status_code == 200
-                mock_cache.get.assert_called_once()
+                mock_factory.response_cache.get.assert_called_once()
 
     def test_error_handling_and_retry_logic(
         self,
@@ -546,12 +536,10 @@ class TestOrchestrationEndToEnd:
         sample_orchestration_request: OrchestrationRequest,
     ):
         """Test error handling and retry logic in orchestration."""
-        with patch("detector_orchestration.api.main.DETECTOR_CLIENTS") as mock_clients:
-            mock_clients.__getitem__ = lambda self, key: MockDetector(f"retry-{key}")
-            mock_clients.keys = lambda: ["retry-detector-1"]
-            mock_clients.__iter__ = lambda self: iter(
-                [("retry-detector-1", MockDetector("retry-detector-1"))]
-            )
+        with patch("detector_orchestration.api.main.factory") as mock_factory:
+            mock_factory.detector_clients = {
+                "retry-detector-1": MockDetector("retry-detector-1")
+            }
 
             mock_routing_plan = RoutingPlan(
                 primary_detectors=["retry-detector-1"],

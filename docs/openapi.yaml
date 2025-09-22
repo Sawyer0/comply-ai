@@ -7,7 +7,6 @@ paths:
   /health:
     get:
       summary: Health Check
-      description: Health check endpoint.
       operationId: health_check_health_get
       responses:
         '200':
@@ -21,7 +20,6 @@ paths:
   /metrics:
     get:
       summary: Get Metrics
-      description: Prometheus metrics endpoint.
       operationId: get_metrics_metrics_get
       responses:
         '200':
@@ -32,7 +30,6 @@ paths:
   /metrics/summary:
     get:
       summary: Get Metrics Summary
-      description: Get metrics summary in JSON format.
       operationId: get_metrics_summary_metrics_summary_get
       responses:
         '200':
@@ -46,7 +43,6 @@ paths:
   /metrics/alerts:
     get:
       summary: Get Quality Alerts
-      description: Get current quality threshold violations.
       operationId: get_quality_alerts_metrics_alerts_get
       responses:
         '200':
@@ -60,10 +56,6 @@ paths:
   /map:
     post:
       summary: Map detector output to canonical taxonomy
-      description: "Map a single detector output to canonical taxonomy.\n\nArgs:\n\
-        \    request: Detector output to map\n    http_request: FastAPI request object\
-        \ for metadata\n\nReturns:\n    MappingResponse: Canonical taxonomy mapping\n\
-        \nRaises:\n    HTTPException: If mapping fails"
       operationId: map_detector_output_map_post
       security:
       - APIKeyHeader: []
@@ -153,12 +145,8 @@ paths:
           description: Internal server error
   /map/batch:
     post:
-      summary: Batch map detector outputs to canonical taxonomy
-      description: "Map multiple detector outputs to canonical taxonomy.\n\nArgs:\n\
-        \    request: Batch of detector outputs to map\n    http_request: FastAPI\
-        \ request object for metadata\n\nReturns:\n    BatchMappingResponse: Batch\
-        \ of canonical taxonomy mappings"
-      operationId: map_detector_outputs_batch_map_batch_post
+      summary: Map a batch of detector outputs
+      operationId: map_batch_map_batch_post
       security:
       - APIKeyHeader: []
       parameters:
@@ -197,52 +185,17 @@ paths:
                 deprecated: true
       responses:
         '200':
-          description: Batch mapping succeeded
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchMappingResponse'
-          headers:
-            X-Request-ID:
-              description: Request ID
-              schema:
-                type: string
-            Idempotency-Key:
-              description: Echoed if provided
-              schema:
-                type: string
-            RateLimit-Limit:
-              description: Rate limit and window
-              schema:
-                type: string
-            RateLimit-Remaining:
-              description: Remaining requests in window
-              schema:
-                type: integer
-            RateLimit-Reset:
-              description: Seconds until reset
-              schema:
-                type: integer
-            X-RateLimit-Limit:
-              description: Legacy limit header
-              schema:
-                type: integer
-            X-RateLimit-Remaining:
-              description: Legacy remaining header
-              schema:
-                type: integer
-        '400':
-          description: 'Bad request (payload rejected: oversize or raw content)'
-        '401':
-          description: Unauthorized (missing/invalid API key)
-        '403':
-          description: Forbidden (insufficient scope or tenant mismatch)
         '422':
-          description: Validation error
-        '429':
-          description: Too Many Requests (rate limited)
-        '500':
-          description: Internal server error
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     BatchMappingResponse:
@@ -266,6 +219,15 @@ components:
       - results
       title: BatchMappingResponse
       description: Response model for batch processing.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
     MappingResponse:
       properties:
         taxonomy:
@@ -379,6 +341,27 @@ components:
       type: object
       title: Provenance
       description: Provenance information for tracking detector outputs.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
     VersionInfo:
       properties:
         taxonomy:
@@ -400,6 +383,7 @@ components:
     MapperPayload:
       $defs:
         AggregationMethod:
+          description: Methods for aggregating multiple detector outputs.
           enum:
           - weighted_average
           - majority_vote
@@ -408,6 +392,7 @@ components:
           title: AggregationMethod
           type: string
         HandoffMetadata:
+          description: Metadata for multi-detector orchestration handoffs.
           properties:
             contributing_detectors:
               anyOf:
@@ -455,6 +440,7 @@ components:
           title: HandoffMetadata
           type: object
         HandoffProvenanceEntry:
+          description: Individual detector contribution in a multi-detector aggregation.
           properties:
             detector:
               title: Detector

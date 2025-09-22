@@ -23,6 +23,12 @@ class Provenance(BaseModel):
     model: Optional[str] = None
     tenant_id: Optional[str] = None
     ts: Optional[datetime] = None
+    mapping_method: Optional[str] = Field(
+        None, description="Method used for mapping (model, fallback, etc.)"
+    )
+    model_version: Optional[str] = Field(
+        None, description="Version of the model used for mapping"
+    )
 
 
 class PolicyContext(BaseModel):
