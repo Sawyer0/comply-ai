@@ -106,14 +106,58 @@ class MappingService:
                 request, provenance, request_id
             )
 
-        model_output = await self._generate_model_mapping_with_timeout(request)
+        try:
+            model_output = await self._generate_model_mapping_with_timeout(request)
+        except (RuntimeError, ConnectionError, OSError, asyncio.TimeoutError) as exc:
+            # Model failed, use fallback mapping
+            logger.warning("Model failed for detector %s: %s", request.detector, exc)
+            self._mapper.metrics_collector.record_fallback_usage(
+                request.detector, "model_failure"
+            )
+            mapping_method = "fallback"
+            fallback_reason = "model_failure"
+            fallback_result = self._mapper.fallback_mapper.map(
+                request.detector, request.output, reason=fallback_reason
+            )
+            self._mapper.version_manager.apply_to_provenance(provenance)
+            provenance.mapping_method = mapping_method
+            # Set model_version from version manager
+            version_info = self._mapper.version_manager.get_version_info_dict()
+            provenance.model_version = version_info.get("model", "unknown")
+            fallback_result.provenance = provenance
+            fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
+                f"Rule-based mapping due to model failure: {exc}"
+            )
+            vi = self._mapper.version_manager.get_version_info_dict()
+            # Ensure all version info values are strings
+            safe_vi = {
+                "taxonomy": str(vi.get("taxonomy", "unknown")),
+                "frameworks": str(vi.get("frameworks", "unknown")),
+                "model": str(vi.get("model", "unknown")),
+            }
+            try:
+                fallback_result.version_info = VersionInfo(**safe_vi)
+            except (TypeError, ValueError, KeyError) as _:
+                # Version info parsing failed - continuing without version info
+                pass
+            await self._persist_mapping_result(
+                request,
+                fallback_result,
+                provenance,
+                MappingContext(request_id, mapping_method, fallback_reason),
+            )
+            return fallback_result
 
         validation_result = self._validate_model_output(model_output, request)
         is_valid, parsed_output, confidence_threshold = validation_result
-        if is_valid:
-            return await self._process_valid_model_output(
-                model_output, request, provenance, request_id
-            )
+        
+        # Check if confidence is above threshold
+        if is_valid and parsed_output:
+            confidence = getattr(parsed_output, "confidence", 0.0)
+            if confidence >= confidence_threshold:
+                return await self._process_valid_model_output(
+                    model_output, request, provenance, request_id
+                )
 
         # Model output is invalid, use fallback mapping
         logger.warning(
@@ -130,6 +174,10 @@ class MappingService:
             request.detector, request.output, reason=fallback_reason
         )
         self._mapper.version_manager.apply_to_provenance(provenance)
+        provenance.mapping_method = mapping_method
+        # Set model_version from version manager
+        version_info = self._mapper.version_manager.get_version_info_dict()
+        provenance.model_version = version_info.get("model", "unknown")
         fallback_result.provenance = provenance
         fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
             "Rule-based mapping due to low confidence"
@@ -189,6 +237,10 @@ class MappingService:
                 # pragma: no cover - defensive path
                 raise RuntimeError("parsed_output_invalid") from exc
 
+        provenance.mapping_method = "model"
+        # Set model_version from version manager
+        version_info = self._mapper.version_manager.get_version_info_dict()
+        provenance.model_version = version_info.get("model", "unknown")
         parsed_output.provenance = provenance
         parsed_output.notes = self._mapper.version_manager.annotate_notes_with_versions(
             parsed_output.notes or ""

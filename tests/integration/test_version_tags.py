@@ -26,6 +26,10 @@ class _FailingModelServer(ModelServer):
         # Force failure so the API uses the fallback mapper
         raise RuntimeError("Stubbed model failure for test")
 
+    async def generate_mapping(self, detector: str, output: str, metadata=None) -> str:  # type: ignore[override]
+        # Force failure so the API uses the fallback mapper
+        raise RuntimeError("Stubbed model failure for test")
+
     async def health_check(self) -> bool:  # type: ignore[override]
         return True
 

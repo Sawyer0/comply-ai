@@ -77,6 +77,18 @@ AGENTS.md
 *~
 
 # Project-specific directories to exclude
+cursor-chat-browser/
+llm-guide.txt
+01-platform-overview-competitive-analysis.md
+02-product-strategy-architecture.md
+03-development-status-implementation.md
+04-pricing-marketing-strategy.md
+05-enhanced-strategy-analysis-module.md
+06-yc-positioning-timeline.md
+07-scalability-infrastructure-planning.md
+COMPLY-AI.md
+README-billing-analysis.md
+commit_message.txt
 
 
 # OS
