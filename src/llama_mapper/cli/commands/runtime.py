@@ -2,60 +2,155 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import time
+from typing import Any, Dict, Optional
+
 import click
+import httpx
 
 from ...config.manager import ServingConfig
+from ...logging import get_logger
+from ..core import AsyncCommand, CLIError
+from ..decorators.common import handle_errors, timing
 from ..utils import get_config_manager
 
 
-def register(main: click.Group) -> None:
-    """Attach runtime subcommands."""
+class RuntimeStatusCommand(AsyncCommand):
+    """Show comprehensive system status including health, metrics, and configuration."""
 
-    @click.group()
-    @click.pass_context
-    def runtime(ctx: click.Context) -> None:
-        """Runtime controls (kill-switch, modes)."""
-        del ctx
+    @handle_errors
+    @timing
+    async def execute_async(self, **kwargs: Any) -> None:
+        """Execute the runtime status command."""
+        fmt = kwargs.get("format", "text")
+        include_metrics = kwargs.get("include_metrics", False)
+        timeout = kwargs.get("timeout", 5)
 
-    @runtime.command("show-mode")
-    @click.pass_context
-    def runtime_show_mode(ctx: click.Context) -> None:
-        """Show current runtime mode (hybrid or rules_only)."""
-        config_manager = get_config_manager(ctx)
-        mode = getattr(config_manager.serving, "mode", "hybrid")
-        click.echo(f"Runtime mode: {mode}")
+        status = await self._get_system_status(include_metrics, timeout)
+        
+        if fmt == "json":
+            click.echo(json.dumps(status, indent=2))
+        elif fmt == "yaml":
+            import yaml
+            click.echo(yaml.dump(status, default_flow_style=False))
+        else:  # text format
+            self._display_status_text(status)
 
-    @runtime.command("set-mode")
-    @click.argument("mode", type=click.Choice(["hybrid", "rules_only"]))
-    @click.pass_context
-    def runtime_set_mode(ctx: click.Context, mode: str) -> None:
-        """Set runtime mode. 'rules_only' enables kill-switch; 'hybrid' re-enables model."""
-        config_manager = get_config_manager(ctx)
+    async def _get_system_status(self, include_metrics: bool, timeout: int) -> Dict[str, Any]:
+        """Collect comprehensive system status."""
+        # Basic system info
+        status = {
+            "timestamp": time.time(),
+            "runtime_mode": getattr(self.config_manager.serving, "mode", "hybrid"),
+            "configuration": {
+                "config_path": str(self.config_manager.config_path),
+                "environment": getattr(self.config_manager, "environment", "unknown"),
+            },
+            "services": {},
+            "health": "unknown",
+            "metrics": {} if include_metrics else None,
+        }
+
+        # Check main API service
         try:
-            current = config_manager.serving
-            new_serving = ServingConfig(
-                backend=current.backend,
-                host=current.host,
-                port=current.port,
-                workers=current.workers,
-                batch_size=current.batch_size,
-                device=current.device,
-                gpu_memory_utilization=current.gpu_memory_utilization,
-                mode=mode,
-            )
-            config_manager.serving = new_serving
-            config_manager.save_config()
-            click.echo(f"✓ Runtime mode set to {mode}")
-        except Exception as exc:  # noqa: BLE001
-            click.echo(f"✗ Failed to set runtime mode: {exc}")
-            raise
+            api_host = self.config_manager.serving.host
+            api_port = self.config_manager.serving.port
+            api_url = f"http://{api_host}:{api_port}"
+            
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                # Health check
+                try:
+                    health_response = await client.get(f"{api_url}/health")
+                    if health_response.status_code == 200:
+                        status["services"]["main_api"] = {
+                            "status": "healthy",
+                            "url": api_url,
+                            "response_time_ms": health_response.elapsed.total_seconds() * 1000,
+                        }
+                        status["health"] = "healthy"
+                    else:
+                        status["services"]["main_api"] = {
+                            "status": "unhealthy",
+                            "url": api_url,
+                            "error": f"HTTP {health_response.status_code}",
+                        }
+                        status["health"] = "unhealthy"
+                except Exception as e:
+                    status["services"]["main_api"] = {
+                        "status": "unreachable",
+                        "url": api_url,
+                        "error": str(e),
+                    }
+                    status["health"] = "unhealthy"
 
-    @runtime.command("kill-switch")
-    @click.argument("state", type=click.Choice(["on", "off"]))
-    @click.pass_context
-    def runtime_kill_switch(ctx: click.Context, state: str) -> None:
-        """Alias for set-mode: 'on' => rules_only, 'off' => hybrid."""
-        mode = "rules_only" if state == "on" else "hybrid"
-        ctx.invoke(runtime_set_mode, mode=mode)
+                # Metrics if requested
+                if include_metrics:
+                    try:
+                        metrics_response = await client.get(f"{api_url}/metrics/summary")
+                        if metrics_response.status_code == 200:
+                            status["metrics"] = metrics_response.json()
+                    except Exception as e:
+                        status["metrics"] = {"error": str(e)}
 
-    main.add_command(runtime)
+        except Exception as e:
+            self.logger.warning("Failed to check API service", error=str(e))
+            status["services"]["main_api"] = {
+                "status": "error",
+                "error": str(e),
+            }
+
+        return status
+
+    def _display_status_text(self, status: Dict[str, Any]) -> None:
+        """Display status information in human-readable text format."""
+        click.echo("Llama Mapper System Status")
+        click.echo("=" * 30)
+        
+        # Overall health
+        health_icon = "✓" if status["health"] == "healthy" else "✗"
+        click.echo(f"Overall Health: {health_icon} {status['health'].upper()}")
+        
+        # Runtime mode
+        click.echo(f"Runtime Mode: {status['runtime_mode']}")
+        
+        # Configuration
+        config = status["configuration"]
+        click.echo(f"Config Path: {config['config_path']}")
+        click.echo(f"Environment: {config['environment']}")
+        
+        # Services
+        click.echo("\nServices:")
+        for service_name, service_info in status["services"].items():
+            service_status = service_info["status"]
+            status_icon = "✓" if service_status == "healthy" else "✗" if service_status == "unhealthy" else "⚠"
+            click.echo(f"  {status_icon} {service_name}: {service_status}")
+            
+            if "url" in service_info:
+                click.echo(f"    URL: {service_info['url']}")
+            if "response_time_ms" in service_info:
+                click.echo(f"    Response Time: {service_info['response_time_ms']:.1f}ms")
+            if "error" in service_info:
+                click.echo(f"    Error: {service_info['error']}")
+        
+        click.echo(f"\nStatus checked at: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(status['timestamp']))}")
+
+
+def register(registry) -> None:
+    """Register runtime commands with the new registry system."""
+    # Register command group
+    runtime_group = registry.register_group("runtime", "Runtime controls (kill-switch, modes)")
+    
+    # Register the status command using the new system
+    registry.register_command(
+        "status",
+        RuntimeStatusCommand,
+        group="runtime",
+        help="Show comprehensive system status including health, metrics, and configuration",
+        options=[
+            click.Option(["--format", "fmt"], type=click.Choice(["text", "json", "yaml"]), default="text", help="Output format for status information"),
+            click.Option(["--include-metrics"], is_flag=True, help="Include detailed metrics in status output"),
+            click.Option(["--timeout"], type=int, default=5, help="Timeout in seconds for health checks"),
+        ]
+    )

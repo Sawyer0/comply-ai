@@ -1,49 +1,108 @@
-{{- if and .Values.restore.enabled (eq .Values.restore.type "postgresql") }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "llama-mapper.fullname" . }}-pg-restore
+  name: restore-postgresql-{{ .Values.restore.timestamp | default "latest" }}
+  namespace: {{ .Values.namespace | default "default" }}
   labels:
-    {{- include "llama-mapper.labels" . | nindent 4 }}
+    app: restore-postgresql
+    component: restore
 spec:
   template:
     metadata:
       labels:
-        {{- include "llama-mapper.selectorLabels" . | nindent 8 }}
+        app: restore-postgresql
+        component: restore
     spec:
-      restartPolicy: OnFailure
+      restartPolicy: Never
       containers:
-        - name: pg-restore
-          image: "{{ .Values.restore.image.postgresql }}"
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: PGPASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ required "restore.postgresql.passwordSecretRef is required" .Values.restore.postgresql.passwordSecretRef | quote }}
-                  key: PGPASSWORD
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
-                  key: aws_access_key_id
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
-                  key: aws_secret_access_key
-            - name: AWS_REGION
-              value: "{{ .Values.backups.s3.region }}"
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -euo pipefail
-              SNAP="{{ required "restore.snapshot is required" .Values.restore.snapshot }}"
-              SRC="s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}/$SNAP"
-              echo "Downloading $SRC"
-              aws s3 cp "$SRC" /tmp/restore.sql.gz
-              echo "Restoring into {{ .Values.restore.postgresql.database }}"
-              gunzip -c /tmp/restore.sql.gz | psql -h {{ .Values.restore.postgresql.host }} -p {{ .Values.restore.postgresql.port }} -U {{ .Values.restore.postgresql.user }} -d {{ .Values.restore.postgresql.database }}
-              echo "Restore complete"
-{{- end }}
+      - name: restore-postgresql
+        image: {{ .Values.backups.postgresql.image | quote }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Starting PostgreSQL restore..."
+          
+          # Install required packages
+          apt-get update && apt-get install -y \
+            postgresql-client \
+            python3 \
+            python3-pip \
+            curl \
+            && rm -rf /var/lib/apt/lists/*
+          
+          # Install Python dependencies
+          pip3 install boto3 psycopg2-binary
+          
+          # Create restore configuration
+          cat > /tmp/restore-config.json << EOF
+          {
+            "s3": {
+              "bucket": "{{ .Values.backups.s3.bucket }}",
+              "region": "{{ .Values.backups.s3.region }}",
+              "endpoint_url": {{ if .Values.backups.s3.endpointUrl }}"{{ .Values.backups.s3.endpointUrl }}"{{ else }}null{{ end }}
+            },
+            "postgresql": {
+              "host": "{{ .Values.backups.postgresql.host }}",
+              "port": {{ .Values.backups.postgresql.port }},
+              "database": "{{ .Values.backups.postgresql.database }}",
+              "user": "{{ .Values.backups.postgresql.user }}",
+              "password": "$POSTGRES_PASSWORD"
+            }
+          }
+          EOF
+          
+          # Set AWS credentials for S3
+          export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+          {{- if .Values.backups.s3.endpointUrl }}
+          export AWS_DEFAULT_REGION="{{ .Values.backups.s3.region }}"
+          {{- end }}
+          
+          # Run restore
+          python3 /scripts/restore-databases.py \
+            --config /tmp/restore-config.json \
+            --database postgresql \
+            --backup "{{ .Values.restore.backup | default "latest" }}" \
+            {{- if .Values.restore.dropExisting }}--drop-existing{{ end }}
+          
+          echo "PostgreSQL restore completed successfully"
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.postgresql.secretName }}
+              key: password
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.s3.secretName }}
+              key: access_key_id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.s3.secretName }}
+              key: secret_access_key
+        volumeMounts:
+        - name: restore-scripts
+          mountPath: /scripts
+        resources:
+          {{- toYaml .Values.backups.postgresql.resources | nindent 14 }}
+      volumes:
+      - name: restore-scripts
+        configMap:
+          name: backup-scripts
+          defaultMode: 0755
+      {{- with .Values.backups.postgresql.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backups.postgresql.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backups.postgresql.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

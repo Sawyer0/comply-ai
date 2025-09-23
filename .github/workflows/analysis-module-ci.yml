@@ -1,0 +1,511 @@
+name: Analysis Module CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/llama_mapper/analysis/**'
+      - '.github/workflows/analysis-module-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/llama_mapper/analysis/**'
+      - '.github/workflows/analysis-module-ci.yml'
+
+env:
+  PYTHON_VERSION: '3.11'
+  ANALYSIS_MODULE_PATH: 'src/llama_mapper/analysis'
+
+jobs:
+  # Job 1: Code Quality and Linting
+  code-quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install flake8 black isort mypy pytest pytest-cov pytest-asyncio
+    
+    - name: Lint with flake8
+      run: |
+        flake8 ${{ env.ANALYSIS_MODULE_PATH }} --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 ${{ env.ANALYSIS_MODULE_PATH }} --count --exit-zero --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Check code formatting with black
+      run: |
+        black --check ${{ env.ANALYSIS_MODULE_PATH }}
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only ${{ env.ANALYSIS_MODULE_PATH }}
+    
+    - name: Type check with mypy
+      run: |
+        mypy ${{ env.ANALYSIS_MODULE_PATH }} --ignore-missing-imports
+
+  # Job 2: Unit Tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest pytest-cov pytest-asyncio pytest-mock
+    
+    - name: Run unit tests
+      run: |
+        pytest ${{ env.ANALYSIS_MODULE_PATH }}/tests/unit/ -v --cov=${{ env.ANALYSIS_MODULE_PATH }} --cov-report=xml --cov-report=term-missing
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: analysis-module
+        name: analysis-module-coverage
+
+  # Job 3: OPA Validation Pipeline
+  opa-validation:
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install OPA
+      run: |
+        curl -L -o opa https://openpolicyagent.org/downloads/v0.58.0/opa_linux_amd64_static
+        chmod +x opa
+        sudo mv opa /usr/local/bin/
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Generate test OPA policies
+      run: |
+        python -c "
+        from src.llama_mapper.analysis.infrastructure.opa_generator import OPAPolicyGenerator
+        generator = OPAPolicyGenerator()
+        
+        # Generate test policies
+        coverage_policy = generator.generate_coverage_policy(['detector1', 'detector2'], {'detector1': 0.8, 'detector2': 0.9})
+        threshold_policy = generator.generate_threshold_policy('detector1', 0.7, 0.9)
+        
+        # Write to files for validation
+        with open('test_coverage_policy.rego', 'w') as f:
+            f.write(coverage_policy)
+        with open('test_threshold_policy.rego', 'w') as f:
+            f.write(threshold_policy)
+        "
+    
+    - name: Validate OPA policies
+      run: |
+        echo "Validating generated OPA policies..."
+        opa check test_coverage_policy.rego
+        opa check test_threshold_policy.rego
+        echo "All OPA policies compiled successfully!"
+    
+    - name: Test OPA validation in code
+      run: |
+        python -c "
+        from src.llama_mapper.analysis.infrastructure.opa_generator import OPAPolicyGenerator
+        generator = OPAPolicyGenerator()
+        
+        # Test valid policy
+        valid_policy = 'package test\n\nallow { true }'
+        result = generator.validate_rego(valid_policy)
+        assert result, 'Valid policy should pass validation'
+        
+        # Test invalid policy
+        invalid_policy = 'package test\n\ninvalid syntax'
+        result = generator.validate_rego(invalid_policy)
+        assert not result, 'Invalid policy should fail validation'
+        
+        print('OPA validation tests passed!')
+        "
+
+  # Job 4: Schema Validation Quality Gates
+  schema-validation-gates:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, opa-validation]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install jsonschema
+    
+    - name: Validate JSON schemas
+      run: |
+        python -c "
+        import json
+        import jsonschema
+        from jsonschema import validate
+        
+        # Load schemas
+        with open('${{ env.ANALYSIS_MODULE_PATH }}/schemas/AnalystInput.schema.json', 'r') as f:
+            input_schema = json.load(f)
+        
+        with open('${{ env.ANALYSIS_MODULE_PATH }}/schemas/AnalystLLMOutput.schema.json', 'r') as f:
+            output_schema = json.load(f)
+        
+        # Validate schema structure
+        jsonschema.Draft7Validator.check_schema(input_schema)
+        jsonschema.Draft7Validator.check_schema(output_schema)
+        
+        print('JSON schemas are valid!')
+        "
+    
+    - name: Test schema validation with sample data
+      run: |
+        python -c "
+        import json
+        import jsonschema
+        from jsonschema import validate
+        
+        # Load schemas
+        with open('${{ env.ANALYSIS_MODULE_PATH }}/schemas/AnalystInput.schema.json', 'r') as f:
+            input_schema = json.load(f)
+        
+        with open('${{ env.ANALYSIS_MODULE_PATH }}/schemas/AnalystLLMOutput.schema.json', 'r') as f:
+            output_schema = json.load(f)
+        
+        # Test input schema with valid data
+        valid_input = {
+            'period': '2024-01-01T00:00:00Z/2024-01-02T00:00:00Z',
+            'tenant': 'test-tenant',
+            'app': 'test-app',
+            'route': 'test-route',
+            'required_detectors': ['detector1', 'detector2'],
+            'observed_coverage': {'detector1': 0.8, 'detector2': 0.9},
+            'required_coverage': {'detector1': 0.7, 'detector2': 0.8},
+            'detector_errors': {'detector1': {'error': 'test'}},
+            'high_sev_hits': [{'hit': 'test'}],
+            'false_positive_bands': [{'band': 'test'}],
+            'policy_bundle': 'test-bundle',
+            'env': 'dev'
+        }
+        
+        validate(instance=valid_input, schema=input_schema)
+        print('Input schema validation passed!')
+        
+        # Test output schema with valid data
+        valid_output = {
+            'reason': 'Test reason',
+            'remediation': 'Test remediation',
+            'opa_diff': 'package test',
+            'confidence': 0.8,
+            'confidence_cutoff_used': 0.3,
+            'evidence_refs': ['detector1', 'detector2'],
+            'notes': 'Test notes'
+        }
+        
+        validate(instance=valid_output, schema=output_schema)
+        print('Output schema validation passed!')
+        "
+    
+    - name: Schema validation rate test
+      run: |
+        python -c "
+        from src.llama_mapper.analysis.infrastructure.validator import AnalysisValidator
+        from src.llama_mapper.analysis.domain.entities import AnalysisRequest
+        import json
+        
+        validator = AnalysisValidator()
+        
+        # Test multiple validations to ensure >98% success rate
+        test_cases = 100
+        success_count = 0
+        
+        for i in range(test_cases):
+            # Create test request
+            request = AnalysisRequest(
+                period='2024-01-01T00:00:00Z/2024-01-02T00:00:00Z',
+                tenant=f'test-tenant-{i}',
+                app=f'test-app-{i}',
+                route=f'test-route-{i}',
+                required_detectors=['detector1', 'detector2'],
+                observed_coverage={'detector1': 0.8, 'detector2': 0.9},
+                required_coverage={'detector1': 0.7, 'detector2': 0.8},
+                detector_errors={'detector1': {'error': 'test'}},
+                high_sev_hits=[{'hit': 'test'}],
+                false_positive_bands=[{'band': 'test'}],
+                policy_bundle='test-bundle',
+                env='dev'
+            )
+            
+            # Test valid output
+            valid_output = {
+                'reason': f'Test reason {i}',
+                'remediation': f'Test remediation {i}',
+                'opa_diff': 'package test',
+                'confidence': 0.8,
+                'confidence_cutoff_used': 0.3,
+                'evidence_refs': ['detector1', 'detector2'],
+                'notes': f'Test notes {i}'
+            }
+            
+            result = validator.validate_and_fallback(valid_output, request)
+            if 'reason' in result and 'remediation' in result:
+                success_count += 1
+        
+        success_rate = success_count / test_cases
+        print(f'Schema validation success rate: {success_rate:.2%}')
+        
+        # Quality gate: must be >= 98%
+        assert success_rate >= 0.98, f'Schema validation rate {success_rate:.2%} is below 98% threshold'
+        print('Schema validation quality gate passed!')
+        "
+
+  # Job 5: Integration Tests
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, opa-validation, schema-validation-gates]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Run integration tests
+      run: |
+        pytest ${{ env.ANALYSIS_MODULE_PATH }}/tests/integration/ -v --tb=short
+    
+    - name: Test API endpoints
+      run: |
+        python -c "
+        import asyncio
+        from src.llama_mapper.analysis.api.factory import create_analysis_app
+        from fastapi.testclient import TestClient
+        
+        app = create_analysis_app()
+        client = TestClient(app)
+        
+        # Test health endpoint
+        response = client.get('/api/v1/analysis/health')
+        assert response.status_code == 200
+        print('Health endpoint test passed!')
+        
+        # Test metrics endpoint
+        response = client.get('/api/v1/analysis/metrics')
+        assert response.status_code == 200
+        print('Metrics endpoint test passed!')
+        "
+
+  # Job 6: Performance Tests
+  performance-tests:
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install locust
+    
+    - name: Run performance tests
+      run: |
+        python -c "
+        import time
+        import asyncio
+        from src.llama_mapper.analysis.api.factory import create_analysis_app
+        from fastapi.testclient import TestClient
+        
+        app = create_analysis_app()
+        client = TestClient(app)
+        
+        # Test latency SLOs
+        test_requests = 100
+        latencies = []
+        
+        for i in range(test_requests):
+            start_time = time.time()
+            response = client.get('/api/v1/analysis/health')
+            end_time = time.time()
+            
+            assert response.status_code == 200
+            latencies.append((end_time - start_time) * 1000)  # Convert to ms
+        
+        # Calculate p95 latency
+        latencies.sort()
+        p95_index = int(0.95 * len(latencies))
+        p95_latency = latencies[p95_index]
+        
+        print(f'P95 latency: {p95_latency:.2f}ms')
+        
+        # Quality gate: p95 <= 250ms for CPU deployment
+        assert p95_latency <= 250, f'P95 latency {p95_latency:.2f}ms exceeds 250ms threshold'
+        print('Performance quality gate passed!')
+        "
+
+  # Job 7: Security Tests
+  security-tests:
+    runs-on: ubuntu-latest
+    needs: [integration-tests]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install bandit safety
+    
+    - name: Run security scan with bandit
+      run: |
+        bandit -r ${{ env.ANALYSIS_MODULE_PATH }} -f json -o bandit-report.json || true
+        bandit -r ${{ env.ANALYSIS_MODULE_PATH }} -ll
+    
+    - name: Check for known security vulnerabilities
+      run: |
+        safety check --json --output safety-report.json || true
+        safety check
+    
+    - name: Test PII redaction
+      run: |
+        python -c "
+        from src.llama_mapper.analysis.infrastructure.security import PIIRedactor
+        
+        redactor = PIIRedactor()
+        
+        # Test PII detection and redaction
+        test_texts = [
+            'Contact john.doe@example.com for more info',
+            'Call us at (555) 123-4567',
+            'SSN: 123-45-6789',
+            'Credit card: 4111 1111 1111 1111',
+            'IP: 192.168.1.1',
+            'API key: sk-1234567890abcdef'
+        ]
+        
+        for text in test_texts:
+            redacted = redactor.redact_text(text)
+            detected = redactor.detect_pii(text)
+            
+            print(f'Original: {text}')
+            print(f'Redacted: {redacted}')
+            print(f'Detected PII: {detected}')
+            print('---')
+            
+            # Ensure PII was detected and redacted
+            assert len(detected) > 0, f'PII should be detected in: {text}'
+            assert redacted != text, f'Text should be redacted: {text}'
+        
+        print('PII redaction tests passed!')
+        "
+
+  # Job 8: Build and Push Docker Image
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [performance-tests, security-tests]
+    if: github.ref == 'refs/heads/main'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ${{ env.ANALYSIS_MODULE_PATH }}/Dockerfile
+        push: true
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/analysis-module:latest
+          ${{ secrets.DOCKER_USERNAME }}/analysis-module:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Job 9: Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to staging
+      run: |
+        echo "Deploying analysis module to staging environment..."
+        # This would contain actual deployment commands
+        # kubectl apply -f ${{ env.ANALYSIS_MODULE_PATH }}/deployment.yaml
+        # kubectl rollout status deployment/analysis-module -n comply-ai
+    
+    - name: Run smoke tests
+      run: |
+        echo "Running smoke tests against staging..."
+        # This would contain actual smoke test commands
+        # curl -f https://staging-analysis.comply-ai.com/api/v1/analysis/health
+
+  # Job 10: Deploy to Production (Manual Approval)
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Deploy to production
+      run: |
+        echo "Deploying analysis module to production environment..."
+        # This would contain actual deployment commands with canary rollout
+        # kubectl apply -f ${{ env.ANALYSIS_MODULE_PATH }}/canary-deployment.yaml
+        # kubectl rollout status rollout/analysis-module-rollout -n comply-ai

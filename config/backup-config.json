@@ -1,0 +1,25 @@
+{
+  "s3": {
+    "bucket": "llama-mapper-backups",
+    "region": "us-west-2"
+  },
+  "postgresql": {
+    "host": "postgres-primary.company.com",
+    "port": 5432,
+    "database": "llama_mapper_analysis",
+    "user": "backup_user",
+    "password": "backup_password"
+  },
+  "clickhouse": {
+    "host": "clickhouse-primary.company.com",
+    "port": 9000,
+    "database": "llama_mapper_analysis",
+    "user": "backup_user",
+    "password": "backup_password"
+  },
+  "redis": {
+    "host": "redis-primary.company.com",
+    "port": 6379,
+    "password": "redis_password"
+  }
+}

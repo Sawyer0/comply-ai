@@ -1,0 +1,61 @@
+{
+  "s3": {
+    "bucket": "comply-ai-backups",
+    "region": "us-east-1",
+    "endpoint_url": null
+  },
+  "postgresql": {
+    "host": "postgresql-service.default.svc.cluster.local",
+    "port": 5432,
+    "database": "llama_mapper",
+    "user": "complyai",
+    "password": "from_kubernetes_secret"
+  },
+  "clickhouse": {
+    "host": "clickhouse-service.default.svc.cluster.local",
+    "port": 9000,
+    "database": "llama_mapper",
+    "user": "default",
+    "password": "from_kubernetes_secret"
+  },
+  "redis": {
+    "host": "redis-service.default.svc.cluster.local",
+    "port": 6379,
+    "password": "from_kubernetes_secret"
+  },
+  "retention": {
+    "days": 30,
+    "compliance_days": 2555
+  },
+  "alerts": {
+    "email_recipients": ["admin@company.com"],
+    "enabled": true
+  },
+  "smtp": {
+    "enabled": true,
+    "smtp_server": "smtp.company.com",
+    "smtp_port": 587,
+    "username": "backup-monitor@company.com",
+    "password": "password",
+    "from_email": "backup-monitor@company.com"
+  },
+  "slack": {
+    "enabled": true,
+    "webhook_url": "https://hooks.slack.com/services/..."
+  },
+  "webhook": {
+    "enabled": true,
+    "url": "https://monitoring.company.com/webhook"
+  },
+  "databases": {
+    "postgresql": {
+      "expected_frequency_hours": 24
+    },
+    "clickhouse": {
+      "expected_frequency_hours": 24
+    },
+    "redis": {
+      "expected_frequency_hours": 24
+    }
+  }
+}

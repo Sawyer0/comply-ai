@@ -164,6 +164,76 @@ class SecurityConfig(BaseModel):
     )
 
 
+class AnalysisConfig(BaseModel):
+    """Analysis module configuration settings."""
+
+    # Model configuration
+    analysis_model_path: str = Field(
+        default="/app/models/phi3-mini", description="Path to Phi-3 Mini model"
+    )
+    analysis_temperature: float = Field(
+        default=0.1, ge=0.0, le=1.0, description="Analysis model temperature"
+    )
+    analysis_confidence_cutoff: float = Field(
+        default=0.3, ge=0.0, le=1.0, description="Confidence cutoff for fallback"
+    )
+    
+    # Processing configuration
+    max_concurrent_requests: int = Field(
+        default=10, ge=1, le=100, description="Maximum concurrent analysis requests"
+    )
+    request_timeout_seconds: int = Field(
+        default=30, ge=5, le=300, description="Request timeout in seconds"
+    )
+    batch_size_limit: int = Field(
+        default=100, ge=1, le=1000, description="Maximum batch size"
+    )
+    
+    # Quality configuration
+    schema_validation_threshold: float = Field(
+        default=0.98, ge=0.0, le=1.0, description="Minimum schema validation success rate"
+    )
+    template_fallback_threshold: float = Field(
+        default=0.10, ge=0.0, le=1.0, description="Maximum template fallback rate"
+    )
+    opa_compilation_threshold: float = Field(
+        default=0.95, ge=0.0, le=1.0, description="Minimum OPA compilation success rate"
+    )
+    
+    # Caching configuration
+    idempotency_cache_ttl_hours: int = Field(
+        default=24, ge=1, le=168, description="Idempotency cache TTL in hours"
+    )
+    cache_max_items: int = Field(
+        default=1000, ge=100, le=10000, description="Maximum cache items"
+    )
+    
+    # Monitoring configuration
+    enable_quality_evaluation: bool = Field(
+        default=True, description="Enable quality evaluation"
+    )
+    golden_dataset_path: Optional[str] = Field(
+        default=None, description="Path to golden dataset for evaluation"
+    )
+    evaluation_interval_hours: int = Field(
+        default=24, ge=1, le=168, description="Quality evaluation interval in hours"
+    )
+    
+    # Weekly evaluation configuration
+    enable_weekly_evaluations: bool = Field(
+        default=True, description="Enable weekly evaluation scheduling"
+    )
+    default_weekly_schedule: str = Field(
+        default="0 9 * * 1", description="Default cron schedule for weekly evaluations (Monday 9 AM)"
+    )
+    weekly_evaluation_retention_days: int = Field(
+        default=90, ge=7, le=365, description="Retention period for weekly evaluation reports"
+    )
+    weekly_evaluation_notifications: bool = Field(
+        default=True, description="Enable notifications for weekly evaluation reports"
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -185,6 +255,7 @@ class Settings(BaseSettings):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
 
     # Paths
     taxonomy_path: str = Field(

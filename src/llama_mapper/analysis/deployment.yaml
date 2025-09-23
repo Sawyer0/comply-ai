@@ -1,0 +1,230 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analysis-module
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+    version: v1.0.0
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: analysis-module
+  template:
+    metadata:
+      labels:
+        app: analysis-module
+        component: analysis
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: analysis-module
+      containers:
+      - name: analysis-module
+        image: analysis-module:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: ANALYSIS_MODEL_PATH
+          value: "/app/models/phi3-mini-3.8b"
+        - name: ANALYSIS_TEMPERATURE
+          value: "0.1"
+        - name: ANALYSIS_CONFIDENCE_CUTOFF
+          value: "0.3"
+        - name: ANALYSIS_MAX_CONCURRENT_REQUESTS
+          value: "10"
+        - name: ANALYSIS_REQUEST_TIMEOUT_SECONDS
+          value: "30"
+        - name: ANALYSIS_PII_REDACTION_ENABLED
+          value: "true"
+        - name: ANALYSIS_RATE_LIMIT_REQUESTS_PER_MINUTE
+          value: "60"
+        - name: ANALYSIS_CORS_ORIGINS
+          value: "*"
+        - name: ANALYSIS_GOLDEN_DATASET_PATH
+          value: "/app/data/golden_test_cases.json"
+        - name: ANALYSIS_CACHE_TTL_SECONDS
+          value: "3600"
+        - name: ANALYSIS_CACHE_MAX_SIZE
+          value: "1000"
+        - name: ANALYSIS_OPA_VALIDATION_ENABLED
+          value: "true"
+        - name: ANALYSIS_QUALITY_EVALUATION_ENABLED
+          value: "true"
+        - name: ANALYSIS_METRICS_ENABLED
+          value: "true"
+        - name: ANALYSIS_LOGGING_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+            nvidia.com/gpu: "1"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/analysis/health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/v1/analysis/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: model-storage
+          mountPath: /app/models
+          readOnly: true
+        - name: data-storage
+          mountPath: /app/data
+          readOnly: true
+        - name: config-storage
+          mountPath: /app/config
+          readOnly: true
+        - name: logs-storage
+          mountPath: /app/logs
+      volumes:
+      - name: model-storage
+        persistentVolumeClaim:
+          claimName: analysis-model-pvc
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: analysis-data-pvc
+      - name: config-storage
+        configMap:
+          name: analysis-config
+      - name: logs-storage
+        emptyDir: {}
+      nodeSelector:
+        node-type: gpu
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - analysis-module
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: analysis-module-service
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: analysis-module
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: analysis-module
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: analysis-config
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+data:
+  analysis.yaml: |
+    analysis:
+      model:
+        path: "/app/models/phi3-mini-3.8b"
+        temperature: 0.1
+        confidence_cutoff: 0.3
+      processing:
+        max_concurrent_requests: 10
+        request_timeout_seconds: 30
+        pii_redaction_enabled: true
+      api:
+        rate_limit_requests_per_minute: 60
+        cors_origins: ["*"]
+      quality:
+        golden_dataset_path: "/app/data/golden_test_cases.json"
+        evaluation_enabled: true
+      cache:
+        ttl_seconds: 3600
+        max_size: 1000
+      opa:
+        validation_enabled: true
+      monitoring:
+        metrics_enabled: true
+        logging_level: "INFO"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: analysis-model-pvc
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+spec:
+  accessModes:
+    - ReadOnlyMany
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: analysis-data-pvc
+  namespace: comply-ai
+  labels:
+    app: analysis-module
+    component: analysis
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: standard

@@ -1,53 +1,116 @@
-{{- if and .Values.backups.enabled .Values.backups.postgresql.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "llama-mapper.fullname" . }}-pg-backup
+  name: backup-postgresql
+  namespace: {{ .Values.namespace | default "default" }}
   labels:
-    {{- include "llama-mapper.labels" . | nindent 4 }}
+    app: backup-postgresql
+    component: backup
 spec:
-  schedule: "{{ .Values.backups.postgresql.schedule }}"
+  schedule: {{ .Values.backups.postgresql.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       template:
         metadata:
           labels:
-            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+            app: backup-postgresql
+            component: backup
         spec:
           restartPolicy: OnFailure
           containers:
-            - name: pg-backup
-              image: "{{ .Values.backups.postgresql.image }}"
-              imagePullPolicy: IfNotPresent
-              env:
-                - name: PGPASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ required "backups.postgresql.passwordSecretRef is required" .Values.backups.postgresql.passwordSecretRef | quote }}
-                      key: PGPASSWORD
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
-                      key: aws_access_key_id
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
-                      key: aws_secret_access_key
-                - name: AWS_REGION
-                  value: "{{ .Values.backups.s3.region }}"
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  set -euo pipefail
-                  TS=$(date -u +%Y%m%dT%H%M%SZ)
-                  FILE="/tmp/${TS}.sql.gz"
-                  echo "Starting PostgreSQL backup at $TS"
-                  pg_dump -h {{ .Values.backups.postgresql.host }} -p {{ .Values.backups.postgresql.port }} -U {{ .Values.backups.postgresql.user }} -d {{ .Values.backups.postgresql.database }} | gzip > "$FILE"
-                  DEST="s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}/{{ .Values.backups.s3.prefix }}/postgresql/{{ include "llama-mapper.fullname" . }}/$TS.sql.gz"
-                  echo "Uploading to $DEST"
-                  aws s3 cp "$FILE" "$DEST"
-                  echo "Backup completed"
-{{- end }}
+          - name: backup-postgresql
+            image: {{ .Values.backups.postgresql.image | quote }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Starting PostgreSQL backup..."
+              
+              # Install required packages
+              apt-get update && apt-get install -y \
+                postgresql-client \
+                python3 \
+                python3-pip \
+                curl \
+                && rm -rf /var/lib/apt/lists/*
+              
+              # Install Python dependencies
+              pip3 install boto3 psycopg2-binary
+              
+              # Create backup configuration
+              cat > /tmp/backup-config.json << EOF
+              {
+                "s3": {
+                  "bucket": "{{ .Values.backups.s3.bucket }}",
+                  "region": "{{ .Values.backups.s3.region }}",
+                  "endpoint_url": {{ if .Values.backups.s3.endpointUrl }}"{{ .Values.backups.s3.endpointUrl }}"{{ else }}null{{ end }}
+                },
+                "postgresql": {
+                  "host": "{{ .Values.backups.postgresql.host }}",
+                  "port": {{ .Values.backups.postgresql.port }},
+                  "database": "{{ .Values.backups.postgresql.database }}",
+                  "user": "{{ .Values.backups.postgresql.user }}",
+                  "password": "$POSTGRES_PASSWORD"
+                },
+                "retention": {
+                  "days": {{ .Values.backups.retention.days }},
+                  "compliance_days": {{ .Values.backups.retention.complianceDays }}
+                }
+              }
+              EOF
+              
+              # Set AWS credentials for S3
+              export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+              export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+              {{- if .Values.backups.s3.endpointUrl }}
+              export AWS_DEFAULT_REGION="{{ .Values.backups.s3.region }}"
+              {{- end }}
+              
+              # Run backup
+              python3 /scripts/backup-databases.py \
+                --config /tmp/backup-config.json \
+                --database postgresql
+              
+              echo "PostgreSQL backup completed successfully"
+            env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.postgresql.secretName }}
+                  key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: secret_access_key
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: /scripts
+            resources:
+              {{- toYaml .Values.backups.postgresql.resources | nindent 14 }}
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+          {{- with .Values.backups.postgresql.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.postgresql.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.postgresql.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

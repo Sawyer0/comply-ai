@@ -1,0 +1,165 @@
+name: Analysis Module HTTP Replay Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/llama_mapper/analysis/**'
+      - 'tests/integration/test_analysis_http_replay.py'
+      - 'tests/fixtures/analysis_golden_cases.json'
+      - 'scripts/generate_analysis_golden_cases.py'
+      - 'scripts/run_http_replay_tests.py'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/llama_mapper/analysis/**'
+      - 'tests/integration/test_analysis_http_replay.py'
+      - 'tests/fixtures/analysis_golden_cases.json'
+      - 'scripts/generate_analysis_golden_cases.py'
+      - 'scripts/run_http_replay_tests.py'
+  schedule:
+    # Run daily at 2 AM UTC to catch regressions
+    - cron: '0 2 * * *'
+
+jobs:
+  http-replay-tests:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Validate golden test cases
+      run: |
+        python scripts/run_http_replay_tests.py --validate-only
+    
+    - name: Run HTTP replay tests
+      run: |
+        python scripts/run_http_replay_tests.py \
+          --golden-cases tests/fixtures/analysis_golden_cases.json \
+          --output test-results.json \
+          --min-pass-rate 0.8
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: http-replay-test-results-${{ matrix.python-version }}
+        path: test-results.json
+    
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          try {
+            const results = JSON.parse(fs.readFileSync('test-results.json', 'utf8'));
+            const passRate = (results.pass_rate * 100).toFixed(1);
+            const totalTests = results.total_tests;
+            const passedTests = results.passed_tests;
+            const failedTests = results.failed_tests;
+            const errorTests = results.error_tests;
+            
+            let comment = `## 🔍 HTTP Replay Test Results (Python ${{ matrix.python-version }})\n\n`;
+            comment += `**Pass Rate:** ${passRate}%\n`;
+            comment += `**Total Tests:** ${totalTests}\n`;
+            comment += `**Passed:** ${passedTests} ✅\n`;
+            comment += `**Failed:** ${failedTests} ❌\n`;
+            comment += `**Errors:** ${errorTests} 💥\n\n`;
+            
+            if (failedTests > 0 || errorTests > 0) {
+              comment += `### Failed/Error Tests:\n`;
+              const failedAndErrorTests = results.results.filter(r => r.status === 'fail' || r.status === 'error');
+              for (const test of failedAndErrorTests) {
+                comment += `- **${test.test_id}**: ${test.status === 'fail' ? 'Failed validation' : test.error}\n`;
+              }
+            }
+            
+            if (results.pass_rate >= 0.8) {
+              comment += `\n✅ **API conformance check passed!**`;
+            } else {
+              comment += `\n❌ **API conformance check failed!** Pass rate below 80% threshold.`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          } catch (error) {
+            console.log('Could not read test results:', error);
+          }
+
+  generate-golden-cases:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[regenerate-golden-cases]')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Generate new golden test cases
+      run: |
+        python scripts/generate_analysis_golden_cases.py --pretty
+    
+    - name: Check for changes
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Golden test cases have been updated"
+          git diff tests/fixtures/analysis_golden_cases.json
+        else
+          echo "No changes to golden test cases"
+        fi
+    
+    - name: Create PR with updated golden cases
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { execSync } = require('child_process');
+          try {
+            const hasChanges = execSync('git status --porcelain', { encoding: 'utf8' }).trim();
+            if (hasChanges) {
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## 🔄 Golden Test Cases Updated\n\nThis PR has triggered a regeneration of golden test cases. Please review the changes and merge if they look correct.\n\n**Note:** This is an automated update based on the \`[regenerate-golden-cases]\` tag in the PR title.`
+              });
+            }
+          } catch (error) {
+            console.log('Could not check for changes:', error);
+          }

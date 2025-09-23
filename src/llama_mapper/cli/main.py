@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 import click
 
-from ..config import ConfigManager
+from ..config.manager import ConfigManager
 from ..logging import get_logger, setup_logging
 from .commands import register_all
+from .core import AutoDiscoveryRegistry, PluginManager
 
 
 @click.group()
@@ -18,8 +20,13 @@ from .commands import register_all
     default="INFO",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
 )
+@click.option(
+    "--plugin-dir",
+    type=click.Path(exists=True, file_okay=False),
+    help="Directory containing CLI plugins",
+)
 @click.pass_context
-def main(ctx: click.Context, config: Optional[str], log_level: str) -> None:
+def main(ctx: click.Context, config: Optional[str], log_level: str, plugin_dir: Optional[str]) -> None:
     """Llama Mapper CLI - Fine-tuned model for detector output mapping."""
     ctx.ensure_object(dict)
 
@@ -39,8 +46,25 @@ def main(ctx: click.Context, config: Optional[str], log_level: str) -> None:
         log_level=log_level,
     )
 
+    # Initialize command registry (for plugins only)
+    registry = AutoDiscoveryRegistry()
+    ctx.obj["registry"] = registry
 
-register_all(main)
+    # Load plugins if plugin directory is specified
+    if plugin_dir:
+        plugin_manager = PluginManager(registry)
+        plugin_manager.add_plugin_directory(plugin_dir)
+        plugin_manager.load_plugins_from_directory()
+        logger.info(f"Loaded plugins from: {plugin_dir}")
+        
+        # Attach plugin commands to main group
+        registry.attach_to_main(main)
+
+
+# Register built-in commands at module import time
+_builtin_registry = AutoDiscoveryRegistry()
+register_all(_builtin_registry)
+_builtin_registry.attach_to_main(main)
 
 
 if __name__ == "__main__":  # pragma: no cover

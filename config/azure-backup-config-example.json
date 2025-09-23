@@ -1,0 +1,48 @@
+{
+  "azure": {
+    "subscription_id": "your-azure-subscription-id",
+    "resource_group": "comply-ai-rg",
+    "key_vault_url": "https://comply-ai-keyvault.vault.azure.net/",
+    "region": "eastus",
+    "dr_region": "westus2"
+  },
+  "postgresql": {
+    "server_name": "comply-ai-postgres",
+    "database_name": "llama_mapper",
+    "admin_user": "complyaiadmin",
+    "backup_retention_days": 30,
+    "geo_redundant_backup": true
+  },
+  "redis": {
+    "name": "comply-ai-redis",
+    "sku": "Standard",
+    "vm_size": "c1",
+    "rdb_persistence": true,
+    "aof_persistence": false
+  },
+  "storage": {
+    "account_name": "complyaistorage",
+    "container_name": "backups",
+    "sku": "Standard_GRS",
+    "immutable_storage": true,
+    "versioning": true,
+    "lifecycle_management": true
+  },
+  "monitoring": {
+    "log_analytics_workspace": "comply-ai-logs",
+    "action_group": "backup-alerts",
+    "alerts_enabled": true
+  },
+  "compliance": {
+    "retention_days": 2555,
+    "encryption_required": true,
+    "geo_replication_required": true,
+    "audit_logging": true
+  },
+  "backup_schedule": {
+    "postgresql_export": "0 2 * * *",
+    "redis_backup": "0 3 * * *",
+    "keyvault_backup": "0 4 * * *",
+    "status_check": "0 6 * * *"
+  }
+}
