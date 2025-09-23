@@ -1,0 +1,23 @@
+{
+  "detector": "safety-detector-v1",
+  "output": {
+    "risk_level": "high",
+    "confidence": 0.95,
+    "categories": ["violence", "harassment"],
+    "details": "Content contains explicit threats and harassment",
+    "severity_score": 8.5,
+    "flagged_content": "I will hurt you if you don't comply",
+    "context": {
+      "platform": "social_media",
+      "user_id": "user_12345",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  },
+  "metadata": {
+    "timestamp": "2024-01-15T10:30:00Z",
+    "version": "1.0.0",
+    "model_version": "safety-detector-v1.2.3",
+    "processing_time_ms": 150
+  },
+  "tenant_id": "customer-123"
+}

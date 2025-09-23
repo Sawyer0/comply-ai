@@ -1,0 +1,115 @@
+{{- if and .Values.weeklyEvaluations.enabled .Values.analysis.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-weekly-evaluation
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+    app.kubernetes.io/component: weekly-evaluation
+spec:
+  schedule: "{{ .Values.weeklyEvaluations.schedule | default "0 9 * * 1" }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: weekly-evaluation
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: weekly-evaluation
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command:
+                - python
+                - -m
+                - src.llama_mapper.cli.main
+                - weekly-eval
+                - run-scheduled
+              env:
+                {{- if .Values.weeklyEvaluations.redisUrl }}
+                - name: REDIS_URL
+                  value: {{ .Values.weeklyEvaluations.redisUrl | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.databaseUrl }}
+                - name: DATABASE_URL
+                  value: {{ .Values.weeklyEvaluations.databaseUrl | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.s3Bucket }}
+                - name: S3_BUCKET
+                  value: {{ .Values.weeklyEvaluations.s3Bucket | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.awsRegion }}
+                - name: AWS_REGION
+                  value: {{ .Values.weeklyEvaluations.awsRegion | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.awsAccessKeyId }}
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.weeklyEvaluations.awsAccessKeyId.secretName | quote }}
+                      key: {{ .Values.weeklyEvaluations.awsAccessKeyId.secretKey | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.awsSecretAccessKey }}
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.weeklyEvaluations.awsSecretAccessKey.secretName | quote }}
+                      key: {{ .Values.weeklyEvaluations.awsSecretAccessKey.secretKey | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.notificationEmail }}
+                - name: NOTIFICATION_EMAIL
+                  value: {{ .Values.weeklyEvaluations.notificationEmail | quote }}
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.slackWebhook }}
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.weeklyEvaluations.slackWebhook.secretName | quote }}
+                      key: {{ .Values.weeklyEvaluations.slackWebhook.secretKey | quote }}
+                {{- end }}
+                - name: LLAMA_MAPPER_ENVIRONMENT
+                  value: {{ .Values.environment | default "production" | quote }}
+                - name: LLAMA_MAPPER_LOG_LEVEL
+                  value: {{ .Values.logging.level | default "INFO" | quote }}
+              resources:
+                {{- toYaml .Values.weeklyEvaluations.resources | nindent 16 }}
+              volumeMounts:
+                {{- if .Values.weeklyEvaluations.configMap }}
+                - name: weekly-eval-config
+                  mountPath: /app/config/weekly-evaluation.yaml
+                  subPath: weekly-evaluation.yaml
+                {{- end }}
+                {{- if .Values.weeklyEvaluations.goldenDataset }}
+                - name: golden-dataset
+                  mountPath: /app/data/golden-dataset.json
+                  subPath: golden-dataset.json
+                {{- end }}
+          volumes:
+            {{- if .Values.weeklyEvaluations.configMap }}
+            - name: weekly-eval-config
+              configMap:
+                name: {{ .Values.weeklyEvaluations.configMap | quote }}
+            {{- end }}
+            {{- if .Values.weeklyEvaluations.goldenDataset }}
+            - name: golden-dataset
+              configMap:
+                name: {{ .Values.weeklyEvaluations.goldenDataset | quote }}
+            {{- end }}
+          {{- with .Values.weeklyEvaluations.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.weeklyEvaluations.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.weeklyEvaluations.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,131 @@
+# API Key Configuration for Analysis Module
+# This file contains default API keys and configuration for development/testing
+
+# Default API keys for development
+default_keys:
+  - key_id: "dev-admin-key"
+    tenant_id: "dev-tenant"
+    name: "Development Admin Key"
+    description: "Default admin key for development"
+    scopes: ["admin", "analyze", "batch_analyze", "read", "write"]
+    expires_in_days: 365
+    rate_limit: 1000
+  
+  - key_id: "dev-analyze-key"
+    tenant_id: "dev-tenant"
+    name: "Development Analysis Key"
+    description: "Default analysis key for development"
+    scopes: ["analyze", "read"]
+    expires_in_days: 365
+    rate_limit: 100
+  
+  - key_id: "test-tenant-key"
+    tenant_id: "test-tenant"
+    name: "Test Tenant Key"
+    description: "Key for testing tenant isolation"
+    scopes: ["analyze", "batch_analyze"]
+    expires_in_days: 30
+    rate_limit: 50
+
+# API key policies
+policies:
+  # Default expiration for new keys (days)
+  default_expiration_days: 90
+  
+  # Maximum expiration for new keys (days)
+  max_expiration_days: 365
+  
+  # Default rate limit (requests per minute)
+  default_rate_limit: 60
+  
+  # Maximum rate limit (requests per minute)
+  max_rate_limit: 1000
+  
+  # Minimum key length
+  min_key_length: 32
+  
+  # Key rotation policies
+  rotation:
+    # Auto-rotate keys older than this many days
+    auto_rotate_days: 60
+    
+    # Grace period before revoking old keys (days)
+    grace_period_days: 7
+    
+    # Maximum number of active keys per tenant
+    max_keys_per_tenant: 10
+
+# Security settings
+security:
+  # Hash algorithm for API keys
+  hash_algorithm: "sha256"
+  
+  # Salt for key hashing (should be random in production)
+  hash_salt: "dev-salt-change-in-production"
+  
+  # Rate limiting
+  rate_limiting:
+    # Enable rate limiting
+    enabled: true
+    
+    # Rate limit window (seconds)
+    window_seconds: 60
+    
+    # Default requests per window
+    default_requests_per_window: 60
+    
+    # Burst allowance (additional requests)
+    burst_allowance: 10
+
+# Redis configuration for production
+redis:
+  # Redis URL for key storage and rate limiting
+  url: "redis://localhost:6379/0"
+  
+  # Key prefix for API keys
+  key_prefix: "api_key:"
+  
+  # Key prefix for rate limiting
+  rate_limit_prefix: "rate_limit:"
+  
+  # Key TTL for rate limiting (seconds)
+  rate_limit_ttl: 3600
+
+# Monitoring and alerting
+monitoring:
+  # Enable API key usage monitoring
+  enabled: true
+  
+  # Metrics to collect
+  metrics:
+    - "key_usage_count"
+    - "key_creation_count"
+    - "key_rotation_count"
+    - "key_revocation_count"
+    - "rate_limit_hits"
+    - "authentication_failures"
+  
+  # Alert thresholds
+  alerts:
+    # Alert when rate limit hits exceed this percentage
+    rate_limit_threshold: 0.8
+    
+    # Alert when authentication failures exceed this count per minute
+    auth_failure_threshold: 10
+    
+    # Alert when keys are about to expire (days)
+    expiration_warning_days: 7
+
+# Development settings
+development:
+  # Enable debug logging
+  debug_logging: true
+  
+  # Allow insecure keys (for testing only)
+  allow_insecure_keys: true
+  
+  # Skip rate limiting in development
+  skip_rate_limiting: false
+  
+  # Use in-memory storage instead of Redis
+  use_memory_storage: true

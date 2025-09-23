@@ -145,33 +145,77 @@ backups:
     # Optionally reference AWS credentials via Kubernetes Secret
     awsAccessKeyIdSecretRef: ""   # name of Secret with key: aws_access_key_id
     awsSecretAccessKeySecretRef: "" # name of Secret with key: aws_secret_access_key
+  retention:
+    days: 2555  # 7 years for compliance
+    keep_daily: 30
+    keep_weekly: 12
+    keep_monthly: 12
+    keep_yearly: 7
   postgresql:
     enabled: false
     schedule: "0 2 * * *" # daily at 02:00
-    image: ghcr.io/your-org/pg-backup:latest
+    image: python:3.11-slim
     host: "postgres"
     port: 5432
     database: "llama_mapper"
     user: "postgres"
     passwordSecretRef: "" # name of Secret with key: PGPASSWORD
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
   clickhouse:
     enabled: false
     schedule: "30 2 * * *" # daily at 02:30
-    image: clickhouse/clickhouse-server:23.8
+    image: python:3.11-slim
     host: "clickhouse"
     port: 9000
     database: "mapper"
     user: "default"
     passwordSecretRef: "" # name of Secret with key: CLICKHOUSE_PASSWORD
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+  redis:
+    enabled: false
+    schedule: "0 3 * * *" # daily at 03:00
+    image: python:3.11-slim
+    host: "redis"
+    port: 6379
+    passwordSecretRef: "" # name of Secret with key: REDIS_PASSWORD (optional)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
 
 restore:
   enabled: false
-  # Choose one of: postgresql or clickhouse
+  # Choose one of: postgresql, clickhouse, or redis
   type: "postgresql"
   snapshot: "" # path under s3://<bucket>/<prefix>/... to restore
   image:
-    postgresql: ghcr.io/your-org/pg-backup:latest
-    clickhouse: clickhouse/clickhouse-server:23.8
+    postgresql: python:3.11-slim
+    clickhouse: python:3.11-slim
+    redis: python:3.11-slim
   postgresql:
     host: "postgres"
     port: 5432
@@ -184,6 +228,97 @@ restore:
     database: "mapper"
     user: "default"
     passwordSecretRef: "" # name of Secret with key: CLICKHOUSE_PASSWORD
+  redis:
+    host: "redis"
+    port: 6379
+    passwordSecretRef: "" # name of Secret with key: REDIS_PASSWORD (optional)
+
+# Azure-specific backup and restore configuration
+azureBackups:
+  enabled: false
+  azure:
+    subscriptionId: ""
+    resourceGroup: "comply-ai-rg"
+    keyVaultUrl: "https://comply-ai-keyvault.vault.azure.net/"
+    region: "eastus"
+    drRegion: "westus2"
+    # Azure service principal credentials
+    clientIdSecretRef: "" # name of Secret with key: client_id
+    clientSecretSecretRef: "" # name of Secret with key: client_secret
+    tenantIdSecretRef: "" # name of Secret with key: tenant_id
+    subscriptionIdSecretRef: "" # name of Secret with key: subscription_id
+  retention:
+    days: 30  # Azure PostgreSQL default retention
+    complianceDays: 2555  # 7 years for compliance
+  postgresql:
+    enabled: false
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    image: python:3.11-slim
+    serverName: "comply-ai-postgres"
+    databaseName: "llama_mapper"
+    adminUser: "complyaiadmin"
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "1Gi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+  redis:
+    enabled: false
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    image: python:3.11-slim
+    name: "comply-ai-redis"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+  storage:
+    accountName: "complyaistorage"
+    containerName: "backups"
+    sku: "Standard_GRS"
+    immutableStorage: true
+    versioning: true
+    lifecycleManagement: true
+  keyvault:
+    enabled: false
+    schedule: "0 4 * * *"  # Daily at 4 AM
+    image: python:3.11-slim
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+  monitoring:
+    enabled: false
+    schedule: "0 6 * * *"  # Daily at 6 AM
+    image: python:3.11-slim
+    logAnalyticsWorkspace: "comply-ai-logs"
+    actionGroup: "backup-alerts"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
 
 # Cost management and resource guardrails
 costManagement:
@@ -236,3 +371,34 @@ alerts:
     short: 5m
     medium: 10m
     long: 15m
+
+# Weekly evaluation scheduling and reporting
+weeklyEvaluations:
+  enabled: true
+  schedule: "0 9 * * 1"  # Every Monday at 9 AM UTC
+  redisUrl: ""  # Redis URL for scheduling (optional)
+  databaseUrl: ""  # Database URL for persistence (optional)
+  s3Bucket: ""  # S3 bucket for report storage (optional)
+  awsRegion: "us-east-1"
+  awsAccessKeyId:
+    secretName: ""
+    secretKey: "aws_access_key_id"
+  awsSecretAccessKey:
+    secretName: ""
+    secretKey: "aws_secret_access_key"
+  notificationEmail: ""  # Email for notifications (optional)
+  slackWebhook:
+    secretName: ""
+    secretKey: "webhook_url"
+  configMap: ""  # ConfigMap with weekly evaluation configuration (optional)
+  goldenDataset: ""  # ConfigMap with golden dataset (optional)
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []

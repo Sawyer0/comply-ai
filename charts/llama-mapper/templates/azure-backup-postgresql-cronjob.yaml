@@ -1,0 +1,133 @@
+{{- if and .Values.azureBackups.enabled .Values.azureBackups.postgresql.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "llama-mapper.fullname" . }}-azure-pg-backup
+  labels:
+    {{- include "llama-mapper.labels" . | nindent 4 }}
+    app.kubernetes.io/component: azure-backup
+    app.kubernetes.io/part-of: azure-database-backup
+  annotations:
+    backup.llama-mapper.io/database: postgresql
+    backup.llama-mapper.io/cloud-provider: azure
+    backup.llama-mapper.io/retention-days: "{{ .Values.azureBackups.retention.days | default 30 }}"
+spec:
+  schedule: "{{ .Values.azureBackups.postgresql.schedule }}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: azure-backup
+            app.kubernetes.io/part-of: azure-database-backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: {{ include "llama-mapper.serviceAccountName" . }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+          containers:
+            - name: azure-pg-backup
+              image: "{{ .Values.azureBackups.postgresql.image }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: AZURE_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.azureBackups.azure.clientIdSecretRef | quote }}
+                      key: client_id
+                - name: AZURE_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.azureBackups.azure.clientSecretSecretRef | quote }}
+                      key: client_secret
+                - name: AZURE_TENANT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.azureBackups.azure.tenantIdSecretRef | quote }}
+                      key: tenant_id
+                - name: AZURE_SUBSCRIPTION_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.azureBackups.azure.subscriptionIdSecretRef | quote }}
+                      key: subscription_id
+                - name: BACKUP_CONFIG
+                  value: |
+                    {
+                      "azure": {
+                        "subscription_id": "$AZURE_SUBSCRIPTION_ID",
+                        "resource_group": "{{ .Values.azureBackups.azure.resourceGroup }}",
+                        "key_vault_url": "{{ .Values.azureBackups.azure.keyVaultUrl }}",
+                        "region": "{{ .Values.azureBackups.azure.region }}"
+                      },
+                      "postgresql": {
+                        "server_name": "{{ .Values.azureBackups.postgresql.serverName }}",
+                        "database_name": "{{ .Values.azureBackups.postgresql.databaseName }}",
+                        "admin_user": "{{ .Values.azureBackups.postgresql.adminUser }}"
+                      },
+                      "storage": {
+                        "account_name": "{{ .Values.azureBackups.storage.accountName }}",
+                        "container_name": "{{ .Values.azureBackups.storage.containerName }}"
+                      }
+                    }
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+                  
+                  # Install Azure CLI and Python dependencies
+                  pip install azure-identity azure-mgmt-postgresql azure-mgmt-redis azure-mgmt-storage azure-storage-blob azure-keyvault-secrets
+                  
+                  # Create backup configuration file
+                  echo "$BACKUP_CONFIG" > /tmp/azure-backup-config.json
+                  
+                  # Run Azure backup script
+                  python3 /scripts/azure-backup-databases.py \
+                    --config /tmp/azure-backup-config.json \
+                    --backup-type postgresql
+                  
+                  echo "Azure PostgreSQL backup completed successfully"
+              resources:
+                {{- toYaml .Values.azureBackups.postgresql.resources | nindent 16 }}
+              volumeMounts:
+                - name: azure-backup-scripts
+                  mountPath: /scripts
+                  readOnly: true
+                - name: azure-backup-tmp
+                  mountPath: /tmp
+                - name: azure-backup-logs
+                  mountPath: /var/log
+          volumes:
+            - name: azure-backup-scripts
+              configMap:
+                name: {{ include "llama-mapper.fullname" . }}-azure-backup-scripts
+                defaultMode: 0755
+            - name: azure-backup-tmp
+              emptyDir: {}
+            - name: azure-backup-logs
+              emptyDir: {}
+          {{- with .Values.azureBackups.postgresql.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.azureBackups.postgresql.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.azureBackups.postgresql.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

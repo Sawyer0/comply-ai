@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from llama_mapper.api.models import MappingResponse, Provenance
-from llama_mapper.monitoring.quality_gates import (
+from src.llama_mapper.api.models import MappingResponse, Provenance
+from src.llama_mapper.monitoring.quality_gates import (
     GoldenTestCase,
     QualityGateResult,
     QualityGateValidator,

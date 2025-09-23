@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restore-redis-{{ .Values.restore.timestamp | default "latest" }}
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    app: restore-redis
+    component: restore
+spec:
+  template:
+    metadata:
+      labels:
+        app: restore-redis
+        component: restore
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: restore-redis
+        image: {{ .Values.backups.redis.image | quote }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Starting Redis restore..."
+          
+          # Install required packages
+          apt-get update && apt-get install -y \
+            redis-tools \
+            python3 \
+            python3-pip \
+            curl \
+            && rm -rf /var/lib/apt/lists/*
+          
+          # Install Python dependencies
+          pip3 install boto3 redis
+          
+          # Create restore configuration
+          cat > /tmp/restore-config.json << EOF
+          {
+            "s3": {
+              "bucket": "{{ .Values.backups.s3.bucket }}",
+              "region": "{{ .Values.backups.s3.region }}",
+              "endpoint_url": {{ if .Values.backups.s3.endpointUrl }}"{{ .Values.backups.s3.endpointUrl }}"{{ else }}null{{ end }}
+            },
+            "redis": {
+              "host": "{{ .Values.backups.redis.host }}",
+              "port": {{ .Values.backups.redis.port }},
+              "password": "$REDIS_PASSWORD"
+            }
+          }
+          EOF
+          
+          # Set AWS credentials for S3
+          export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+          {{- if .Values.backups.s3.endpointUrl }}
+          export AWS_DEFAULT_REGION="{{ .Values.backups.s3.region }}"
+          {{- end }}
+          
+          # Run restore
+          python3 /scripts/restore-databases.py \
+            --config /tmp/restore-config.json \
+            --database redis \
+            --backup "{{ .Values.restore.backup | default "latest" }}" \
+            {{- if .Values.restore.dropExisting }}--drop-existing{{ end }}
+          
+          echo "Redis restore completed successfully"
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.redis.secretName }}
+              key: password
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.s3.secretName }}
+              key: access_key_id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.backups.s3.secretName }}
+              key: secret_access_key
+        volumeMounts:
+        - name: restore-scripts
+          mountPath: /scripts
+        resources:
+          {{- toYaml .Values.backups.redis.resources | nindent 14 }}
+      volumes:
+      - name: restore-scripts
+        configMap:
+          name: backup-scripts
+          defaultMode: 0755
+      {{- with .Values.backups.redis.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backups.redis.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backups.redis.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,114 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-redis
+  namespace: {{ .Values.namespace | default "default" }}
+  labels:
+    app: backup-redis
+    component: backup
+spec:
+  schedule: {{ .Values.backups.redis.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: backup-redis
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup-redis
+            image: {{ .Values.backups.redis.image | quote }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Starting Redis backup..."
+              
+              # Install required packages
+              apt-get update && apt-get install -y \
+                redis-tools \
+                python3 \
+                python3-pip \
+                curl \
+                && rm -rf /var/lib/apt/lists/*
+              
+              # Install Python dependencies
+              pip3 install boto3 redis
+              
+              # Create backup configuration
+              cat > /tmp/backup-config.json << EOF
+              {
+                "s3": {
+                  "bucket": "{{ .Values.backups.s3.bucket }}",
+                  "region": "{{ .Values.backups.s3.region }}",
+                  "endpoint_url": {{ if .Values.backups.s3.endpointUrl }}"{{ .Values.backups.s3.endpointUrl }}"{{ else }}null{{ end }}
+                },
+                "redis": {
+                  "host": "{{ .Values.backups.redis.host }}",
+                  "port": {{ .Values.backups.redis.port }},
+                  "password": "$REDIS_PASSWORD"
+                },
+                "retention": {
+                  "days": {{ .Values.backups.retention.days }},
+                  "compliance_days": {{ .Values.backups.retention.complianceDays }}
+                }
+              }
+              EOF
+              
+              # Set AWS credentials for S3
+              export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+              export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+              {{- if .Values.backups.s3.endpointUrl }}
+              export AWS_DEFAULT_REGION="{{ .Values.backups.s3.region }}"
+              {{- end }}
+              
+              # Run backup
+              python3 /scripts/backup-databases.py \
+                --config /tmp/backup-config.json \
+                --database redis
+              
+              echo "Redis backup completed successfully"
+            env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.redis.secretName }}
+                  key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: secret_access_key
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: /scripts
+            resources:
+              {{- toYaml .Values.backups.redis.resources | nindent 14 }}
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+          {{- with .Values.backups.redis.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.redis.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.redis.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

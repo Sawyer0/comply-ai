@@ -1,0 +1,44 @@
+[
+  {
+    "key_id": "wgyDHP6gEQvvQonpgdg9gQ",
+    "api_key": "ak_NLiia-SftpNFhL_QVDNT99WlAjwQNAnPwrAiSGyebv4",
+    "tenant_id": "dev-tenant",
+    "name": "Development Admin Key",
+    "description": "Default admin key for development",
+    "scopes": [
+      "admin",
+      "analyze",
+      "batch_analyze",
+      "read",
+      "write"
+    ],
+    "expires_at": "2026-09-22T22:31:33.441112+00:00",
+    "rate_limit": 1000
+  },
+  {
+    "key_id": "mF4wknpFwcWwLsgxXcuC4Q",
+    "api_key": "ak_EVGuZNa1AyFAWN95zhtShOUKo-dL3lgOg0Inut0XtMs",
+    "tenant_id": "dev-tenant",
+    "name": "Development Analysis Key",
+    "description": "Default analysis key for development",
+    "scopes": [
+      "analyze",
+      "read"
+    ],
+    "expires_at": "2026-09-22T22:31:33.441112+00:00",
+    "rate_limit": 100
+  },
+  {
+    "key_id": "sq5XvPJz2q7cNqYzLVSieQ",
+    "api_key": "ak_LiBc0ra9W7JG2zi4tI7Pd1PSJABp8dyDnMVck9qfAbQ",
+    "tenant_id": "test-tenant",
+    "name": "Test Tenant Key",
+    "description": "Key for testing tenant isolation",
+    "scopes": [
+      "analyze",
+      "batch_analyze"
+    ],
+    "expires_at": "2025-10-22T22:31:33.450803+00:00",
+    "rate_limit": 50
+  }
+]

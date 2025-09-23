@@ -8,6 +8,10 @@ from .advanced_training_generator import AdvancedTrainingDataGenerator
 from .evaluation_metrics import ComplianceModelEvaluator
 from .models import MapperCanonicalEvent, TrainingExample
 
+# Add missing classes for backward compatibility
+TrainingDataGenerator = AdvancedTrainingDataGenerator
+DatasetValidator = ComplianceModelEvaluator
+
 __all__ = [
     "SyntheticDataGenerator",
     "RealWorldDataCollector", 
@@ -17,4 +21,7 @@ __all__ = [
     "ComplianceModelEvaluator",
     "MapperCanonicalEvent",
     "TrainingExample",
+    # Backward compatibility aliases
+    "TrainingDataGenerator",
+    "DatasetValidator",
 ]

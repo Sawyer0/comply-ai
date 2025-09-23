@@ -1,52 +1,115 @@
-{{- if and .Values.backups.enabled .Values.backups.clickhouse.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "llama-mapper.fullname" . }}-ch-backup
+  name: backup-clickhouse
+  namespace: {{ .Values.namespace | default "default" }}
   labels:
-    {{- include "llama-mapper.labels" . | nindent 4 }}
+    app: backup-clickhouse
+    component: backup
 spec:
-  schedule: "{{ .Values.backups.clickhouse.schedule }}"
+  schedule: {{ .Values.backups.clickhouse.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
       template:
         metadata:
           labels:
-            {{- include "llama-mapper.selectorLabels" . | nindent 12 }}
+            app: backup-clickhouse
+            component: backup
         spec:
           restartPolicy: OnFailure
           containers:
-            - name: clickhouse-backup
-              image: "{{ .Values.backups.clickhouse.image }}"
-              imagePullPolicy: IfNotPresent
-              env:
-                - name: CLICKHOUSE_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ required "backups.clickhouse.passwordSecretRef is required" .Values.backups.clickhouse.passwordSecretRef | quote }}
-                      key: CLICKHOUSE_PASSWORD
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.backups.s3.awsAccessKeyIdSecretRef | quote }}
-                      key: aws_access_key_id
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: {{ .Values.backups.s3.awsSecretAccessKeySecretRef | quote }}
-                      key: aws_secret_access_key
-                - name: AWS_REGION
-                  value: "{{ .Values.backups.s3.region }}"
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  set -euo pipefail
-                  TS=$(date -u +%Y%m%dT%H%M%SZ)
-                  DEST_PREFIX="{{ .Values.backups.s3.prefix }}/clickhouse/{{ include "llama-mapper.fullname" . }}/$TS"
-                  echo "Starting ClickHouse backup at $TS"
-                  # Requires ClickHouse server to allow BACKUP TO S3; adjust as needed for your environment.
-                  QUERY="BACKUP DATABASE {{ .Values.backups.clickhouse.database }} TO S3('s3://{{ required "backups.s3.bucket is required" .Values.backups.s3.bucket }}','${DEST_PREFIX}', '${AWS_ACCESS_KEY_ID}', '${AWS_SECRET_ACCESS_KEY}', '', 'region={{ .Values.backups.s3.region }}')"
-                  clickhouse-client --host {{ .Values.backups.clickhouse.host }} --port {{ .Values.backups.clickhouse.port }} --user {{ .Values.backups.clickhouse.user }} --password "${CLICKHOUSE_PASSWORD}" --query "$QUERY"
-                  echo "Backup requested; verify on S3 s3://{{ .Values.backups.s3.bucket }}/${DEST_PREFIX}"
-{{- end }}
+          - name: backup-clickhouse
+            image: {{ .Values.backups.clickhouse.image | quote }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Starting ClickHouse backup..."
+              
+              # Install required packages
+              apt-get update && apt-get install -y \
+                python3 \
+                python3-pip \
+                curl \
+                && rm -rf /var/lib/apt/lists/*
+              
+              # Install Python dependencies
+              pip3 install boto3 clickhouse-driver
+              
+              # Create backup configuration
+              cat > /tmp/backup-config.json << EOF
+              {
+                "s3": {
+                  "bucket": "{{ .Values.backups.s3.bucket }}",
+                  "region": "{{ .Values.backups.s3.region }}",
+                  "endpoint_url": {{ if .Values.backups.s3.endpointUrl }}"{{ .Values.backups.s3.endpointUrl }}"{{ else }}null{{ end }}
+                },
+                "clickhouse": {
+                  "host": "{{ .Values.backups.clickhouse.host }}",
+                  "port": {{ .Values.backups.clickhouse.port }},
+                  "database": "{{ .Values.backups.clickhouse.database }}",
+                  "user": "{{ .Values.backups.clickhouse.user }}",
+                  "password": "$CLICKHOUSE_PASSWORD"
+                },
+                "retention": {
+                  "days": {{ .Values.backups.retention.days }},
+                  "compliance_days": {{ .Values.backups.retention.complianceDays }}
+                }
+              }
+              EOF
+              
+              # Set AWS credentials for S3
+              export AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID"
+              export AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY"
+              {{- if .Values.backups.s3.endpointUrl }}
+              export AWS_DEFAULT_REGION="{{ .Values.backups.s3.region }}"
+              {{- end }}
+              
+              # Run backup
+              python3 /scripts/backup-databases.py \
+                --config /tmp/backup-config.json \
+                --database clickhouse
+              
+              echo "ClickHouse backup completed successfully"
+            env:
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.clickhouse.secretName }}
+                  key: password
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: access_key_id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backups.s3.secretName }}
+                  key: secret_access_key
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: /scripts
+            resources:
+              {{- toYaml .Values.backups.clickhouse.resources | nindent 14 }}
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+          {{- with .Values.backups.clickhouse.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.clickhouse.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backups.clickhouse.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
