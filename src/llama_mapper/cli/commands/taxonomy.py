@@ -34,7 +34,9 @@ def register(main: click.Group) -> None:
         type=click.Path(exists=True),
         help="Path to new taxonomy.yaml",
     )
-    @click.option("--output", "-o", type=click.Path(), help="Path to write migration plan JSON")
+    @click.option(
+        "--output", "-o", type=click.Path(), help="Path to write migration plan JSON"
+    )
     def taxonomy_migrate_plan(
         from_taxonomy: str, to_taxonomy: str, output: Optional[str]
     ) -> None:
@@ -107,7 +109,11 @@ def register(main: click.Group) -> None:
         for yaml_file in yaml_files:
             with open(yaml_file, "r", encoding="utf-8") as file:
                 contents = yaml.safe_load(file)
-            if not isinstance(contents, dict) or "detector" not in contents or "maps" not in contents:
+            if (
+                not isinstance(contents, dict)
+                or "detector" not in contents
+                or "maps" not in contents
+            ):
                 continue
             detector_maps[contents["detector"]] = contents["maps"]
 

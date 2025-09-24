@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
-import asyncio
 from pathlib import Path
 
 import pytest
@@ -18,8 +18,8 @@ def _ensure_orchestrator_on_path() -> None:
 
 _ensure_orchestrator_on_path()
 
-from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
 import detector_orchestration.clients as clients_mod  # type: ignore  # noqa: E402
+from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
 
 
 @pytest.mark.integration

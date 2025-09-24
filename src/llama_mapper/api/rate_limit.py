@@ -24,7 +24,12 @@ from starlette.types import ASGIApp
 
 from ..config.manager import ConfigManager
 from ..monitoring.metrics_collector import MetricsCollector
-from .rate_limit_base import AllowResult, IdentityKind, RateLimiterBackend, RateLimitRequest
+from .rate_limit_base import (
+    AllowResult,
+    IdentityKind,
+    RateLimiterBackend,
+    RateLimitRequest,
+)
 
 # Optional Redis import
 try:
@@ -47,15 +52,15 @@ class _RateLimitHeadersConfig:
     emit_legacy: bool
 
 
-
-
 @dataclass
 class _RateLimitResponseData:
     """Data object for rate limit response information."""
+
     limit: int
     remaining: int
     reset_seconds: float
     window: int
+
 
 class MemoryRateLimiterBackend(RateLimiterBackend):
     """In-memory token bucket rate limiter backend.
@@ -90,7 +95,7 @@ class MemoryRateLimiterBackend(RateLimiterBackend):
                     tokens=float(request.limit),
                     last_refill=now,
                     limit=request.limit,
-                    window=request.window
+                    window=request.window,
                 )
                 self._buckets[key] = state
 
@@ -203,7 +208,9 @@ def _emit_headers(
 ) -> None:
     reset_int = int(math.ceil(max(0.0, response_data.reset_seconds)))
     if headers_config.emit_standard:
-        response.headers["RateLimit-Limit"] = f"{response_data.limit};w={response_data.window}"
+        response.headers["RateLimit-Limit"] = (
+            f"{response_data.limit};w={response_data.window}"
+        )
         response.headers["RateLimit-Remaining"] = str(max(0, response_data.remaining))
         response.headers["RateLimit-Reset"] = str(reset_int)
         if response_data.remaining <= 0:
@@ -260,7 +267,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     try:
                         self.metrics.redis_backend_up.labels(  # type: ignore[attr-defined]
                             component="rate_limit"
-                        ).set(1)
+                        ).set(
+                            1
+                        )
                     except AttributeError:
                         self.metrics.set_gauge("redis_rate_limit_up", 1)
                 else:
@@ -268,7 +277,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     try:
                         self.metrics.redis_backend_up.labels(  # type: ignore[attr-defined]
                             component="rate_limit"
-                        ).set(0)
+                        ).set(
+                            0
+                        )
                         self.metrics.redis_backend_fallback_total.labels(  # type: ignore[attr-defined]
                             component="rate_limit"
                         ).inc()
@@ -342,8 +353,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             },
         )
         response_data = _RateLimitResponseData(
-            limit=result.limit, remaining=result.remaining,
-            reset_seconds=result.reset_seconds, window=window
+            limit=result.limit,
+            remaining=result.remaining,
+            reset_seconds=result.reset_seconds,
+            window=window,
         )
         _emit_headers(response, response_data, headers_config)
         return response
@@ -393,7 +406,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             },
         )
         response_data = _RateLimitResponseData(
-            limit=result.limit, remaining=0, reset_seconds=result.reset_seconds, window=window
+            limit=result.limit,
+            remaining=0,
+            reset_seconds=result.reset_seconds,
+            window=window,
         )
         _emit_headers(block_response, response_data, headers_config)
         return block_response

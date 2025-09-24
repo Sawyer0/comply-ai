@@ -7,6 +7,4 @@ including threshold breaches, anomalies, and trends.
 
 from .degradation_detector import QualityDegradationDetector
 
-__all__ = [
-    "QualityDegradationDetector"
-]
+__all__ = ["QualityDegradationDetector"]

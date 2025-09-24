@@ -22,7 +22,7 @@ from ..config.settings import AnalysisConfig
 def get_analysis_config() -> AnalysisConfig:
     """
     Get analysis configuration (cached).
-    
+
     Returns:
         Analysis configuration instance
     """
@@ -33,7 +33,7 @@ def get_analysis_config() -> AnalysisConfig:
 def get_analysis_factory() -> AnalysisModuleFactory:
     """
     Get analysis module factory (cached).
-    
+
     Returns:
         Analysis module factory instance
     """
@@ -44,7 +44,7 @@ def get_analysis_factory() -> AnalysisModuleFactory:
 def get_analysis_service() -> AnalysisApplicationService:
     """
     Get analysis application service.
-    
+
     Returns:
         Analysis application service instance
     """
@@ -55,7 +55,7 @@ def get_analysis_service() -> AnalysisApplicationService:
 def get_batch_analysis_service() -> BatchAnalysisApplicationService:
     """
     Get batch analysis application service.
-    
+
     Returns:
         Batch analysis application service instance
     """
@@ -64,5 +64,9 @@ def get_batch_analysis_service() -> BatchAnalysisApplicationService:
 
 
 # Type aliases for dependency injection
-AnalysisServiceDep = Annotated[AnalysisApplicationService, Depends(get_analysis_service)]
-BatchAnalysisServiceDep = Annotated[BatchAnalysisApplicationService, Depends(get_batch_analysis_service)]
+AnalysisServiceDep = Annotated[
+    AnalysisApplicationService, Depends(get_analysis_service)
+]
+BatchAnalysisServiceDep = Annotated[
+    BatchAnalysisApplicationService, Depends(get_batch_analysis_service)
+]

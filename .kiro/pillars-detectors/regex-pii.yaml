@@ -1,7 +1,8 @@
 detector: regex-pii
-version: "v1"
-notes: "Regex/rule-based PII detections."
+version: "v2"
+notes: "Enhanced regex/rule-based PII detections with comprehensive patterns."
 maps:
+  # Core PII identifiers
   ssn: PII.Identifier.SSN
   credit_card: PII.Identifier.CreditCard
   bank_account: PII.Identifier.BankAccount
@@ -10,3 +11,35 @@ maps:
   phone: PII.Contact.Phone
   address: PII.Contact.Address
   health_id: PII.Health.HIPAA
+  
+  # Common variations and aliases
+  social_security: PII.Identifier.SSN
+  social_security_number: PII.Identifier.SSN
+  cc_number: PII.Identifier.CreditCard
+  credit_card_number: PII.Identifier.CreditCard
+  account_number: PII.Identifier.BankAccount
+  routing_number: PII.Identifier.BankAccount
+  passport_number: PII.Identifier.Passport
+  email_address: PII.Contact.Email
+  phone_number: PII.Contact.Phone
+  telephone: PII.Contact.Phone
+  street_address: PII.Contact.Address
+  home_address: PII.Contact.Address
+  
+  # Specific PII types
+  driver_license: PII.Identifier.Other
+  license_plate: PII.Identifier.Other
+  ip_address: PII.Identifier.Other
+  mac_address: PII.Identifier.Other
+  
+  # Health-related
+  medical_record: PII.Health.HIPAA
+  patient_id: PII.Health.HIPAA
+  insurance_id: PII.Health.HIPAA
+  
+  # Person information
+  full_name: PII.Person.Name
+  first_name: PII.Person.Name
+  last_name: PII.Person.Name
+  date_of_birth: PII.Person.DateOfBirth
+  age: PII.Person.Age

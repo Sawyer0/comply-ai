@@ -1,0 +1,41 @@
+detector: azure-content-safety
+version: "v1"
+notes: "Mapping for Microsoft Azure Content Safety API outputs."
+maps:
+  # Hate category with severity levels
+  Hate: HARM.SPEECH.Hate.Other
+  hate: HARM.SPEECH.Hate.Other
+  hate_0: HARM.SPEECH.Hate.Other
+  hate_2: HARM.SPEECH.Hate.Other
+  hate_4: HARM.SPEECH.Hate.Other
+  hate_6: HARM.SPEECH.Hate.Other
+  
+  # Self-harm category
+  SelfHarm: HARM.VIOLENCE.SelfHarm
+  self_harm: HARM.VIOLENCE.SelfHarm
+  self_harm_0: HARM.VIOLENCE.SelfHarm
+  self_harm_2: HARM.VIOLENCE.SelfHarm
+  self_harm_4: HARM.VIOLENCE.SelfHarm
+  self_harm_6: HARM.VIOLENCE.SelfHarm
+  
+  # Sexual content
+  Sexual: HARM.VIOLENCE.Sexual
+  sexual: HARM.VIOLENCE.Sexual
+  sexual_0: HARM.VIOLENCE.Sexual
+  sexual_2: HARM.VIOLENCE.Sexual
+  sexual_4: HARM.VIOLENCE.Sexual
+  sexual_6: HARM.VIOLENCE.Sexual
+  
+  # Violence category
+  Violence: HARM.VIOLENCE.Physical
+  violence: HARM.VIOLENCE.Physical
+  violence_0: HARM.VIOLENCE.Physical
+  violence_2: HARM.VIOLENCE.Physical
+  violence_4: HARM.VIOLENCE.Physical
+  violence_6: HARM.VIOLENCE.Physical
+  
+  # Azure-specific categories
+  Harassment: HARM.SPEECH.Insult
+  harassment: HARM.SPEECH.Insult
+  Profanity: HARM.SPEECH.Obscenity
+  profanity: HARM.SPEECH.Obscenity

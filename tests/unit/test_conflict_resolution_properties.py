@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import random
 import sys
 from pathlib import Path
-import random
 from typing import Optional
 
 import pytest
@@ -22,9 +22,9 @@ from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
     ConflictResolver,
 )
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
     DetectorResult,
     DetectorStatus,
-    ContentType,
 )
 
 

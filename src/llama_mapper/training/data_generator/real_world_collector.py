@@ -8,6 +8,7 @@ import random
 from typing import Any, Dict, List, Optional, Tuple
 
 from llama_mapper.data.taxonomy import Taxonomy, TaxonomyLoader
+
 from .models import MapperCanonicalEvent, TrainingExample
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,9 @@ class RealWorldDataCollector:
         if not self._taxonomy:
             self._taxonomy = self.taxonomy_loader.load_taxonomy()
 
-    def generate_sec_enforcement_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_sec_enforcement_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate examples from real SEC enforcement actions."""
         if not self._taxonomy:
             self.load_taxonomy()
@@ -50,7 +53,7 @@ class RealWorldDataCollector:
         for _ in range(num_examples):
             case = random.choice(sec_cases)
             confidence = random.uniform(*self.confidence_range)
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=[case["canonical_label"]],
                 scores={case["canonical_label"]: confidence},
@@ -86,7 +89,9 @@ class RealWorldDataCollector:
         logger.info("Generated %s SEC enforcement examples", len(examples))
         return examples
 
-    def generate_gdpr_violation_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_gdpr_violation_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate examples from real GDPR violations and fines."""
         if not self._taxonomy:
             self.load_taxonomy()
@@ -100,7 +105,7 @@ class RealWorldDataCollector:
         for _ in range(num_examples):
             case = random.choice(gdpr_cases)
             confidence = random.uniform(*self.confidence_range)
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=[case["canonical_label"]],
                 scores={case["canonical_label"]: confidence},
@@ -137,7 +142,9 @@ class RealWorldDataCollector:
         logger.info("Generated %s GDPR violation examples", len(examples))
         return examples
 
-    def generate_hipaa_breach_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_hipaa_breach_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate examples from real HIPAA breach reports."""
         if not self._taxonomy:
             self.load_taxonomy()
@@ -151,7 +158,7 @@ class RealWorldDataCollector:
         for _ in range(num_examples):
             case = random.choice(hipaa_cases)
             confidence = random.uniform(*self.confidence_range)
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=[case["canonical_label"]],
                 scores={case["canonical_label"]: confidence},
@@ -188,7 +195,9 @@ class RealWorldDataCollector:
         logger.info("Generated %s HIPAA breach examples", len(examples))
         return examples
 
-    def generate_industry_specific_examples(self, industry: str, num_examples: int = 50) -> List[TrainingExample]:
+    def generate_industry_specific_examples(
+        self, industry: str, num_examples: int = 50
+    ) -> List[TrainingExample]:
         """Generate industry-specific compliance examples."""
         if not self._taxonomy:
             self.load_taxonomy()
@@ -206,7 +215,7 @@ class RealWorldDataCollector:
         for _ in range(num_examples):
             case = random.choice(industry_cases)
             confidence = random.uniform(*self.confidence_range)
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=[case["canonical_label"]],
                 scores={case["canonical_label"]: confidence},
@@ -242,7 +251,9 @@ class RealWorldDataCollector:
         logger.info("Generated %s %s industry examples", len(examples), industry)
         return examples
 
-    def generate_edge_case_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_edge_case_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate complex edge cases and multi-category violations."""
         if not self._taxonomy:
             self.load_taxonomy()
@@ -256,7 +267,7 @@ class RealWorldDataCollector:
         for _ in range(num_examples):
             case = random.choice(edge_cases)
             confidence = random.uniform(0.6, 0.8)  # Lower confidence for edge cases
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=case["canonical_labels"],
                 scores={label: confidence for label in case["canonical_labels"]},
@@ -328,7 +339,9 @@ class RealWorldDataCollector:
             industries = ["financial", "healthcare", "technology", "retail"]
             for industry in industries:
                 all_examples.extend(
-                    self.generate_industry_specific_examples(industry, target_examples_per_category // 4)
+                    self.generate_industry_specific_examples(
+                        industry, target_examples_per_category // 4
+                    )
                 )
 
         if include_edge_cases:
@@ -355,7 +368,7 @@ class RealWorldDataCollector:
                     "fine_amount": 1000000,
                 },
                 {
-                    "case_id": "SEC-2023-002", 
+                    "case_id": "SEC-2023-002",
                     "case_summary": "Company failed to disclose material cybersecurity incident",
                     "detector": "sec-compliance-audit",
                     "detector_label": "disclosure_violation",
@@ -366,7 +379,7 @@ class RealWorldDataCollector:
                 {
                     "case_id": "SEC-2023-003",
                     "case_summary": "Market manipulation through social media",
-                    "detector": "sec-compliance-audit", 
+                    "detector": "sec-compliance-audit",
                     "detector_label": "market_manipulation",
                     "canonical_label": "COMPLIANCE.SEC.MarketManipulation.Rule10b5",
                     "violation_type": "market_manipulation",
@@ -493,7 +506,7 @@ class RealWorldDataCollector:
                     "detector_label": "cross_border_breach",
                     "canonical_labels": [
                         "COMPLIANCE.GDPR.DataBreach.Article33",
-                        "COMPLIANCE.CCPA.DataBreach.Section1798.150"
+                        "COMPLIANCE.CCPA.DataBreach.Section1798.150",
                     ],
                     "complexity_level": "high",
                 },
@@ -504,7 +517,7 @@ class RealWorldDataCollector:
                     "detector_label": "ai_bias_violation",
                     "canonical_labels": [
                         "COMPLIANCE.AI.Bias.Discrimination",
-                        "COMPLIANCE.EEOC.UnfairEmployment.Practice"
+                        "COMPLIANCE.EEOC.UnfairEmployment.Practice",
                     ],
                     "complexity_level": "high",
                 },
@@ -516,7 +529,7 @@ class RealWorldDataCollector:
                     "canonical_labels": [
                         "COMPLIANCE.SEC.Cryptocurrency.Securities",
                         "COMPLIANCE.FINRA.Cryptocurrency.Supervision",
-                        "COMPLIANCE.CFTC.Cryptocurrency.Derivatives"
+                        "COMPLIANCE.CFTC.Cryptocurrency.Derivatives",
                     ],
                     "complexity_level": "high",
                 },
@@ -607,9 +620,7 @@ class RealWorldDataCollector:
             stats["regulatory_bodies"][regulatory_body] = (
                 stats["regulatory_bodies"].get(regulatory_body, 0) + 1
             )
-            stats["industries"][industry] = (
-                stats["industries"].get(industry, 0) + 1
-            )
+            stats["industries"][industry] = stats["industries"].get(industry, 0) + 1
 
             if fine_amount > 0:
                 fine_amounts.append(fine_amount)

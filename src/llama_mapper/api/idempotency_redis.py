@@ -5,6 +5,7 @@ Falls back to a no-op (in-memory) approach if redis-py is not available or
 configuration is incomplete. This cache stores serialized Pydantic payloads
 under a configured key prefix with TTL semantics.
 """
+
 # pylint: disable=import-outside-toplevel
 
 from __future__ import annotations
@@ -73,7 +74,12 @@ class RedisIdempotencyCache:
             except (ConnectionError, TimeoutError, OSError):
                 pass
             return True
-        except (ImportError, ConnectionError, TimeoutError, OSError) as e:  # noqa: BLE001
+        except (
+            ImportError,
+            ConnectionError,
+            TimeoutError,
+            OSError,
+        ) as e:  # noqa: BLE001
             self._available = False
             logger.warning(
                 "RedisIdempotencyCache unavailable, falling back to in-memory: %s", e

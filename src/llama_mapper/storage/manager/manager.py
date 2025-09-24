@@ -6,7 +6,8 @@ from typing import Any, Optional
 
 import structlog
 
-from ...config.settings import Settings as GlobalSettings, StorageConfig
+from ...config.settings import Settings as GlobalSettings
+from ...config.settings import StorageConfig
 from ..privacy_logger import PrivacyLogger
 from ..tenant_isolation import TenantIsolationManager
 from .database import StorageDatabaseMixin

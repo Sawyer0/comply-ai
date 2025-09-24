@@ -1,0 +1,144 @@
+# Fine-Tuning Preparation Configuration
+# Night-before checklist for model fine-tuning
+
+# 1. Tokenizer & Chat Template Configuration
+tokenizer_config:
+  mapper:
+    model_name: "meta-llama/Llama-3-8B-Instruct"
+    tokenizer_name: "meta-llama/Llama-3-8B-Instruct"
+    chat_template: "llama-3-instruct"  # Use model's native template
+    pad_token: "<|pad|>"
+    eos_token: "<|eot_id|>"
+    requires_auth: true  # Llama-3 requires HuggingFace auth
+    alternative_model: "microsoft/DialoGPT-medium"  # Fallback for testing
+    
+  analyst:
+    model_name: "microsoft/Phi-3-mini-4k-instruct"
+    tokenizer_name: "microsoft/Phi-3-mini-4k-instruct"
+    chat_template: "phi-3-instruct"  # Use model's native template
+    pad_token: "<|end|>"
+    eos_token: "<|end|>"
+
+# 2. Sequence Length Configuration (95th percentile analysis)
+sequence_lengths:
+  mapper:
+    max_sequence_length: 768  # 512-768 tokens for classifier/normalizer
+    target_95th_percentile: 512
+    drop_outliers_above: 1024
+    
+  analyst:
+    max_sequence_length: 1024  # 768-1024 tokens for structured reasoning
+    target_95th_percentile: 768
+    drop_outliers_above: 1536
+
+# 3. Packing & Tokens-per-Update Budget
+packing_config:
+  mapper:
+    target_tokens_per_step: 48000  # 32k-64k tokens/step for Llama-3-8B
+    batch_size: 4
+    gradient_accumulation: 8
+    effective_batch_size: 32
+    packing_strategy: "length_bucketing"  # Group by similar lengths
+    
+  analyst:
+    target_tokens_per_step: 24000  # 16k-32k tokens/step for Phi-3 Mini
+    batch_size: 8
+    gradient_accumulation: 4
+    effective_batch_size: 32
+    packing_strategy: "length_bucketing"
+
+# 4. Output Token Caps (Inference)
+output_limits:
+  mapper:
+    max_new_tokens: 64  # Tiny JSON output
+    min_new_tokens: 8
+    retry_on_schema_fail: true
+    max_retries: 1
+    
+  analyst:
+    max_new_tokens: 256  # Concise reasoning + remediation
+    min_new_tokens: 32
+    retry_on_schema_fail: true
+    max_retries: 1
+
+# 5. API Input Token Guardrails
+api_guardrails:
+  mapper:
+    max_input_tokens: 1024
+    fallback_on_exceed: "rules_based"
+    log_token_counts: true
+    
+  analyst:
+    max_input_tokens: 2048
+    fallback_on_exceed: "chunked_analysis"
+    log_token_counts: true
+
+# 6. Evaluation Parity Requirements
+evaluation_config:
+  gold_sets:
+    mapper_gold: "tests/golden_test_cases_mapper.json"
+    analyst_gold: "tests/golden_test_cases_analyst.json"
+    tokenization_consistency: true
+    re_tokenize_on_template_change: true
+    
+  validation:
+    same_tokenizer_as_training: true
+    same_chat_template_as_training: true
+    metrics_comparability: true
+
+# 7. Throughput & Cost Planning
+performance_targets:
+  mapper:
+    target_latency_p95: 200  # ms
+    target_throughput: 1000  # requests/second
+    max_memory_per_replica: "16GB"
+    
+  analyst:
+    target_latency_p95: 500  # ms
+    target_throughput: 500   # requests/second
+    max_memory_per_replica: "8GB"
+
+# 8. Training Data Analysis
+data_analysis:
+  token_length_analysis:
+    enabled: true
+    output_dir: "analysis/token_lengths"
+    generate_histograms: true
+    percentile_analysis: [50, 75, 90, 95, 99]
+    
+  outlier_handling:
+    drop_above_percentile: 99
+    chunk_long_sequences: true
+    max_chunk_size: 512
+
+# 9. Monitoring & Logging
+monitoring:
+  token_usage_logging:
+    enabled: true
+    log_input_tokens: true
+    log_output_tokens: true
+    log_token_distribution: true
+    exclude_content: true  # Log counts only, not content
+    
+  performance_metrics:
+    track_sequence_lengths: true
+    track_packing_efficiency: true
+    track_memory_usage: true
+    track_training_speed: true
+
+# 10. Pre-Training Validation
+validation_checks:
+  tokenizer_consistency:
+    verify_model_tokenizer_match: true
+    verify_chat_template: true
+    test_tokenization_roundtrip: true
+    
+  data_preparation:
+    verify_sequence_lengths: true
+    verify_no_truncation: true
+    verify_packing_efficiency: true
+    
+  configuration:
+    verify_tokens_per_step: true
+    verify_memory_requirements: true
+    verify_gpu_compatibility: true

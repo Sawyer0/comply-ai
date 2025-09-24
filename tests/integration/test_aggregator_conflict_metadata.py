@@ -18,14 +18,16 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
+from detector_orchestration.coordinator import (  # type: ignore  # noqa: E402
+    DetectorCoordinator,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
-    RoutingPlan,
-    RoutingDecision,
     DetectorResult,
     DetectorStatus,
+    RoutingDecision,
+    RoutingPlan,
 )
 from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
-from detector_orchestration.coordinator import DetectorCoordinator  # type: ignore  # noqa: E402
 
 
 @pytest.mark.integration
@@ -55,7 +57,12 @@ def test_aggregated_payload_contains_conflict_metadata(monkeypatch):
     # Simulate detector results loaded from fixtures (tie scenario)
     async def _fake_exec(self, detectors, content, plan, meta):  # type: ignore[override]
         from typing import List
-        from detector_orchestration.models import DetectorResult, DetectorStatus  # type: ignore
+
+        from detector_orchestration.models import (  # type: ignore
+            DetectorResult,
+            DetectorStatus,
+        )
+
         # Import conflict_scenarios from pytest fixtures via global namespace
         try:
             import builtins  # noqa: F401
@@ -64,11 +71,26 @@ def test_aggregated_payload_contains_conflict_metadata(monkeypatch):
         # Load fixture file directly
         import json
         from pathlib import Path
-        scenarios = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "conflict_scenarios.json").read_text(encoding="utf-8"))
+
+        scenarios = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / "fixtures"
+                / "conflict_scenarios.json"
+            ).read_text(encoding="utf-8")
+        )
         tie = scenarios["tie"]
         out: List[DetectorResult] = []
         for idx, d in enumerate(tie["detectors"][:2]):
-            out.append(DetectorResult(detector=detectors[idx], status=DetectorStatus.SUCCESS, output=d["output"], confidence=d["confidence"], processing_time_ms=10 + idx))
+            out.append(
+                DetectorResult(
+                    detector=detectors[idx],
+                    status=DetectorStatus.SUCCESS,
+                    output=d["output"],
+                    confidence=d["confidence"],
+                    processing_time_ms=10 + idx,
+                )
+            )
         return out
 
     monkeypatch.setattr(ContentRouter, "route_request", _fake_route_request)

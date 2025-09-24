@@ -205,7 +205,7 @@ class DetectorConfigLoader:
         if not config_path.exists():
             raise FileNotFoundError(f"Detector config file not found: {config_path}")
 
-        logger.debug(f"Loading detector config from: {config_path}")
+        logger.debug("Loading detector config from: %s", config_path)
 
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -227,7 +227,7 @@ class DetectorConfigLoader:
                 last_modified=config_path.stat().st_mtime,
             )
 
-            logger.debug(f"Successfully loaded detector config: {mapping}")
+            logger.debug("Successfully loaded detector config: %s", mapping)
             return mapping
 
         except yaml.YAMLError as e:
@@ -273,7 +273,7 @@ class DetectorConfigLoader:
             logger.debug("Detector configs already loaded and up-to-date")
             return self._detector_mappings
 
-        logger.info(f"Loading detector configs from: {self.detectors_path}")
+        logger.info("Loading detector configs from: %s", self.detectors_path)
 
         detector_mappings: Dict[str, DetectorMapping] = {}
         yaml_files = list(self.detectors_path.glob("*.yaml"))
@@ -283,22 +283,22 @@ class DetectorConfigLoader:
         yaml_files = [f for f in yaml_files if f.name not in excluded_files]
 
         if not yaml_files:
-            logger.warning(f"No detector YAML files found in {self.detectors_path}")
+            logger.warning("No detector YAML files found in %s", self.detectors_path)
             return detector_mappings
 
         for yaml_file in yaml_files:
             try:
                 mapping = self.load_detector_config(yaml_file)
                 detector_mappings[mapping.detector] = mapping
-                logger.debug(f"Loaded detector: {mapping.detector}")
+                logger.debug("Loaded detector: %s", mapping.detector)
             except Exception as e:
-                logger.error(f"Failed to load detector config {yaml_file}: {e}")
+                logger.error("Failed to load detector config %s: %s", yaml_file, e)
                 # Continue loading other configs
 
         self._detector_mappings = detector_mappings
         self._last_scan_time = current_scan_time
 
-        logger.info(f"Successfully loaded {len(detector_mappings)} detector configs")
+        logger.info("Successfully loaded %s detector configs", len(detector_mappings))
         return detector_mappings
 
     def get_detector_mapping(self, detector_name: str) -> Optional[DetectorMapping]:

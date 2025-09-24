@@ -7,9 +7,8 @@ import json
 from datetime import datetime
 from typing import Any, Optional
 
-from .models import StorageBackend, StorageRecord
 from ..tenant_isolation import TenantContext
-
+from .models import StorageBackend, StorageRecord
 
 POSTGRES_INSERT_SQL = """
     INSERT INTO storage_records (
@@ -329,14 +328,28 @@ class StorageDatabaseMixin:
                 CREATE TABLE IF NOT EXISTS storage_records (
                     id VARCHAR(255) PRIMARY KEY,
                     source_data TEXT NOT NULL,
+                    source_data_hash VARCHAR(64),
                     mapped_data TEXT NOT NULL,
                     model_version VARCHAR(100) NOT NULL,
+                    detector_type VARCHAR(50),
+                    confidence_score DECIMAL(5,4),
                     timestamp TIMESTAMP NOT NULL,
                     metadata JSONB,
                     tenant_id VARCHAR(100) NOT NULL,
                     s3_key VARCHAR(500),
                     encrypted BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    correlation_id UUID,
+                    azure_region VARCHAR(50) DEFAULT 'eastus',
+                    backup_status VARCHAR(20) DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    
+                    CONSTRAINT valid_confidence 
+                    CHECK (confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1)),
+                    CONSTRAINT valid_backup_status 
+                    CHECK (backup_status IN ('pending', 'completed', 'failed')),
+                    CONSTRAINT valid_tenant_id 
+                    CHECK (length(tenant_id) > 0)
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_storage_records_timestamp
@@ -347,10 +360,126 @@ class StorageDatabaseMixin:
 
                 CREATE INDEX IF NOT EXISTS idx_storage_records_tenant_id
                 ON storage_records(tenant_id);
+                
+                CREATE INDEX IF NOT EXISTS idx_storage_records_detector_confidence 
+                ON storage_records (detector_type, confidence_score DESC) 
+                WHERE confidence_score IS NOT NULL;
+                
+                CREATE INDEX IF NOT EXISTS idx_storage_records_correlation 
+                ON storage_records (correlation_id) 
+                WHERE correlation_id IS NOT NULL;
+                
+                CREATE INDEX IF NOT EXISTS idx_storage_records_azure_region 
+                ON storage_records (azure_region, timestamp DESC);
+
+                -- Audit trail table
+                CREATE TABLE IF NOT EXISTS audit_trail (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    tenant_id VARCHAR(100) NOT NULL,
+                    table_name VARCHAR(100) NOT NULL,
+                    record_id VARCHAR(255) NOT NULL,
+                    operation VARCHAR(20) NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE', 'SELECT')),
+                    user_id VARCHAR(100),
+                    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    old_values JSONB,
+                    new_values JSONB,
+                    correlation_id UUID,
+                    ip_address INET,
+                    user_agent TEXT,
+                    
+                    CONSTRAINT valid_operation CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE', 'SELECT')),
+                    CONSTRAINT valid_audit_tenant_id CHECK (length(tenant_id) > 0)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_audit_trail_tenant_timestamp 
+                ON audit_trail (tenant_id, timestamp DESC);
+                
+                CREATE INDEX IF NOT EXISTS idx_audit_trail_record_operation 
+                ON audit_trail (record_id, operation, timestamp DESC);
+
+                -- Tenant configuration table
+                CREATE TABLE IF NOT EXISTS tenant_configs (
+                    tenant_id VARCHAR(100) PRIMARY KEY,
+                    confidence_threshold DECIMAL(5,4) DEFAULT 0.6,
+                    detector_whitelist TEXT[],
+                    detector_blacklist TEXT[],
+                    storage_retention_days INTEGER DEFAULT 90,
+                    encryption_enabled BOOLEAN DEFAULT TRUE,
+                    audit_level VARCHAR(20) DEFAULT 'standard' CHECK (audit_level IN ('minimal', 'standard', 'verbose')),
+                    custom_taxonomy_mappings JSONB DEFAULT '{}',
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    
+                    CONSTRAINT valid_confidence_threshold 
+                    CHECK (confidence_threshold >= 0 AND confidence_threshold <= 1),
+                    CONSTRAINT valid_retention_days 
+                    CHECK (storage_retention_days > 0),
+                    CONSTRAINT valid_config_tenant_id 
+                    CHECK (length(tenant_id) > 0)
+                );
+
+                -- Model metrics table
+                CREATE TABLE IF NOT EXISTS model_metrics (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    model_version VARCHAR(100) NOT NULL,
+                    tenant_id VARCHAR(100) NOT NULL,
+                    metric_type VARCHAR(50) NOT NULL,
+                    metric_value DECIMAL(10,6) NOT NULL,
+                    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    metadata JSONB DEFAULT '{}',
+                    
+                    CONSTRAINT valid_metrics_tenant_id CHECK (length(tenant_id) > 0),
+                    CONSTRAINT valid_model_version CHECK (length(model_version) > 0)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_model_metrics_version_type 
+                ON model_metrics (model_version, metric_type, timestamp DESC);
+
+                -- Detector execution table
+                CREATE TABLE IF NOT EXISTS detector_executions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    tenant_id VARCHAR(100) NOT NULL,
+                    detector_type VARCHAR(50) NOT NULL,
+                    execution_time_ms INTEGER NOT NULL,
+                    confidence_score DECIMAL(5,4),
+                    success BOOLEAN NOT NULL,
+                    error_message TEXT,
+                    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    correlation_id UUID,
+                    
+                    CONSTRAINT valid_exec_tenant_id CHECK (length(tenant_id) > 0),
+                    CONSTRAINT valid_detector_type CHECK (length(detector_type) > 0),
+                    CONSTRAINT valid_execution_time CHECK (execution_time_ms >= 0),
+                    CONSTRAINT valid_exec_confidence 
+                    CHECK (confidence_score IS NULL OR (confidence_score >= 0 AND confidence_score <= 1))
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_detector_executions_performance 
+                ON detector_executions (detector_type, timestamp DESC, execution_time_ms);
 
                 ALTER TABLE storage_records ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE audit_trail ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE tenant_configs ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE model_metrics ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE detector_executions ENABLE ROW LEVEL SECURITY;
 
                 CREATE POLICY IF NOT EXISTS tenant_isolation_policy ON storage_records
+                    FOR ALL
+                    USING (tenant_id = current_setting('app.current_tenant_id', true));
+                    
+                CREATE POLICY IF NOT EXISTS tenant_isolation_audit ON audit_trail
+                    FOR ALL
+                    USING (tenant_id = current_setting('app.current_tenant_id', true));
+                    
+                CREATE POLICY IF NOT EXISTS tenant_isolation_configs ON tenant_configs
+                    FOR ALL
+                    USING (tenant_id = current_setting('app.current_tenant_id', true));
+                    
+                CREATE POLICY IF NOT EXISTS tenant_isolation_metrics ON model_metrics
+                    FOR ALL
+                    USING (tenant_id = current_setting('app.current_tenant_id', true));
+                    
+                CREATE POLICY IF NOT EXISTS tenant_isolation_executions ON detector_executions
                     FOR ALL
                     USING (tenant_id = current_setting('app.current_tenant_id', true));
             """

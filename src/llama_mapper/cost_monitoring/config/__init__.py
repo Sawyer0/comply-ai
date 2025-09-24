@@ -1,8 +1,8 @@
 """Configuration management for cost monitoring."""
 
 from .cost_config import (
-    CostMonitoringSystemConfig,
     CostMonitoringFactory,
+    CostMonitoringSystemConfig,
 )
 
 __all__ = [

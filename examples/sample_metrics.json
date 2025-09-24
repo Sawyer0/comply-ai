@@ -1,51 +1,38 @@
 {
-  "tenant_id": "example-tenant",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "detector_results": [
-    {
-      "detector_name": "security-scan",
-      "detector_version": "1.2.3",
-      "scan_type": "vulnerability",
-      "results": [
-        {
-          "finding_id": "CVE-2024-1234",
-          "severity": "high",
-          "category": "vulnerability",
-          "description": "SQL injection vulnerability in user authentication",
-          "affected_component": "auth-service",
-          "confidence": 0.95
-        },
-        {
-          "finding_id": "CVE-2024-5678",
-          "severity": "medium",
-          "category": "vulnerability", 
-          "description": "Cross-site scripting in user input validation",
-          "affected_component": "web-frontend",
-          "confidence": 0.87
-        }
-      ]
+  "request": {
+    "period": "2024-01-15T10:30:00Z/2024-01-15T11:30:00Z",
+    "tenant": "example-tenant",
+    "app": "demo-app",
+    "route": "/api/demo",
+    "required_detectors": ["toxicity", "regex-pii"],
+    "observed_coverage": {
+      "toxicity": 0.85,
+      "regex-pii": 0.92
     },
-    {
-      "detector_name": "compliance-checker",
-      "detector_version": "2.1.0",
-      "scan_type": "compliance",
-      "results": [
-        {
-          "finding_id": "SOC2-A1",
-          "severity": "medium",
-          "category": "compliance",
-          "description": "Missing access control logging",
-          "affected_component": "api-gateway",
-          "confidence": 0.92
-        }
-      ]
-    }
-  ],
-  "metadata": {
-    "scan_duration_seconds": 45,
-    "total_findings": 3,
-    "high_severity_count": 1,
-    "medium_severity_count": 2,
-    "low_severity_count": 0
+    "required_coverage": {
+      "toxicity": 0.95,
+      "regex-pii": 0.95
+    },
+    "detector_errors": {
+      "toxicity": {"5xx": 0, "timeout": 2}
+    },
+    "high_sev_hits": [
+      {
+        "detector": "toxicity",
+        "taxonomy": "HARM.SPEECH.Toxicity",
+        "count": 5,
+        "p95_score": 0.95
+      }
+    ],
+    "false_positive_bands": [
+      {
+        "detector": "toxicity",
+        "score_min": 0.6,
+        "score_max": 0.8,
+        "fp_rate": 0.15
+      }
+    ],
+    "policy_bundle": "demo-policy-1.0",
+    "env": "dev"
   }
 }

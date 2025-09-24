@@ -17,15 +17,21 @@ def _ensure_orchestrator_on_path() -> None:
 
 _ensure_orchestrator_on_path()
 
-from detector_orchestration.api.main import app, settings, metrics  # type: ignore  # noqa: E402
+from detector_orchestration.api.main import (  # type: ignore  # noqa: E402
+    app,
+    metrics,
+    settings,
+)
+from detector_orchestration.coordinator import (  # type: ignore  # noqa: E402
+    DetectorCoordinator,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
-    RoutingPlan,
-    RoutingDecision,
     DetectorResult,
     DetectorStatus,
+    RoutingDecision,
+    RoutingPlan,
 )
 from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
-from detector_orchestration.coordinator import DetectorCoordinator  # type: ignore  # noqa: E402
 
 
 class _MetricProbe:
@@ -34,13 +40,19 @@ class _MetricProbe:
         self.coverage_set = []
         self.request_calls = 0
 
-    def record_detector_latency(self, detector: str, success: bool, duration_ms: float) -> None:  # noqa: D401
+    def record_detector_latency(
+        self, detector: str, success: bool, duration_ms: float
+    ) -> None:  # noqa: D401
         self.detector_latency_calls += 1
 
-    def record_coverage(self, tenant: str, policy: str, coverage: float) -> None:  # noqa: D401
+    def record_coverage(
+        self, tenant: str, policy: str, coverage: float
+    ) -> None:  # noqa: D401
         self.coverage_set.append((tenant, policy, coverage))
 
-    def record_request(self, tenant: str, policy: str, status: str, duration_ms: float) -> None:  # noqa: D401
+    def record_request(
+        self, tenant: str, policy: str, status: str, duration_ms: float
+    ) -> None:  # noqa: D401
         self.request_calls += 1
 
 
@@ -72,18 +84,39 @@ def test_metrics_and_structured_metadata(monkeypatch):
     async def _fake_exec(self, detectors, content, plan, meta):  # type: ignore[override]
         import json
         from pathlib import Path
-        scenarios = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "conflict_scenarios.json").read_text(encoding="utf-8"))
+
+        scenarios = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / "fixtures"
+                / "conflict_scenarios.json"
+            ).read_text(encoding="utf-8")
+        )
         tie = scenarios["tie"]
         return [
-            DetectorResult(detector=detectors[0], status=DetectorStatus.SUCCESS, output=tie["detectors"][0]["output"], confidence=tie["detectors"][0]["confidence"], processing_time_ms=12),
-            DetectorResult(detector=detectors[1], status=DetectorStatus.SUCCESS, output=tie["detectors"][1]["output"], confidence=tie["detectors"][1]["confidence"], processing_time_ms=10),
+            DetectorResult(
+                detector=detectors[0],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][0]["output"],
+                confidence=tie["detectors"][0]["confidence"],
+                processing_time_ms=12,
+            ),
+            DetectorResult(
+                detector=detectors[1],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][1]["output"],
+                confidence=tie["detectors"][1]["confidence"],
+                processing_time_ms=10,
+            ),
         ]
 
     probe = _MetricProbe()
     monkeypatch.setattr(ContentRouter, "route_request", _fake_route_request)
     monkeypatch.setattr(DetectorCoordinator, "execute_detector_group", _fake_exec)
     # Patch metrics instance methods to route through probe
-    monkeypatch.setattr(metrics, "record_detector_latency", probe.record_detector_latency)
+    monkeypatch.setattr(
+        metrics, "record_detector_latency", probe.record_detector_latency
+    )
     monkeypatch.setattr(metrics, "record_coverage", probe.record_coverage)
     monkeypatch.setattr(metrics, "record_request", probe.record_request)
 
@@ -105,9 +138,13 @@ def test_metrics_and_structured_metadata(monkeypatch):
     meta = data["aggregated_payload"]["metadata"]
     cr = meta.get("conflict_resolution")
     assert cr is not None
-    assert set(["strategy_used", "winning_output", "winning_detector"]).issubset(cr.keys())
+    assert set(["strategy_used", "winning_output", "winning_detector"]).issubset(
+        cr.keys()
+    )
 
     # Metrics assertions
     assert probe.detector_latency_calls >= 2  # two detectors
     assert probe.request_calls >= 1
-    assert any(t == "tenant-metrics" and p == "default" for (t, p, _c) in probe.coverage_set)
+    assert any(
+        t == "tenant-metrics" and p == "default" for (t, p, _c) in probe.coverage_set
+    )

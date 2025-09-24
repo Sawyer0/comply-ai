@@ -132,7 +132,7 @@ class QualityGateValidator:
             return final_thresholds
 
         except Exception as e:
-            logger.error(f"Failed to load quality gates config: {e}")
+            logger.error("Failed to load quality gates config: %s", e)
             return default_thresholds
 
     def load_golden_test_cases(self) -> List[GoldenTestCase]:
@@ -167,11 +167,11 @@ class QualityGateValidator:
                     )
                 )
 
-            logger.info(f"Loaded {len(test_cases)} golden test cases")
+            logger.info("Loaded %s golden test cases", len(test_cases))
             return test_cases
 
         except Exception as e:
-            logger.error(f"Failed to load golden test cases: {e}")
+            logger.error("Failed to load golden test cases: %s", e)
             return []
 
     def validate_golden_test_coverage(
@@ -199,7 +199,7 @@ class QualityGateValidator:
             detector_mappings = detector_loader.load_all_detector_configs()
             available_detectors = list(detector_mappings.keys())
         except Exception as e:
-            logger.error(f"Failed to load detector configs: {e}")
+            logger.error("Failed to load detector configs: %s", e)
             available_detectors = list(detector_counts.keys())
 
         # Check coverage per detector
@@ -247,7 +247,7 @@ class QualityGateValidator:
             )
 
         except Exception as e:
-            logger.error(f"Failed to check taxonomy coverage: {e}")
+            logger.error("Failed to check taxonomy coverage: %s", e)
 
         return results
 
@@ -360,7 +360,7 @@ class QualityGateValidator:
                             )
                     else:
                         detailed_metrics["failed_cases"] += 1
-                        logger.warning(f"Test case {i} has no expected labels")
+                        logger.warning("Test case %s has no expected labels", i)
                 else:
                     detailed_metrics["failed_cases"] += 1
                     logger.warning(
@@ -369,7 +369,7 @@ class QualityGateValidator:
 
             except Exception as e:
                 detailed_metrics["failed_cases"] += 1
-                logger.error(f"Test case {i} failed with exception: {e}")
+                logger.error("Test case %s failed with exception: %s", i, e)
 
         # Calculate overall metrics
         if detailed_metrics["total_cases"] > 0:
@@ -607,4 +607,4 @@ def create_sample_golden_test_cases(output_path: Path) -> None:
     with open(output_path, "w") as f:
         json.dump(sample_cases, f, indent=2)
 
-    logger.info(f"Created sample golden test cases at {output_path}")
+    logger.info("Created sample golden test cases at %s", output_path)

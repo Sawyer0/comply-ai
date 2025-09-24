@@ -152,7 +152,9 @@ def test_map_endpoint_fallback(
     assert "rule-based mapping" in data["notes"].lower()
 
     # Verify fallback was called
-    mock_fallback_mapper.map.assert_called_once_with("deberta-toxicity", "toxic", reason="low_confidence")
+    mock_fallback_mapper.map.assert_called_once_with(
+        "deberta-toxicity", "toxic", reason="low_confidence"
+    )
 
 
 def test_batch_map_endpoint(test_app):

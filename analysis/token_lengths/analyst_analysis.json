@@ -1,0 +1,55 @@
+{
+  "dataset_path": "llm/llm-reports/enhanced_hybrid_sample.jsonl",
+  "model_type": "analyst",
+  "statistics": {
+    "total_examples": 50,
+    "mean_length": 183.04,
+    "median_length": 161.0,
+    "std_length": 36.75701837744732,
+    "min_length": 148,
+    "max_length": 279,
+    "percentiles": {
+      "50": 161.0,
+      "75": 199.5,
+      "90": 243.0,
+      "95": 272.0,
+      "99": 279.0
+    }
+  },
+  "outliers": [],
+  "recommendations": {
+    "recommended_max_length": 299,
+    "target_95th_percentile": 768,
+    "outlier_threshold": 279,
+    "packing_efficiency": "high",
+    "memory_impact": "low",
+    "truncation_risk": "low",
+    "action_required": "Current length is optimal",
+    "chunking_recommended": false
+  },
+  "length_distribution": {
+    "161": 9,
+    "170": 1,
+    "208": 3,
+    "219": 1,
+    "279": 2,
+    "243": 2,
+    "155": 10,
+    "195": 2,
+    "206": 1,
+    "220": 1,
+    "158": 2,
+    "148": 1,
+    "193": 2,
+    "162": 1,
+    "192": 1,
+    "153": 3,
+    "198": 1,
+    "196": 1,
+    "163": 1,
+    "150": 1,
+    "166": 1,
+    "200": 1,
+    "272": 2
+  }
+}

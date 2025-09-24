@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 import click
@@ -14,7 +13,9 @@ from .core import AutoDiscoveryRegistry, PluginManager
 
 
 @click.group()
-@click.option("--config", "-c", type=click.Path(exists=False), help="Configuration file path")
+@click.option(
+    "--config", "-c", type=click.Path(exists=False), help="Configuration file path"
+)
 @click.option(
     "--log-level",
     default="INFO",
@@ -26,7 +27,9 @@ from .core import AutoDiscoveryRegistry, PluginManager
     help="Directory containing CLI plugins",
 )
 @click.pass_context
-def main(ctx: click.Context, config: Optional[str], log_level: str, plugin_dir: Optional[str]) -> None:
+def main(
+    ctx: click.Context, config: Optional[str], log_level: str, plugin_dir: Optional[str]
+) -> None:
     """Llama Mapper CLI - Fine-tuned model for detector output mapping."""
     ctx.ensure_object(dict)
 
@@ -55,8 +58,8 @@ def main(ctx: click.Context, config: Optional[str], log_level: str, plugin_dir: 
         plugin_manager = PluginManager(registry)
         plugin_manager.add_plugin_directory(plugin_dir)
         plugin_manager.load_plugins_from_directory()
-        logger.info(f"Loaded plugins from: {plugin_dir}")
-        
+        logger.info("Loaded plugins from: %s", plugin_dir)
+
         # Attach plugin commands to main group
         registry.attach_to_main(main)
 
@@ -68,4 +71,4 @@ _builtin_registry.attach_to_main(main)
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    main()  # pylint: disable=no-value-for-parameter

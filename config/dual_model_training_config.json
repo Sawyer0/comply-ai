@@ -1,0 +1,189 @@
+{
+  "experiment_name": "comply-ai-dual-model-v2.0",
+  "description": "Dual-model training configuration for Llama-3-8B Mapper + Phi-3-Mini Analyst",
+  
+  "models": {
+    "mapper": {
+      "base_model": "meta-llama/Llama-3-8B-Instruct",
+      "model_type": "llama-3-8b",
+      "purpose": "Raw detector output to canonical taxonomy mapping",
+      "lora": {
+        "r": 256,
+        "alpha": 512,
+        "target_modules": [
+          "q_proj", "k_proj", "v_proj", "o_proj",
+          "gate_proj", "up_proj", "down_proj"
+        ],
+        "dropout": 0.1
+      }
+    },
+    "analyst": {
+      "base_model": "microsoft/Phi-3-mini-4k-instruct",
+      "model_type": "phi-3-mini",
+      "purpose": "Compliance analysis and remediation guidance",
+      "lora": {
+        "r": 128,
+        "alpha": 256,
+        "target_modules": [
+          "q_proj", "k_proj", "v_proj", "o_proj"
+        ],
+        "dropout": 0.1
+      }
+    }
+  },
+  
+  "datasets": {
+    "pii_detection": {
+      "enabled": true,
+      "source": "ai4privacy/pii-masking-43k",
+      "description": "43k PII detection examples for privacy compliance",
+      "expected_examples": 43000,
+      "use_case": "mapper_training"
+    },
+    "security_attacks": {
+      "enabled": true,
+      "source": "ibm-research/AttaQ",
+      "description": "Attack pattern detection for security threats",
+      "expected_examples": 10000,
+      "use_case": "mapper_training"
+    },
+    "content_moderation": {
+      "enabled": true,
+      "source": "allenai/wildguardmix",
+      "description": "Content toxicity detection for harmful content analysis",
+      "expected_examples": 5000,
+      "use_case": "mapper_training"
+    },
+    "custom_mapping": {
+      "enabled": true,
+      "path": "llm/llm-reports/enhanced_hybrid_sample.jsonl",
+      "description": "Custom compliance mapping examples",
+      "expected_examples": 2500,
+      "use_case": "mapper_training"
+    },
+    "policy_qa": {
+      "enabled": true,
+      "source": "qa4pc/QA4PC",
+      "description": "Policy compliance Q&A for compliance scenario training",
+      "expected_examples": 2000,
+      "use_case": "analyst_training"
+    },
+    "gdpr": {
+      "enabled": true,
+      "source": "AndreaSimeri/GDPR",
+      "description": "Complete GDPR regulation text for legal compliance training",
+      "expected_examples": 1000,
+      "use_case": "analyst_training"
+    },
+    "legal_reasoning": {
+      "enabled": true,
+      "source": "nguha/legalbench",
+      "description": "Legal reasoning tasks for compliance analysis",
+      "expected_examples": 500,
+      "use_case": "analyst_training"
+    }
+  },
+  
+  "training": {
+    "mapper": {
+      "output_dir": "checkpoints/llama-mapper-v2.0",
+      "batch_size": 4,
+      "gradient_accumulation": 8,
+      "epochs": 3,
+      "learning_rate": 5e-5,
+      "warmup_steps": 100,
+      "logging_steps": 10,
+      "save_steps": 500,
+      "max_seq_length": 2048,
+      "optimization": {
+        "use_gradient_checkpointing": true,
+        "use_flash_attention": true,
+        "mixed_precision": "fp16"
+      }
+    },
+    "analyst": {
+      "output_dir": "checkpoints/phi-analyst-v1.5",
+      "batch_size": 8,
+      "gradient_accumulation": 4,
+      "epochs": 2,
+      "learning_rate": 1e-4,
+      "warmup_steps": 50,
+      "logging_steps": 10,
+      "save_steps": 250,
+      "max_seq_length": 4096,
+      "optimization": {
+        "use_gradient_checkpointing": true,
+        "use_flash_attention": true,
+        "mixed_precision": "fp16"
+      }
+    }
+  },
+  
+  "validation": {
+    "accuracy_threshold": 0.95,
+    "confidence_threshold": 0.85,
+    "coverage_threshold": 0.90,
+    "consistency_threshold": 0.95,
+    "test_dataset_size": 1000,
+    "validation_metrics": [
+      "mapping_accuracy",
+      "analysis_quality",
+      "response_time",
+      "confidence_distribution"
+    ]
+  },
+  
+  "deployment": {
+    "target_environment": "enterprise",
+    "performance_requirements": {
+      "max_response_time": 2.0,
+      "min_throughput": 1000,
+      "target_availability": 0.999,
+      "max_memory_usage": "20GB"
+    },
+    "compliance_frameworks": [
+      "GDPR",
+      "CCPA", 
+      "HIPAA",
+      "SOC-2",
+      "ISO-27001",
+      "PCI-DSS"
+    ]
+  },
+  
+  "monitoring": {
+    "enabled": true,
+    "metrics": [
+      "response_time",
+      "accuracy_rate",
+      "confidence_scores",
+      "error_rate",
+      "throughput"
+    ],
+    "alerts": {
+      "performance_degradation": 0.1,
+      "accuracy_drift": 0.05,
+      "high_error_rate": 0.02
+    },
+    "logging": {
+      "level": "INFO",
+      "audit_trail": true,
+      "provenance_tracking": true
+    }
+  },
+  
+  "experiment_tracking": {
+    "wandb": {
+      "enabled": true,
+      "project": "comply-ai-dual-model",
+      "tags": ["compliance", "llama-3", "phi-3", "enterprise"]
+    },
+    "metrics_to_track": [
+      "training_loss",
+      "validation_accuracy",
+      "mapping_consistency",
+      "analysis_quality",
+      "response_time"
+    ]
+  }
+}

@@ -135,7 +135,7 @@ class AuditTrailManager:
         )
 
         self._audit_records.append(audit_record)
-        logger.debug(f"Created audit record: {audit_record.event_id}")
+        logger.debug("Created audit record: %s", audit_record.event_id)
 
         return audit_record
 
@@ -214,7 +214,9 @@ class AuditTrailManager:
         )
 
         self._incidents.append(incident)
-        logger.info(f"Recorded incident: {incident.incident_id} for {taxonomy_label}")
+        logger.info(
+            "Recorded incident: %s for %s", incident.incident_id, taxonomy_label
+        )
 
         return incident
 
@@ -237,7 +239,7 @@ class AuditTrailManager:
                 )
                 return True
 
-        logger.warning(f"Incident not found: {incident_id}")
+        logger.warning("Incident not found: %s", incident_id)
         return False
 
     def generate_compliance_report(
@@ -259,7 +261,7 @@ class AuditTrailManager:
         Returns:
             ComplianceReport with coverage metrics and control mappings
         """
-        logger.info(f"Generating compliance report for tenant: {tenant_id}")
+        logger.info("Generating compliance report for tenant: %s", tenant_id)
 
         # Filter records by criteria
         filtered_audit_records = self._filter_audit_records(
@@ -310,7 +312,7 @@ class AuditTrailManager:
         Returns:
             CoverageReport with coverage metrics and detector statistics
         """
-        logger.info(f"Generating coverage report for tenant: {tenant_id}")
+        logger.info("Generating coverage report for tenant: %s", tenant_id)
 
         # Load taxonomy and detector configurations
         taxonomy = self.taxonomy_loader.load_taxonomy()
@@ -433,7 +435,9 @@ class AuditTrailManager:
             else:
                 return []
         except Exception as e:
-            logger.error(f"Failed to get framework mappings for {taxonomy_label}: {e}")
+            logger.error(
+                "Failed to get framework mappings for %s: %s", taxonomy_label, e
+            )
             return []
 
     def _filter_audit_records(

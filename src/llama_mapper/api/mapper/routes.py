@@ -6,14 +6,19 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Dict, Optional, cast
 
 from fastapi import Body, Depends, Header, HTTPException, Request, Response
 from pydantic import ValidationError
 
 from ..auth import AuthContext, build_idempotency_key
 from ..errors import build_error_body, http_status_for
-from ..models import BatchMappingResponse, DetectorRequest, MapperPayload, MappingResponse
+from ..models import (
+    BatchMappingResponse,
+    DetectorRequest,
+    MapperPayload,
+    MappingResponse,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from .app import MapperAPI
@@ -165,9 +170,11 @@ def register_routes(mapper: "MapperAPI") -> None:
             normalized_request = DetectorRequest(
                 detector=mapper_payload.detector,
                 output=mapper_payload.output,
-                metadata=mapper_payload.metadata.model_dump()
-                if mapper_payload.metadata
-                else None,
+                metadata=(
+                    mapper_payload.metadata.model_dump()
+                    if mapper_payload.metadata
+                    else None
+                ),
                 tenant_id=mapper_payload.tenant_id,
             )
         except ValidationError:
@@ -195,7 +202,10 @@ def register_routes(mapper: "MapperAPI") -> None:
             auth_enabled = False
 
         if auth and auth.tenant_id:
-            if normalized_request.tenant_id and normalized_request.tenant_id != auth.tenant_id:
+            if (
+                normalized_request.tenant_id
+                and normalized_request.tenant_id != auth.tenant_id
+            ):
                 raise HTTPException(
                     status_code=403,
                     detail="Tenant mismatch between header and request body",
@@ -233,14 +243,16 @@ def register_routes(mapper: "MapperAPI") -> None:
                 response.headers["Deprecation"] = "true"
                 response.headers["Sunset"] = "Fri, 31 Oct 2025 00:00:00 GMT"
                 response.headers["Link"] = (
-                    '<https://github.com/your-org/comply-ai/blob/main/docs/release/'
+                    "<https://github.com/your-org/comply-ai/blob/main/docs/release/"
                     'mapper_migration.md>; rel="sunset"'
                 )
                 metrics.record_deprecated_request("DetectorRequest")
             return result
         except asyncio.TimeoutError as exc:
             metrics.record_error("REQUEST_TIMEOUT")
-            raise HTTPException(status_code=408, detail="Mapper timeout exceeded") from exc
+            raise HTTPException(
+                status_code=408, detail="Mapper timeout exceeded"
+            ) from exc
         except HTTPException as http_exc:
             raise http_exc
         except (RuntimeError, ConnectionError, OSError) as exc:
@@ -279,7 +291,9 @@ def register_routes(mapper: "MapperAPI") -> None:
         used_legacy = False
         for idx, item in enumerate(raw_items):
             try:
-                max_kb = int(getattr(mapper.config_manager.serving, "max_payload_kb", 64))
+                max_kb = int(
+                    getattr(mapper.config_manager.serving, "max_payload_kb", 64)
+                )
             except (AttributeError, TypeError, ValueError) as _:
                 # Configuration retrieval failed, using default payload limit
                 max_kb = 64
@@ -294,7 +308,9 @@ def register_routes(mapper: "MapperAPI") -> None:
                 )
             try:
                 reject_on_raw = bool(
-                    getattr(mapper.config_manager.serving, "reject_on_raw_content", True)
+                    getattr(
+                        mapper.config_manager.serving, "reject_on_raw_content", True
+                    )
                 )
             except (AttributeError, TypeError, ValueError) as _:
                 # Configuration retrieval failed, using conservative default
@@ -315,9 +331,11 @@ def register_routes(mapper: "MapperAPI") -> None:
                 parsed_request = DetectorRequest(
                     detector=mapper_payload.detector,
                     output=mapper_payload.output,
-                    metadata=mapper_payload.metadata.model_dump()
-                    if mapper_payload.metadata
-                    else None,
+                    metadata=(
+                        mapper_payload.metadata.model_dump()
+                        if mapper_payload.metadata
+                        else None
+                    ),
                     tenant_id=mapper_payload.tenant_id,
                 )
             except ValidationError:
@@ -334,13 +352,18 @@ def register_routes(mapper: "MapperAPI") -> None:
                 enabled_val = getattr(
                     getattr(mapper.config_manager, "auth", None), "enabled", False
                 )
-                auth_enabled = bool(enabled_val) if isinstance(enabled_val, bool) else False
+                auth_enabled = (
+                    bool(enabled_val) if isinstance(enabled_val, bool) else False
+                )
             except (AttributeError, TypeError) as _:
                 # Authentication configuration retrieval failed, disabling auth
                 auth_enabled = False
 
             if auth and auth.tenant_id:
-                if parsed_request.tenant_id and parsed_request.tenant_id != auth.tenant_id:
+                if (
+                    parsed_request.tenant_id
+                    and parsed_request.tenant_id != auth.tenant_id
+                ):
                     raise HTTPException(
                         status_code=403, detail=f"Tenant mismatch at index {idx}"
                     )
@@ -401,15 +424,13 @@ def register_routes(mapper: "MapperAPI") -> None:
         processing_time = time.time() - start_time
         metrics.record_histogram("batch_request_duration_seconds", processing_time)
         metrics.record_batch_request(len(normalized_items))
-        logger.info(
-            "Processed batch request %s in %.3fs", request_id, processing_time
-        )
+        logger.info("Processed batch request %s in %.3fs", request_id, processing_time)
 
         if used_legacy:
             response.headers["Deprecation"] = "true"
             response.headers["Sunset"] = "Fri, 31 Oct 2025 00:00:00 GMT"
             response.headers["Link"] = (
-                '<https://github.com/your-org/comply-ai/blob/main/docs/release/'
+                "<https://github.com/your-org/comply-ai/blob/main/docs/release/"
                 'mapper_migration.md>; rel="sunset"'
             )
             metrics.record_deprecated_request("DetectorRequest")

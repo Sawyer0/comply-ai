@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from sklearn.isotonic import (
-        IsotonicRegression as _IsoType,  # type: ignore[import-not-found]
+        IsotonicRegression as _IsoType,  # pylint: disable=import-error; type: ignore[import-not-found]
     )
 except Exception:
     _IsoType = Any  # type: ignore[assignment]
@@ -70,12 +70,14 @@ class ConfidenceCalibrator:
             raise ValueError(f"Unknown calibration method: {self.method}")
 
         self.is_calibrated = True
-        logger.info(f"Confidence calibration completed using {self.method} method")
+        logger.info("Confidence calibration completed using %s method", self.method)
 
     def _calibrate_temperature(self, logits: np.ndarray, labels: np.ndarray) -> None:
         """Calibrate using temperature scaling."""
         try:
-            from scipy.optimize import minimize  # type: ignore
+            from scipy.optimize import (
+                minimize,  # type: ignore # pylint: disable=import-error
+            )
         except Exception:
             minimize = None
 
@@ -103,11 +105,16 @@ class ConfidenceCalibrator:
             losses = [temperature_loss(float(t)) for t in candidates]
             best_idx = int(np.argmin(losses))
             self.temperature = float(candidates[best_idx])
-        logger.info(f"Optimal temperature: {self.temperature:.3f}")
+        logger.info("Optimal temperature: %.3f", self.temperature)
 
     def _calibrate_platt(self, logits: np.ndarray, labels: np.ndarray) -> None:
         """Calibrate using Platt scaling."""
-        from scipy.optimize import minimize
+        try:
+            from scipy.optimize import (
+                minimize,  # type: ignore # pylint: disable=import-error
+            )
+        except Exception:
+            minimize = None
 
         max_probs = np.max(self._softmax(logits), axis=1)
         correct = (np.argmax(logits, axis=1) == labels).astype(float)
@@ -124,7 +131,7 @@ class ConfidenceCalibrator:
 
         result = minimize(platt_loss, x0=[1.0, 0.0], method="L-BFGS-B")
         self.platt_a, self.platt_b = result.x
-        logger.info(f"Platt parameters: a={self.platt_a:.3f}, b={self.platt_b:.3f}")
+        logger.info("Platt parameters: a=%.3f, b=%.3f", self.platt_a, self.platt_b)
 
     def _calibrate_isotonic(self, logits: np.ndarray, labels: np.ndarray) -> None:
         """Calibrate using isotonic regression."""
@@ -196,7 +203,7 @@ class ConfidenceCalibrator:
         }
         with open(path, "wb") as f:
             pickle.dump(state, f)
-        logger.info(f"Calibrator saved to {path}")
+        logger.info("Calibrator saved to %s", path)
 
     def load(self, path: Union[str, Path]) -> None:
         """Load calibrator state."""
@@ -209,7 +216,7 @@ class ConfidenceCalibrator:
         self.platt_b = state["platt_b"]
         self.isotonic_regressor = state["isotonic_regressor"]
         self.is_calibrated = state["is_calibrated"]
-        logger.info(f"Calibrator loaded from {path}")
+        logger.info("Calibrator loaded from %s", path)
 
 
 class ConfidenceEvaluator:
@@ -236,7 +243,7 @@ class ConfidenceEvaluator:
         if self.calibration_enabled:
             self.calibrator = ConfidenceCalibrator(method="temperature")
 
-        logger.info(f"ConfidenceEvaluator initialized with threshold={self.threshold}")
+        logger.info("ConfidenceEvaluator initialized with threshold=%s", self.threshold)
 
     def evaluate_confidence(
         self,
@@ -341,7 +348,7 @@ class ConfidenceEvaluator:
         if save_path:
             self.calibrator.save(save_path)
 
-        logger.info(f"Confidence calibration completed. Metrics: {metrics}")
+        logger.info("Confidence calibration completed. Metrics: %s", metrics)
         return metrics
 
     def load_calibrator(self, path: Union[str, Path]) -> None:
@@ -357,7 +364,7 @@ class ConfidenceEvaluator:
 
         self.calibrator = ConfidenceCalibrator()
         self.calibrator.load(path)
-        logger.info(f"Calibrator loaded from {path}")
+        logger.info("Calibrator loaded from %s", path)
 
     def update_threshold(self, new_threshold: float) -> None:
         """
@@ -431,7 +438,7 @@ class ConfidenceEvaluator:
                 recommendations["recall_90"] = threshold
                 break
 
-        logger.info(f"Threshold recommendations: {recommendations}")
+        logger.info("Threshold recommendations: %s", recommendations)
         return recommendations
 
     def _evaluate_calibration_quality(

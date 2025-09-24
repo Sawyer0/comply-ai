@@ -76,23 +76,23 @@ def main():
     )
     
     # 2. Load training data
-    logger.info(f"Loading training data from {training_data_path}")
+    logger.info("Loading training data from %s", training_data_path)
     
     if not Path(training_data_path).exists():
-        logger.error(f"Training data file not found: {training_data_path}")
+        logger.error("Training data file not found: %s", training_data_path)
         logger.info("Please run the dataset preparation pipeline first")
         return
     
     training_examples = load_training_data(training_data_path)
-    logger.info(f"Loaded {len(training_examples)} training examples")
+    logger.info("Loaded %s training examples", len(training_examples))
     
     # Split into train/eval (80/20)
     split_idx = int(0.8 * len(training_examples))
     train_examples = training_examples[:split_idx]
     eval_examples = training_examples[split_idx:]
     
-    logger.info(f"Train examples: {len(train_examples)}")
-    logger.info(f"Eval examples: {len(eval_examples)}")
+    logger.info("Train examples: %s", len(train_examples))
+    logger.info("Eval examples: %s", len(eval_examples))
     
     # 3. Run training
     logger.info("Starting LoRA fine-tuning")
@@ -104,11 +104,11 @@ def main():
         )
         
         logger.info("Training completed successfully")
-        logger.info(f"Final training loss: {training_results.get('train_loss', 'N/A')}")
-        logger.info(f"Training runtime: {training_results.get('train_runtime', 'N/A')} seconds")
+        logger.info("Final training loss: %s", training_results.get('train_loss', 'N/A'))
+        logger.info("Training runtime: %s seconds", training_results.get('train_runtime', 'N/A'))
         
     except Exception as e:
-        logger.error(f"Training failed: {e}")
+        logger.error("Training failed: %s", e)
         return
     
     # 4. Save checkpoint with version management
@@ -128,14 +128,14 @@ def main():
             tags=["production", "v1"],
         )
         
-        logger.info(f"Checkpoint saved with version: {version_id}")
+        logger.info("Checkpoint saved with version: %s", version_id)
         
         # Get deployment info
         deployment_info = checkpoint_manager.get_deployment_info(version_id)
-        logger.info(f"Model size: {deployment_info['model_size_mb']:.2f} MB")
+        logger.info("Model size: %.2f MB", deployment_info['model_size_mb'])
         
     except Exception as e:
-        logger.error(f"Failed to save checkpoint: {e}")
+        logger.error("Failed to save checkpoint: %s", e)
         return
     
     # 5. Demonstrate checkpoint loading
@@ -144,17 +144,17 @@ def main():
     try:
         loaded_model, loaded_tokenizer, metadata = checkpoint_manager.load_checkpoint(version_id)
         logger.info("Checkpoint loaded successfully")
-        logger.info(f"Loaded model type: {type(loaded_model).__name__}")
+        logger.info("Loaded model type: %s", type(loaded_model).__name__)
         
     except Exception as e:
-        logger.error(f"Failed to load checkpoint: {e}")
+        logger.error("Failed to load checkpoint: %s", e)
         return
     
     # 6. List all versions
     logger.info("Available model versions:")
     versions = checkpoint_manager.list_versions()
     for version in versions:
-        logger.info(f"  - {version.version} (created: {version.created_at})")
+        logger.info("  - %s (created: %s)", version.version, version.created_at)
     
     logger.info("LoRA fine-tuning pipeline completed successfully!")
 

@@ -45,13 +45,13 @@ class JSONValidator:
         try:
             with open(self.schema_path, "r") as f:
                 schema = json.load(f)
-            logger.info(f"Loaded JSON schema from {self.schema_path}")
+            logger.info("Loaded JSON schema from %s", self.schema_path)
             return cast(Dict[str, Any], schema)
         except FileNotFoundError:
-            logger.error(f"Schema file not found: {self.schema_path}")
+            logger.error("Schema file not found: %s", self.schema_path)
             raise
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in schema file: {e}")
+            logger.error("Invalid JSON in schema file: %s", e)
             raise
 
     def validate(self, model_output: str) -> Tuple[bool, Optional[List[str]]]:
@@ -92,19 +92,19 @@ class JSONValidator:
 
         except json.JSONDecodeError as e:
             error_msg = f"Invalid JSON: {str(e)}"
-            logger.warning(f"JSON parsing failed: {error_msg}")
+            logger.warning("JSON parsing failed: %s", error_msg)
             self.validation_stats["failed_validations"] += 1
             return False, [error_msg]
 
         except ValidationError as e:
             error_msg = f"Schema validation failed: {e.message}"
-            logger.warning(f"Schema validation failed: {error_msg}")
+            logger.warning("Schema validation failed: %s", error_msg)
             self.validation_stats["failed_validations"] += 1
             return False, [error_msg]
 
         except Exception as e:
             error_msg = f"Validation error: {str(e)}"
-            logger.error(f"Unexpected validation error: {error_msg}")
+            logger.error("Unexpected validation error: %s", error_msg)
             self.validation_stats["failed_validations"] += 1
             return False, [error_msg]
 
@@ -228,7 +228,7 @@ class JSONValidator:
             )
 
         except Exception as e:
-            logger.error(f"Failed to parse model output: {str(e)}")
+            logger.error("Failed to parse model output: %s", str(e))
             raise ValueError(f"Cannot parse model output: {str(e)}")
 
     def validate_with_retry(
@@ -254,7 +254,9 @@ class JSONValidator:
 
             if retry_count < max_retries:
                 self.validation_stats["retry_attempts"] += 1
-                logger.info(f"Validation failed, retry {retry_count + 1}/{max_retries}")
+                logger.info(
+                    "Validation failed, retry %s/%s", retry_count + 1, max_retries
+                )
                 retry_count += 1
                 # In a real implementation, this would trigger model regeneration
                 # with adjusted parameters (e.g., lower temperature)

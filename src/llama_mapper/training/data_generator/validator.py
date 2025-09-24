@@ -55,9 +55,7 @@ class DatasetValidator:
         if not self._taxonomy or not self._detector_mappings:
             self.load_dependencies()
 
-        logger.info(
-            "Validating training dataset with %s examples...", len(examples)
-        )
+        logger.info("Validating training dataset with %s examples...", len(examples))
 
         validation_report: Dict[str, Any] = {
             "dataset_info": {
@@ -146,9 +144,7 @@ class DatasetValidator:
                     if "notes" in response_data:
                         response_type = "with_notes"
 
-                    patterns = format_validation["format_patterns"][
-                        "response_formats"
-                    ]
+                    patterns = format_validation["format_patterns"]["response_formats"]
                     patterns[response_type] = patterns.get(response_type, 0) + 1
 
                 except json.JSONDecodeError as exc:
@@ -232,8 +228,7 @@ class DatasetValidator:
 
             except (json.JSONDecodeError, KeyError) as exc:
                 taxonomy_validation["errors"].append(
-                    "Example %s: Failed to parse taxonomy labels: %s"
-                    % (index, exc)
+                    "Example %s: Failed to parse taxonomy labels: %s" % (index, exc)
                 )
 
         taxonomy_validation["unknown_labels"] = sorted(
@@ -277,8 +272,7 @@ class DatasetValidator:
             except json.JSONDecodeError as exc:
                 schema_validation["schema_errors"] += 1
                 schema_validation["errors"].append(
-                    "Example %s: Invalid JSON for schema validation: %s"
-                    % (index, exc)
+                    "Example %s: Invalid JSON for schema validation: %s" % (index, exc)
                 )
 
         return schema_validation
@@ -338,7 +332,9 @@ class DatasetValidator:
                 else 0
             ),
             "category_distribution": category_counts,
-            "covered_categories": sum(1 for count in category_counts.values() if count > 0),
+            "covered_categories": sum(
+                1 for count in category_counts.values() if count > 0
+            ),
             "total_categories": len(category_counts),
         }
 
@@ -433,6 +429,7 @@ class DatasetValidator:
         category_counts: Dict[str, int],
     ) -> Dict[str, Any]:
         """Calculate balance scores for detectors and categories."""
+
         def calculate_balance(counts: Dict[str, int]) -> Dict[str, Any]:
             if not counts:
                 return {
@@ -517,9 +514,7 @@ class DatasetValidator:
 
         return consistency_checks
 
-    def _generate_recommendations(
-        self, validation_report: Dict[str, Any]
-    ) -> List[str]:
+    def _generate_recommendations(self, validation_report: Dict[str, Any]) -> List[str]:
         """Generate actionable recommendations based on validation results."""
         recommendations: List[str] = []
 
@@ -573,9 +568,13 @@ class DatasetValidator:
 
         coverage = validation_report["coverage_analysis"]["coverage_statistics"]
         coverage_score = (
-            min(coverage["detector_coverage_percentage"], 100)
-            + min(coverage["taxonomy_coverage_percentage"], 100)
-        ) / 2 * 0.3
+            (
+                min(coverage["detector_coverage_percentage"], 100)
+                + min(coverage["taxonomy_coverage_percentage"], 100)
+            )
+            / 2
+            * 0.3
+        )
 
         quality_metrics = validation_report["quality_metrics"]
         metadata_score = (
@@ -591,9 +590,7 @@ class DatasetValidator:
 
         return format_score + coverage_score + metadata_score + consistency_score
 
-    def validate_single_example(
-        self, example: TrainingExample
-    ) -> Dict[str, Any]:
+    def validate_single_example(self, example: TrainingExample) -> Dict[str, Any]:
         """Validate a single training example for correctness."""
         if not self._taxonomy:
             self._taxonomy = self.taxonomy_loader.load_taxonomy()
@@ -628,16 +625,12 @@ class DatasetValidator:
             for label in taxonomy_labels:
                 if not self._taxonomy.validate_label_name(label):
                     validation["valid"] = False
-                    validation["errors"].append(
-                        "Invalid taxonomy label: %s" % label
-                    )
+                    validation["errors"].append("Invalid taxonomy label: %s" % label)
 
             confidence = response_data.get("confidence", 0.0)
             if not isinstance(confidence, (int, float)) or not (0 <= confidence <= 1):
                 validation["valid"] = False
-                validation["errors"].append(
-                    "Invalid confidence value: %s" % confidence
-                )
+                validation["errors"].append("Invalid confidence value: %s" % confidence)
 
             scores = response_data.get("scores", {})
             for label, score in scores.items():
@@ -651,9 +644,7 @@ class DatasetValidator:
 
         except json.JSONDecodeError as exc:
             validation["valid"] = False
-            validation["errors"].append(
-                "Invalid JSON in response: %s" % exc
-            )
+            validation["errors"].append("Invalid JSON in response: %s" % exc)
 
         return validation
 
@@ -689,12 +680,8 @@ class DatasetValidator:
 
         dataset_info = validation_report["dataset_info"]
         file.write("Dataset: %s examples\n" % dataset_info["total_examples"])
-        file.write(
-            "Validation Date: %s\n" % dataset_info["validation_timestamp"]
-        )
-        file.write(
-            "Overall Score: %.2f/100\n\n" % validation_report["overall_score"]
-        )
+        file.write("Validation Date: %s\n" % dataset_info["validation_timestamp"])
+        file.write("Overall Score: %.2f/100\n\n" % validation_report["overall_score"])
 
         format_val = validation_report["format_validation"]
         file.write("FORMAT VALIDATION\n")
@@ -712,12 +699,10 @@ class DatasetValidator:
         file.write("-" * 20 + "\n")
         stats = coverage["coverage_statistics"]
         file.write(
-            "Detector Coverage: %.1f%%\n"
-            % stats["detector_coverage_percentage"]
+            "Detector Coverage: %.1f%%\n" % stats["detector_coverage_percentage"]
         )
         file.write(
-            "Taxonomy Coverage: %.1f%%\n"
-            % stats["taxonomy_coverage_percentage"]
+            "Taxonomy Coverage: %.1f%%\n" % stats["taxonomy_coverage_percentage"]
         )
         file.write(
             "Categories Covered: %s/%s\n\n"

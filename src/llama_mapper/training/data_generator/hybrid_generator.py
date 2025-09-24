@@ -8,9 +8,10 @@ import random
 from typing import Any, Dict, List, Optional, Tuple
 
 from llama_mapper.data.taxonomy import Taxonomy, TaxonomyLoader
+
 from .models import MapperCanonicalEvent, TrainingExample
-from .synthetic import SyntheticDataGenerator
 from .real_world_collector import RealWorldDataCollector
+from .synthetic import SyntheticDataGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class HybridTrainingDataGenerator:
         self.taxonomy_loader = taxonomy_loader or TaxonomyLoader()
         self.real_world_ratio = real_world_ratio
         self.synthetic_ratio = synthetic_ratio
-        
+
         if random_seed is not None:
             random.seed(random_seed)
 
@@ -54,13 +55,19 @@ class HybridTrainingDataGenerator:
         if not self._taxonomy:
             self.load_taxonomy()
 
-        logger.info("Generating hybrid training set with %s total examples...", total_examples)
+        logger.info(
+            "Generating hybrid training set with %s total examples...", total_examples
+        )
 
         # Calculate target examples for each type
         real_world_target = int(total_examples * self.real_world_ratio)
         synthetic_target = int(total_examples * self.synthetic_ratio)
 
-        logger.info("Target distribution: %s real-world, %s synthetic", real_world_target, synthetic_target)
+        logger.info(
+            "Target distribution: %s real-world, %s synthetic",
+            real_world_target,
+            synthetic_target,
+        )
 
         # Generate real-world examples
         real_world_examples = self._generate_real_world_portion(
@@ -74,7 +81,7 @@ class HybridTrainingDataGenerator:
 
         # Combine and balance
         all_examples = real_world_examples + synthetic_examples
-        
+
         if balance_categories:
             all_examples = self._balance_categories(all_examples)
 
@@ -94,7 +101,9 @@ class HybridTrainingDataGenerator:
         if not self._taxonomy:
             self.load_taxonomy()
 
-        logger.info("Generating enhanced synthetic data with %s examples...", num_examples)
+        logger.info(
+            "Generating enhanced synthetic data with %s examples...", num_examples
+        )
 
         examples: List[TrainingExample] = []
 
@@ -106,7 +115,9 @@ class HybridTrainingDataGenerator:
 
         if use_real_patterns:
             # Enhanced synthetic examples using real patterns
-            enhanced_examples = self._generate_pattern_based_synthetic(num_examples // 2)
+            enhanced_examples = self._generate_pattern_based_synthetic(
+                num_examples // 2
+            )
             examples.extend(enhanced_examples)
 
         if include_edge_cases:
@@ -129,7 +140,11 @@ class HybridTrainingDataGenerator:
         if not self._taxonomy:
             self.load_taxonomy()
 
-        logger.info("Generating %s industry-specific hybrid data with %s examples...", industry, total_examples)
+        logger.info(
+            "Generating %s industry-specific hybrid data with %s examples...",
+            industry,
+            total_examples,
+        )
 
         real_world_target = int(total_examples * real_world_ratio)
         synthetic_target = total_examples - real_world_target
@@ -159,7 +174,9 @@ class HybridTrainingDataGenerator:
         if not self._taxonomy:
             self.load_taxonomy()
 
-        logger.info("Generating edge case hybrid data with %s examples...", total_examples)
+        logger.info(
+            "Generating edge case hybrid data with %s examples...", total_examples
+        )
 
         real_world_target = int(total_examples * real_world_ratio)
         synthetic_target = total_examples - real_world_target
@@ -210,8 +227,10 @@ class HybridTrainingDataGenerator:
             industries = ["financial", "healthcare", "technology", "retail"]
             industry_examples_per = examples_per_category // len(industries)
             for industry in industries:
-                industry_examples = self.real_world_collector.generate_industry_specific_examples(
-                    industry, industry_examples_per
+                industry_examples = (
+                    self.real_world_collector.generate_industry_specific_examples(
+                        industry, industry_examples_per
+                    )
                 )
                 examples.extend(industry_examples)
 
@@ -240,14 +259,18 @@ class HybridTrainingDataGenerator:
             examples.extend(pii_examples)
 
         if "prompt_injection" in categories:
-            injection_examples = self.synthetic_generator.generate_synthetic_prompt_injection_examples(
-                examples_per_category
+            injection_examples = (
+                self.synthetic_generator.generate_synthetic_prompt_injection_examples(
+                    examples_per_category
+                )
             )
             examples.extend(injection_examples)
 
         if "jailbreak" in categories:
-            jailbreak_examples = self.synthetic_generator.generate_synthetic_jailbreak_examples(
-                examples_per_category
+            jailbreak_examples = (
+                self.synthetic_generator.generate_synthetic_jailbreak_examples(
+                    examples_per_category
+                )
             )
             examples.extend(jailbreak_examples)
 
@@ -259,10 +282,12 @@ class HybridTrainingDataGenerator:
 
         return examples
 
-    def _generate_pattern_based_synthetic(self, num_examples: int) -> List[TrainingExample]:
+    def _generate_pattern_based_synthetic(
+        self, num_examples: int
+    ) -> List[TrainingExample]:
         """Generate synthetic examples using real-world patterns."""
         examples: List[TrainingExample] = []
-        
+
         # Get real-world patterns
         real_examples = self.real_world_collector.generate_balanced_real_world_set(50)
         real_patterns = self._extract_patterns_from_real_data(real_examples)
@@ -270,29 +295,37 @@ class HybridTrainingDataGenerator:
         for _ in range(num_examples):
             # Select a real pattern
             pattern = random.choice(real_patterns)
-            
+
             # Generate synthetic variation
             synthetic_example = self._create_synthetic_variation(pattern)
             examples.append(synthetic_example)
 
         return examples
 
-    def _generate_synthetic_edge_cases(self, num_examples: int) -> List[TrainingExample]:
+    def _generate_synthetic_edge_cases(
+        self, num_examples: int
+    ) -> List[TrainingExample]:
         """Generate synthetic edge cases."""
         examples: List[TrainingExample] = []
-        
+
         edge_case_templates = [
             {
                 "instruction": "Map complex multi-category violation: PII exposure via prompt injection",
                 "detector_output": "pii_leak + prompt_injection",
-                "canonical_labels": ["PII.Contact.Email", "PROMPT_INJECTION.DataExfiltration"],
+                "canonical_labels": [
+                    "PII.Contact.Email",
+                    "PROMPT_INJECTION.DataExfiltration",
+                ],
                 "confidence": 0.75,
                 "notes": "Synthetic multi-category violation",
             },
             {
                 "instruction": "Map regulatory conflict: GDPR vs SOX requirements",
                 "detector_output": "regulatory_conflict",
-                "canonical_labels": ["COMPLIANCE.GDPR.DataRetention.Article5", "COMPLIANCE.SOX.RecordRetention.Section802"],
+                "canonical_labels": [
+                    "COMPLIANCE.GDPR.DataRetention.Article5",
+                    "COMPLIANCE.SOX.RecordRetention.Section802",
+                ],
                 "confidence": 0.65,
                 "notes": "Synthetic regulatory conflict scenario",
             },
@@ -307,10 +340,13 @@ class HybridTrainingDataGenerator:
 
         for _ in range(num_examples):
             template = random.choice(edge_case_templates)
-            
+
             canonical_event = MapperCanonicalEvent(
                 taxonomy=template["canonical_labels"],
-                scores={label: template["confidence"] for label in template["canonical_labels"]},
+                scores={
+                    label: template["confidence"]
+                    for label in template["canonical_labels"]
+                },
                 confidence=template["confidence"],
                 notes=template["notes"],
                 provenance={
@@ -342,16 +378,20 @@ class HybridTrainingDataGenerator:
     ) -> List[TrainingExample]:
         """Generate industry-specific synthetic examples."""
         examples: List[TrainingExample] = []
-        
+
         industry_templates = {
             "financial": {
                 "detectors": ["finra-audit", "sec-compliance", "cfpb-check"],
-                "violations": ["insider_trading", "market_manipulation", "consumer_harm"],
+                "violations": [
+                    "insider_trading",
+                    "market_manipulation",
+                    "consumer_harm",
+                ],
                 "canonical_labels": [
                     "COMPLIANCE.FINRA.Supervision.Rule3110",
                     "COMPLIANCE.SEC.InsiderTrading.Rule10b5",
-                    "COMPLIANCE.CFPB.UnfairPractices.CFPA"
-                ]
+                    "COMPLIANCE.CFPB.UnfairPractices.CFPA",
+                ],
             },
             "healthcare": {
                 "detectors": ["hipaa-audit", "fda-compliance", "clinical-trial"],
@@ -359,17 +399,21 @@ class HybridTrainingDataGenerator:
                 "canonical_labels": [
                     "COMPLIANCE.HIPAA.DataSecurity.164.308",
                     "COMPLIANCE.FDA.AdverseEvents.21CFR314",
-                    "COMPLIANCE.HIPAA.Consent.164.508"
-                ]
+                    "COMPLIANCE.HIPAA.Consent.164.508",
+                ],
             },
             "technology": {
                 "detectors": ["gdpr-audit", "ccpa-compliance", "ai-bias-check"],
-                "violations": ["data_processing", "consent_violation", "algorithmic_bias"],
+                "violations": [
+                    "data_processing",
+                    "consent_violation",
+                    "algorithmic_bias",
+                ],
                 "canonical_labels": [
                     "COMPLIANCE.GDPR.DataProcessing.Article6",
                     "COMPLIANCE.CCPA.DataRights.Section1798.105",
-                    "COMPLIANCE.AI.Bias.Discrimination"
-                ]
+                    "COMPLIANCE.AI.Bias.Discrimination",
+                ],
             },
             "retail": {
                 "detectors": ["pci-audit", "consumer-protection", "data-privacy"],
@@ -377,9 +421,9 @@ class HybridTrainingDataGenerator:
                 "canonical_labels": [
                     "COMPLIANCE.PCI.DataStorage.Requirement3",
                     "COMPLIANCE.CFPB.UnfairPractices.CFPA",
-                    "COMPLIANCE.CCPA.DataRights.Section1798.105"
-                ]
-            }
+                    "COMPLIANCE.CCPA.DataRights.Section1798.105",
+                ],
+            },
         }
 
         if industry not in industry_templates:
@@ -406,7 +450,9 @@ class HybridTrainingDataGenerator:
                 },
             )
 
-            instruction = f"Map {industry} compliance violation: {detector} detected {violation}"
+            instruction = (
+                f"Map {industry} compliance violation: {detector} detected {violation}"
+            )
 
             examples.append(
                 TrainingExample(
@@ -424,16 +470,18 @@ class HybridTrainingDataGenerator:
 
         return examples
 
-    def _generate_augmented_synthetic_examples(self, num_examples: int) -> List[TrainingExample]:
+    def _generate_augmented_synthetic_examples(
+        self, num_examples: int
+    ) -> List[TrainingExample]:
         """Generate augmented synthetic examples with variations."""
         examples: List[TrainingExample] = []
-        
+
         # Get base synthetic examples
         base_examples = self.synthetic_generator.generate_balanced_training_set(50)
-        
+
         for _ in range(num_examples):
             base_example = random.choice(base_examples)
-            
+
             # Create variations
             variations = [
                 self._add_negation_variation(base_example),
@@ -441,7 +489,7 @@ class HybridTrainingDataGenerator:
                 self._add_formality_variation(base_example),
                 self._add_context_variation(base_example),
             ]
-            
+
             examples.extend(variations)
 
         return examples[:num_examples]  # Trim to target size
@@ -451,7 +499,7 @@ class HybridTrainingDataGenerator:
     ) -> List[Dict[str, Any]]:
         """Extract patterns from real-world data for synthetic generation."""
         patterns = []
-        
+
         for example in real_examples:
             try:
                 response_data = json.loads(example.response)
@@ -472,7 +520,7 @@ class HybridTrainingDataGenerator:
         # Generate variation of the pattern
         confidence = random.uniform(*pattern["confidence_range"])
         canonical_label = random.choice(pattern["canonical_labels"])
-        
+
         canonical_event = MapperCanonicalEvent(
             taxonomy=[canonical_label],
             scores={canonical_label: confidence},
@@ -506,8 +554,10 @@ class HybridTrainingDataGenerator:
     def _add_negation_variation(self, example: TrainingExample) -> TrainingExample:
         """Add negation variation to example."""
         # Simple negation variation
-        negated_instruction = example.instruction.replace("Map", "Do not map").replace("Classify", "Do not classify")
-        
+        negated_instruction = example.instruction.replace("Map", "Do not map").replace(
+            "Classify", "Do not classify"
+        )
+
         return TrainingExample(
             instruction=negated_instruction,
             response=example.response,
@@ -525,7 +575,7 @@ class HybridTrainingDataGenerator:
             example.instruction.replace("Classify", "Classified"),
             example.instruction.replace("Transform", "Transformed"),
         ]
-        
+
         return TrainingExample(
             instruction=random.choice(tense_variations),
             response=example.response,
@@ -538,8 +588,10 @@ class HybridTrainingDataGenerator:
     def _add_formality_variation(self, example: TrainingExample) -> TrainingExample:
         """Add formality variation to example."""
         # Simple formality variation
-        formal_instruction = example.instruction.replace("Map", "Please map").replace("Classify", "Please classify")
-        
+        formal_instruction = example.instruction.replace("Map", "Please map").replace(
+            "Classify", "Please classify"
+        )
+
         return TrainingExample(
             instruction=formal_instruction,
             response=example.response,
@@ -558,9 +610,9 @@ class HybridTrainingDataGenerator:
             "In a technology company: ",
             "For retail operations: ",
         ]
-        
+
         contextual_instruction = random.choice(context_prefixes) + example.instruction
-        
+
         return TrainingExample(
             instruction=contextual_instruction,
             response=example.response,
@@ -570,16 +622,18 @@ class HybridTrainingDataGenerator:
             },
         )
 
-    def _balance_categories(self, examples: List[TrainingExample]) -> List[TrainingExample]:
+    def _balance_categories(
+        self, examples: List[TrainingExample]
+    ) -> List[TrainingExample]:
         """Balance categories in the training set."""
         # Group examples by canonical label
         label_groups: Dict[str, List[TrainingExample]] = {}
-        
+
         for example in examples:
             try:
                 response_data = json.loads(example.response)
                 canonical_labels = response_data.get("taxonomy", [])
-                
+
                 for label in canonical_labels:
                     if label not in label_groups:
                         label_groups[label] = []
@@ -590,7 +644,7 @@ class HybridTrainingDataGenerator:
         # Balance groups (limit to max examples per label)
         max_examples_per_label = 50
         balanced_examples = []
-        
+
         for label, group_examples in label_groups.items():
             if len(group_examples) > max_examples_per_label:
                 # Randomly sample to balance
@@ -602,9 +656,7 @@ class HybridTrainingDataGenerator:
 
         return balanced_examples
 
-    def get_hybrid_statistics(
-        self, examples: List[TrainingExample]
-    ) -> Dict[str, Any]:
+    def get_hybrid_statistics(self, examples: List[TrainingExample]) -> Dict[str, Any]:
         """Get comprehensive statistics about hybrid training examples."""
         stats: Dict[str, Any] = {
             "total_examples": len(examples),
@@ -649,9 +701,7 @@ class HybridTrainingDataGenerator:
             stats["example_types"][example_type] = (
                 stats["example_types"].get(example_type, 0) + 1
             )
-            stats["industries"][industry] = (
-                stats["industries"].get(industry, 0) + 1
-            )
+            stats["industries"][industry] = stats["industries"].get(industry, 0) + 1
             stats["regulatory_bodies"][regulatory_body] = (
                 stats["regulatory_bodies"].get(regulatory_body, 0) + 1
             )
@@ -666,10 +716,16 @@ class HybridTrainingDataGenerator:
         # Calculate ratios
         total = len(examples)
         if total > 0:
-            stats["data_quality_metrics"]["real_world_ratio"] = stats["real_world_examples"] / total
-            stats["data_quality_metrics"]["synthetic_ratio"] = stats["synthetic_examples"] / total
+            stats["data_quality_metrics"]["real_world_ratio"] = (
+                stats["real_world_examples"] / total
+            )
+            stats["data_quality_metrics"]["synthetic_ratio"] = (
+                stats["synthetic_examples"] / total
+            )
             stats["data_quality_metrics"]["edge_case_ratio"] = edge_cases / total
-            stats["data_quality_metrics"]["multi_category_ratio"] = multi_category / total
+            stats["data_quality_metrics"]["multi_category_ratio"] = (
+                multi_category / total
+            )
 
         if confidences:
             stats["confidence_stats"]["min"] = min(confidences)

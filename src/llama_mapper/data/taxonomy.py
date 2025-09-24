@@ -267,7 +267,7 @@ class TaxonomyLoader:
             )
             return self._taxonomy
 
-        logger.info(f"Loading taxonomy from: {self.taxonomy_path}")
+        logger.info("Loading taxonomy from: %s", self.taxonomy_path)
 
         try:
             with open(self.taxonomy_path, "r", encoding="utf-8") as f:
@@ -296,7 +296,7 @@ class TaxonomyLoader:
             self._taxonomy = taxonomy
             self._last_modified = current_modified
 
-            logger.info(f"Successfully loaded taxonomy: {taxonomy}")
+            logger.info("Successfully loaded taxonomy: %s", taxonomy)
             return taxonomy
 
         except yaml.YAMLError as e:
@@ -323,7 +323,7 @@ class TaxonomyLoader:
             self.load_taxonomy(force_reload=True)
             return True
         except Exception as e:
-            logger.error(f"Taxonomy validation failed: {e}")
+            logger.error("Taxonomy validation failed: %s", e)
             return False
 
     def _parse_categories(
@@ -372,7 +372,7 @@ class TaxonomyLoader:
         # Check for empty categories
         for category_name, category in taxonomy.categories.items():
             if not category.get_all_labels():
-                logger.warning(f"Category '{category_name}' has no labels")
+                logger.warning("Category '%s' has no labels", category_name)
 
         # Validate label name format
         for label in taxonomy.get_all_labels():
@@ -382,7 +382,7 @@ class TaxonomyLoader:
         # Check for conflicting aliases
         alias_conflicts = self._find_alias_conflicts(taxonomy)
         if alias_conflicts:
-            logger.warning(f"Alias conflicts found: {alias_conflicts}")
+            logger.warning("Alias conflicts found: %s", alias_conflicts)
 
     def _is_valid_label_name(self, name: str) -> bool:
         """Check if label name follows the expected format."""

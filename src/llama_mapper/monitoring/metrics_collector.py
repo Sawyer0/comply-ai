@@ -692,7 +692,9 @@ class MetricsCollector:
             float: Estimated percentile value
         """
         if not 0.0 <= percentile <= 1.0:
-            raise ValueError(f"Percentile must be between 0.0 and 1.0, got {percentile}")
+            raise ValueError(
+                f"Percentile must be between 0.0 and 1.0, got {percentile}"
+            )
 
         buckets = []
         counts = []
@@ -703,7 +705,7 @@ class MetricsCollector:
                 bucket_boundary = sample.labels.get("le", "")
                 if bucket_boundary == "+Inf":
                     # This is the +Inf bucket, use it as the upper bound
-                    buckets.append(float('inf'))
+                    buckets.append(float("inf"))
                 elif bucket_boundary:
                     buckets.append(float(bucket_boundary))
                 else:
@@ -721,7 +723,7 @@ class MetricsCollector:
         inf_count = 0
 
         for bucket, count in zip(buckets, counts):
-            if bucket == float('inf'):
+            if bucket == float("inf"):
                 inf_count = count
             else:
                 finite_buckets.append(bucket)
@@ -753,7 +755,7 @@ class MetricsCollector:
                     return float(finite_buckets[i])
 
                 # Linear interpolation between this bucket and the previous one
-                bucket_start = finite_buckets[i-1] if i > 0 else 0.0
+                bucket_start = finite_buckets[i - 1] if i > 0 else 0.0
                 bucket_end = finite_buckets[i]
 
                 # Calculate position within this bucket
@@ -794,13 +796,13 @@ class MetricsCollector:
             start_http_server(port, registry=self._registry or REGISTRY)
             logger.info(
                 "Prometheus metrics server started successfully",
-                extra={"port": port, "registry": str(self._registry or REGISTRY)}
+                extra={"port": port, "registry": str(self._registry or REGISTRY)},
             )
         except ImportError as e:
             logger.error(
                 "Failed to start Prometheus server due to missing dependency",
                 extra={"error": str(e), "port": port},
-                exc_info=True
+                exc_info=True,
             )
             raise RuntimeError(
                 f"Cannot start Prometheus server on port {port}: missing "
@@ -810,7 +812,7 @@ class MetricsCollector:
             logger.error(
                 "Failed to start Prometheus server due to runtime error",
                 extra={"error": str(e), "port": port},
-                exc_info=True
+                exc_info=True,
             )
             raise
 
@@ -819,10 +821,7 @@ class MetricsCollector:
         metrics = self.get_all_metrics()
 
         logger.info("=== Metrics Summary ===")
-        logger.info(
-            "Uptime: %.1f seconds",
-            metrics['gauges']['uptime_seconds']
-        )
+        logger.info("Uptime: %.1f seconds", metrics["gauges"]["uptime_seconds"])
 
         # Log Prometheus metrics if available
         if self._enable_prometheus:
@@ -843,25 +842,17 @@ class MetricsCollector:
                     break
                 break
 
-            logger.info(
-                "Schema Valid: %s", str(schema_valid_pct)
-            )
-            logger.info(
-                "Fallback: %s", str(fallback_pct)
-            )
+            logger.info("Schema Valid: %s", str(schema_valid_pct))
+            logger.info("Fallback: %s", str(fallback_pct))
             # Noisy detail: omit per-metric dumps; counters can be scraped via Prometheus
 
             # Check and log alerts
             alerts = self.check_quality_thresholds()
             if alerts:
-                logger.warning(
-                    "Quality threshold violations: %d", len(alerts)
-                )
+                logger.warning("Quality threshold violations: %d", len(alerts))
                 for alert in alerts:
                     logger.warning(
-                        "  %s: %s",
-                        alert['severity'].upper(),
-                        alert['message']
+                        "  %s: %s", alert["severity"].upper(), alert["message"]
                     )
 
         # Log key counters
@@ -878,7 +869,10 @@ class MetricsCollector:
             if stats["count"] > 0:
                 logger.info(
                     "Histogram %s: count=%s, avg=%.3f, p95=%.3f",
-                    name, stats['count'], stats['avg'], stats['p95']
+                    name,
+                    stats["count"],
+                    stats["avg"],
+                    stats["p95"],
                 )
 
         # Log gauges

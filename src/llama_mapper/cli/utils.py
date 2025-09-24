@@ -22,7 +22,7 @@ def load_json_file(file_path: Union[str, Path]) -> Dict[str, Any]:
     path = Path(file_path)
     if not path.exists():
         raise CLIError(f"File not found: {path}")
-    
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -32,11 +32,13 @@ def load_json_file(file_path: Union[str, Path]) -> Dict[str, Any]:
         raise CLIError(f"Error reading {path}: {e}")
 
 
-def save_json_file(data: Dict[str, Any], file_path: Union[str, Path], indent: int = 2) -> None:
+def save_json_file(
+    data: Dict[str, Any], file_path: Union[str, Path], indent: int = 2
+) -> None:
     """Save data to a JSON file."""
     path = Path(file_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent)
@@ -51,14 +53,14 @@ def format_output(
 ) -> None:
     """Format and output data in the specified format."""
     formatter = OutputFormatter()
-    
+
     if format_type == "json":
         content = formatter.format_json(data)
     elif format_type == "yaml":
         content = formatter.format_yaml(data)
     else:
         raise CLIError(f"Unsupported output format: {format_type}")
-    
+
     formatter.save_output(content, Path(output_path) if output_path else None)
 
 
@@ -75,13 +77,13 @@ def select_from_list(
     """Allow user to select from a list of items."""
     if not items:
         raise CLIError("No items to select from")
-    
+
     if len(items) == 1:
         return items[0]
-    
+
     for i, item in enumerate(items, 1):
         click.echo(f"{i}. {item}")
-    
+
     while True:
         try:
             choice = click.prompt(prompt, default=default)
@@ -105,7 +107,7 @@ def display_table(
     if title:
         click.echo(f"\n{title}")
         click.echo("=" * len(title))
-    
+
     formatter = OutputFormatter()
     table_content = formatter.format_table(headers, rows)
     click.echo(table_content)
@@ -170,4 +172,4 @@ def get_relative_path(path: Union[str, Path], base: Union[str, Path]) -> str:
 
 def expand_path(path: Union[str, Path]) -> Path:
     """Expand user home directory and environment variables in path."""
-    return Path(str(path).expanduser().expandvars()).resolve()
+    return Path(path).expanduser().resolve()

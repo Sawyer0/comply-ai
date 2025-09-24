@@ -14,6 +14,7 @@ class RateLimitRequest:
 
     Groups related rate limiting parameters to reduce function argument count.
     """
+
     endpoint: str
     identity: str
     limit: int
@@ -32,6 +33,7 @@ class AllowResult:
         reset_seconds: Seconds until the rate limit window resets.
         identity_kind: Type of identity being rate limited.
     """
+
     allowed: bool
     remaining: int
     limit: int

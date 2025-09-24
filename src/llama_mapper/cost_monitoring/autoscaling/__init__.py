@@ -3,11 +3,11 @@
 from .cost_aware_scaler import (
     CostAwareScaler,
     CostAwareScalingConfig,
-    ScalingPolicy,
-    ScalingDecision,
-    ScalingAction,
-    ScalingTrigger,
     ResourceType,
+    ScalingAction,
+    ScalingDecision,
+    ScalingPolicy,
+    ScalingTrigger,
 )
 
 __all__ = [

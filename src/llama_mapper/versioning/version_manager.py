@@ -233,3 +233,95 @@ class VersionManager:
             "frameworks": frameworks_ver or "unknown",
             "model": snap.model_version or "unknown",
         }
+
+    def list_versions(self) -> List[Dict[str, Any]]:
+        """List available versions with metadata."""
+        versions = []
+
+        # Add current snapshot as the primary version
+        snap = self.snapshot()
+        versions.append(
+            {
+                "name": "current",
+                "created_at": snap.created_at,
+                "taxonomy_version": snap.taxonomy.get("version", "unknown"),
+                "frameworks_version": snap.frameworks.get("version", "unknown"),
+                "model_version": snap.model_version,
+                "active": True,
+            }
+        )
+
+        # If versions registry exists, try to load historical versions
+        if self.versions_registry.exists():
+            try:
+                with open(self.versions_registry, "r") as f:
+                    registry_data = json.load(f)
+
+                for version_name, version_data in registry_data.get(
+                    "versions", {}
+                ).items():
+                    if version_name != "current":
+                        versions.append(
+                            {
+                                "name": version_name,
+                                "created_at": version_data.get("created_at", "unknown"),
+                                "taxonomy_version": version_data.get(
+                                    "taxonomy", {}
+                                ).get("version", "unknown"),
+                                "frameworks_version": version_data.get(
+                                    "frameworks", {}
+                                ).get("version", "unknown"),
+                                "model_version": version_data.get(
+                                    "model_version", "unknown"
+                                ),
+                                "active": False,
+                            }
+                        )
+            except Exception as e:
+                # If we can't read the registry, just return current version
+                pass
+
+        return versions
+
+    def compare_versions(self, version1: str, version2: str) -> Dict[str, Any]:
+        """Compare two versions and return differences."""
+        versions = self.list_versions()
+
+        # Find the requested versions
+        v1_data = None
+        v2_data = None
+
+        for version in versions:
+            if version["name"] == version1:
+                v1_data = version
+            if version["name"] == version2:
+                v2_data = version
+
+        if not v1_data:
+            raise ValueError(f"Version '{version1}' not found")
+        if not v2_data:
+            raise ValueError(f"Version '{version2}' not found")
+
+        # Compare the versions
+        comparison = {
+            "version1": version1,
+            "version2": version2,
+            "differences": {},
+            "summary": {},
+        }
+
+        # Compare each component
+        for component in ["taxonomy_version", "frameworks_version", "model_version"]:
+            v1_val = v1_data.get(component, "unknown")
+            v2_val = v2_data.get(component, "unknown")
+
+            if v1_val != v2_val:
+                comparison["differences"][component] = {
+                    version1: v1_val,
+                    version2: v2_val,
+                }
+
+        comparison["summary"]["total_differences"] = len(comparison["differences"])
+        comparison["summary"]["are_identical"] = len(comparison["differences"]) == 0
+
+        return comparison

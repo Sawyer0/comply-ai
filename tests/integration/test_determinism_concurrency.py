@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
-import asyncio
-from typing import Tuple, List
+from typing import List, Tuple
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,14 +19,16 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
+from detector_orchestration.coordinator import (  # type: ignore  # noqa: E402
+    DetectorCoordinator,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
-    RoutingPlan,
-    RoutingDecision,
     DetectorResult,
     DetectorStatus,
+    RoutingDecision,
+    RoutingPlan,
 )
 from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
-from detector_orchestration.coordinator import DetectorCoordinator  # type: ignore  # noqa: E402
 
 
 @pytest.mark.integration
@@ -57,14 +59,36 @@ def test_orchestrate_determinism_under_out_of_order(monkeypatch):
         out: List[DetectorResult] = []
         for idx, d in enumerate(order):
             if d == "det-A":
-                out.append(DetectorResult(detector=d, status=DetectorStatus.SUCCESS, output="safe", confidence=0.90, processing_time_ms=10 + idx))
+                out.append(
+                    DetectorResult(
+                        detector=d,
+                        status=DetectorStatus.SUCCESS,
+                        output="safe",
+                        confidence=0.90,
+                        processing_time_ms=10 + idx,
+                    )
+                )
             else:
-                out.append(DetectorResult(detector=d, status=DetectorStatus.SUCCESS, output="toxic", confidence=0.80, processing_time_ms=10 + idx))
+                out.append(
+                    DetectorResult(
+                        detector=d,
+                        status=DetectorStatus.SUCCESS,
+                        output="toxic",
+                        confidence=0.80,
+                        processing_time_ms=10 + idx,
+                    )
+                )
         return out
 
     # First run: normal order
     monkeypatch.setattr(ContentRouter, "route_request", _fake_route_request)
-    monkeypatch.setattr(DetectorCoordinator, "execute_detector_group", lambda self, detectors, content, plan, meta: _exec_order(self, detectors, content, plan, meta, False))
+    monkeypatch.setattr(
+        DetectorCoordinator,
+        "execute_detector_group",
+        lambda self, detectors, content, plan, meta: _exec_order(
+            self, detectors, content, plan, meta, False
+        ),
+    )
 
     client = TestClient(app)
     headers = {settings.config.tenant_header: "tenant-determ"}
@@ -78,13 +102,23 @@ def test_orchestrate_determinism_under_out_of_order(monkeypatch):
     r1 = client.post("/orchestrate", json=body, headers=headers)
     assert r1.status_code in (200, 206)
     data1 = r1.json()
-    win1 = data1["aggregated_payload"]["metadata"]["conflict_resolution"]["winning_output"]
+    win1 = data1["aggregated_payload"]["metadata"]["conflict_resolution"][
+        "winning_output"
+    ]
 
     # Second run: reversed order
-    monkeypatch.setattr(DetectorCoordinator, "execute_detector_group", lambda self, detectors, content, plan, meta: _exec_order(self, detectors, content, plan, meta, True))
+    monkeypatch.setattr(
+        DetectorCoordinator,
+        "execute_detector_group",
+        lambda self, detectors, content, plan, meta: _exec_order(
+            self, detectors, content, plan, meta, True
+        ),
+    )
     r2 = client.post("/orchestrate", json=body, headers=headers)
     assert r2.status_code in (200, 206)
     data2 = r2.json()
-    win2 = data2["aggregated_payload"]["metadata"]["conflict_resolution"]["winning_output"]
+    win2 = data2["aggregated_payload"]["metadata"]["conflict_resolution"][
+        "winning_output"
+    ]
 
     assert win1 == win2 == "safe"

@@ -16,42 +16,51 @@ from typing import Any, Dict, List, Optional
 import click
 from croniter import croniter
 
-from ..core import BaseCommand, CLIError
 from ...analysis.domain.services import WeeklyEvaluationService
-from ...analysis.domain.entities import QualityMetrics
+from ..core import BaseCommand, CLIError
 
 logger = logging.getLogger(__name__)
 
 
 class WeeklyEvaluationCommand(BaseCommand):
     """Command for managing weekly evaluations."""
-    
+
     def __init__(self, config_manager):
         super().__init__(config_manager)
         self.weekly_eval_service = None
-    
+
     def _get_service(self) -> WeeklyEvaluationService:
         """Get or create the weekly evaluation service."""
         if self.weekly_eval_service is None:
             try:
                 # Import here to avoid circular imports
-                from ...analysis.domain.services import QualityService
-                from ...analysis.infrastructure.quality_evaluator import QualityEvaluator
-                from ...analysis.infrastructure.report_generator import WeeklyEvaluationReportGenerator
-                from ...analysis.infrastructure.storage_backend import create_storage_backend
-                from ...analysis.quality.quality_alerting_system import QualityAlertingSystem
                 from ...analysis.config.evaluation_config import get_evaluation_config
-                
+                from ...analysis.domain.services import QualityService
+                from ...analysis.infrastructure.quality_evaluator import (
+                    QualityEvaluator,
+                )
+                from ...analysis.infrastructure.report_generator import (
+                    WeeklyEvaluationReportGenerator,
+                )
+                from ...analysis.infrastructure.storage_backend import (
+                    create_storage_backend,
+                )
+                from ...analysis.quality.quality_alerting_system import (
+                    QualityAlertingSystem,
+                )
+
                 # Get configuration
                 config = get_evaluation_config()
-                
+
                 # Initialize dependencies
                 quality_evaluator = QualityEvaluator()
                 quality_service = QualityService(quality_evaluator)
                 report_generator = WeeklyEvaluationReportGenerator()
                 alerting_system = QualityAlertingSystem()
-                storage_backend = create_storage_backend(**config.get_storage_backend_config())
-                
+                storage_backend = create_storage_backend(
+                    **config.get_storage_backend_config()
+                )
+
                 # Create service
                 self.weekly_eval_service = WeeklyEvaluationService(
                     quality_service=quality_service,
@@ -59,13 +68,13 @@ class WeeklyEvaluationCommand(BaseCommand):
                     alerting_system=alerting_system,
                     storage_backend=storage_backend,
                 )
-                
+
             except Exception as e:
-                logger.error(f"Failed to initialize weekly evaluation service: {e}")
+                logger.error("Failed to initialize weekly evaluation service: %s", e)
                 raise CLIError(f"Failed to initialize weekly evaluation service: {e}")
-        
+
         return self.weekly_eval_service
-    
+
     def schedule(
         self,
         tenant_id: str,
@@ -75,13 +84,13 @@ class WeeklyEvaluationCommand(BaseCommand):
     ) -> Dict[str, Any]:
         """
         Schedule a weekly evaluation for a tenant.
-        
+
         Args:
             tenant_id: Tenant ID for the evaluation
             cron_schedule: Cron expression for scheduling (default: Monday 9 AM)
             recipients: List of email addresses for report distribution
             config_file: Path to evaluation configuration file
-            
+
         Returns:
             Schedule information
         """
@@ -91,16 +100,16 @@ class WeeklyEvaluationCommand(BaseCommand):
                 croniter(cron_schedule)
             except Exception as e:
                 raise CLIError(f"Invalid cron schedule '{cron_schedule}': {e}")
-            
+
             # Load evaluation config if provided
             evaluation_config = {}
             if config_file:
                 try:
-                    with open(config_file, 'r') as f:
+                    with open(config_file, "r") as f:
                         evaluation_config = json.load(f)
                 except Exception as e:
                     raise CLIError(f"Failed to load config file '{config_file}': {e}")
-            
+
             # Schedule the evaluation
             service = self._get_service()
             schedule_id = service.schedule_weekly_evaluation(
@@ -109,7 +118,7 @@ class WeeklyEvaluationCommand(BaseCommand):
                 report_recipients=recipients,
                 evaluation_config=evaluation_config,
             )
-            
+
             result = {
                 "schedule_id": schedule_id,
                 "tenant_id": tenant_id,
@@ -119,18 +128,18 @@ class WeeklyEvaluationCommand(BaseCommand):
                 "created_at": datetime.utcnow().isoformat(),
                 "status": "scheduled",
             }
-            
+
             click.echo(f"✅ Scheduled weekly evaluation for tenant '{tenant_id}'")
             click.echo(f"   Schedule ID: {schedule_id}")
             click.echo(f"   Cron Schedule: {cron_schedule}")
             click.echo(f"   Recipients: {', '.join(recipients or [])}")
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error(f"Failed to schedule weekly evaluation: {e}")
+            logger.error("Failed to schedule weekly evaluation: %s", e)
             raise CLIError(f"Failed to schedule weekly evaluation: {e}")
-    
+
     def run(
         self,
         schedule_id: str,
@@ -138,36 +147,38 @@ class WeeklyEvaluationCommand(BaseCommand):
     ) -> Dict[str, Any]:
         """
         Run a scheduled evaluation.
-        
+
         Args:
             schedule_id: ID of the scheduled evaluation
             force: Force run even if not due
-            
+
         Returns:
             Evaluation results
         """
         try:
             service = self._get_service()
-            
+
             if not force:
                 # Check if evaluation is due (would be implemented with croniter)
-                click.echo(f"⚠️  Use --force to run evaluation {schedule_id} immediately")
+                click.echo(
+                    f"⚠️  Use --force to run evaluation {schedule_id} immediately"
+                )
                 return {"status": "skipped", "reason": "not_due"}
-            
+
             click.echo(f"🔄 Running scheduled evaluation {schedule_id}...")
-            
+
             result = service.run_scheduled_evaluation(schedule_id)
-            
+
             click.echo(f"✅ Evaluation completed successfully")
             click.echo(f"   Status: {result.get('status', 'unknown')}")
             click.echo(f"   Report: {result.get('report_path', 'N/A')}")
-            
+
             return result
-            
+
         except Exception as e:
-            logger.error(f"Failed to run scheduled evaluation: {e}")
+            logger.error("Failed to run scheduled evaluation: %s", e)
             raise CLIError(f"Failed to run scheduled evaluation: {e}")
-    
+
     def list_schedules(
         self,
         tenant_id: Optional[str] = None,
@@ -175,29 +186,29 @@ class WeeklyEvaluationCommand(BaseCommand):
     ) -> List[Dict[str, Any]]:
         """
         List scheduled evaluations.
-        
+
         Args:
             tenant_id: Filter by tenant ID
             active_only: Show only active schedules
-            
+
         Returns:
             List of scheduled evaluations
         """
         try:
             service = self._get_service()
             schedules = service.list_scheduled_evaluations(tenant_id)
-            
+
             if active_only:
                 schedules = [s for s in schedules if s.get("active", True)]
-            
+
             if not schedules:
                 click.echo("No scheduled evaluations found")
                 return []
-            
+
             # Display schedules in a table format
             click.echo(f"\n📅 Scheduled Evaluations ({len(schedules)} found)")
             click.echo("=" * 80)
-            
+
             for schedule in schedules:
                 status = "🟢 Active" if schedule.get("active", True) else "🔴 Inactive"
                 click.echo(f"Schedule ID: {schedule['schedule_id']}")
@@ -206,15 +217,17 @@ class WeeklyEvaluationCommand(BaseCommand):
                 click.echo(f"  Status: {status}")
                 click.echo(f"  Created: {schedule.get('created_at', 'N/A')}")
                 click.echo(f"  Last Run: {schedule.get('last_run', 'Never')}")
-                click.echo(f"  Recipients: {', '.join(schedule.get('report_recipients', []))}")
+                click.echo(
+                    f"  Recipients: {', '.join(schedule.get('report_recipients', []))}"
+                )
                 click.echo()
-            
+
             return schedules
-            
+
         except Exception as e:
-            logger.error(f"Failed to list scheduled evaluations: {e}")
+            logger.error("Failed to list scheduled evaluations: %s", e)
             raise CLIError(f"Failed to list scheduled evaluations: {e}")
-    
+
     def cancel(
         self,
         schedule_id: str,
@@ -222,55 +235,59 @@ class WeeklyEvaluationCommand(BaseCommand):
     ) -> bool:
         """
         Cancel a scheduled evaluation.
-        
+
         Args:
             schedule_id: ID of the scheduled evaluation
             confirm: Skip confirmation prompt
-            
+
         Returns:
             True if cancelled successfully
         """
         try:
             if not confirm:
-                if not click.confirm(f"Are you sure you want to cancel schedule {schedule_id}?"):
+                if not click.confirm(
+                    f"Are you sure you want to cancel schedule {schedule_id}?"
+                ):
                     click.echo("Cancelled")
                     return False
-            
+
             service = self._get_service()
             success = service.cancel_scheduled_evaluation(schedule_id)
-            
+
             if success:
                 click.echo(f"✅ Cancelled schedule {schedule_id}")
             else:
                 click.echo(f"❌ Failed to cancel schedule {schedule_id}")
-            
+
             return success
-            
+
         except Exception as e:
-            logger.error(f"Failed to cancel scheduled evaluation: {e}")
+            logger.error("Failed to cancel scheduled evaluation: %s", e)
             raise CLIError(f"Failed to cancel scheduled evaluation: {e}")
-    
+
     def status(
         self,
         schedule_id: str,
     ) -> Dict[str, Any]:
         """
         Get status of a scheduled evaluation.
-        
+
         Args:
             schedule_id: ID of the scheduled evaluation
-            
+
         Returns:
             Schedule status information
         """
         try:
             service = self._get_service()
             schedules = service.list_scheduled_evaluations()
-            
-            schedule = next((s for s in schedules if s["schedule_id"] == schedule_id), None)
+
+            schedule = next(
+                (s for s in schedules if s["schedule_id"] == schedule_id), None
+            )
             if not schedule:
                 raise CLIError(f"Schedule {schedule_id} not found")
-            
+
             # Calculate next run time
             next_run = "Unknown"
             if schedule.get("cron_schedule"):
@@ -279,7 +296,7 @@ class WeeklyEvaluationCommand(BaseCommand):
                     next_run = cron.get_next(datetime).isoformat()
                 except Exception:
                     next_run = "Invalid cron schedule"
-            
+
             status_info = {
                 "schedule_id": schedule_id,
                 "tenant_id": schedule["tenant_id"],
@@ -290,7 +307,7 @@ class WeeklyEvaluationCommand(BaseCommand):
                 "next_run": next_run,
                 "report_recipients": schedule.get("report_recipients", []),
             }
-            
+
             # Display status
             click.echo(f"\n📊 Schedule Status: {schedule_id}")
             click.echo("=" * 50)
@@ -301,43 +318,65 @@ class WeeklyEvaluationCommand(BaseCommand):
             click.echo(f"Last Run: {status_info['last_run'] or 'Never'}")
             click.echo(f"Next Run: {status_info['next_run']}")
             click.echo(f"Recipients: {', '.join(status_info['report_recipients'])}")
-            
+
             return status_info
-            
+
         except Exception as e:
-            logger.error(f"Failed to get schedule status: {e}")
+            logger.error("Failed to get schedule status: %s", e)
             raise CLIError(f"Failed to get schedule status: {e}")
 
 
 def register(registry) -> None:
     """Register weekly evaluation commands with the CLI registry."""
-    
+
     # Schedule command
     registry.register_command(
         "weekly-eval schedule",
         WeeklyEvaluationCommand,
         help="Schedule a weekly evaluation for a tenant",
         parameters={
-            "tenant_id": {"type": str, "required": True, "help": "Tenant ID for the evaluation"},
-            "cron_schedule": {"type": str, "default": "0 9 * * 1", "help": "Cron expression (default: Monday 9 AM)"},
-            "recipients": {"type": list, "help": "Email addresses for report distribution"},
-            "config_file": {"type": str, "help": "Path to evaluation configuration file"},
+            "tenant_id": {
+                "type": str,
+                "required": True,
+                "help": "Tenant ID for the evaluation",
+            },
+            "cron_schedule": {
+                "type": str,
+                "default": "0 9 * * 1",
+                "help": "Cron expression (default: Monday 9 AM)",
+            },
+            "recipients": {
+                "type": list,
+                "help": "Email addresses for report distribution",
+            },
+            "config_file": {
+                "type": str,
+                "help": "Path to evaluation configuration file",
+            },
         },
-        method="schedule"
+        method="schedule",
     )
-    
+
     # Run command
     registry.register_command(
         "weekly-eval run",
         WeeklyEvaluationCommand,
         help="Run a scheduled evaluation",
         parameters={
-            "schedule_id": {"type": str, "required": True, "help": "ID of the scheduled evaluation"},
-            "force": {"type": bool, "default": False, "help": "Force run even if not due"},
+            "schedule_id": {
+                "type": str,
+                "required": True,
+                "help": "ID of the scheduled evaluation",
+            },
+            "force": {
+                "type": bool,
+                "default": False,
+                "help": "Force run even if not due",
+            },
         },
-        method="run"
+        method="run",
     )
-    
+
     # List command
     registry.register_command(
         "weekly-eval list",
@@ -345,30 +384,46 @@ def register(registry) -> None:
         help="List scheduled evaluations",
         parameters={
             "tenant_id": {"type": str, "help": "Filter by tenant ID"},
-            "active_only": {"type": bool, "default": True, "help": "Show only active schedules"},
+            "active_only": {
+                "type": bool,
+                "default": True,
+                "help": "Show only active schedules",
+            },
         },
-        method="list_schedules"
+        method="list_schedules",
     )
-    
+
     # Cancel command
     registry.register_command(
         "weekly-eval cancel",
         WeeklyEvaluationCommand,
         help="Cancel a scheduled evaluation",
         parameters={
-            "schedule_id": {"type": str, "required": True, "help": "ID of the scheduled evaluation"},
-            "confirm": {"type": bool, "default": False, "help": "Skip confirmation prompt"},
+            "schedule_id": {
+                "type": str,
+                "required": True,
+                "help": "ID of the scheduled evaluation",
+            },
+            "confirm": {
+                "type": bool,
+                "default": False,
+                "help": "Skip confirmation prompt",
+            },
         },
-        method="cancel"
+        method="cancel",
     )
-    
+
     # Status command
     registry.register_command(
         "weekly-eval status",
         WeeklyEvaluationCommand,
         help="Get status of a scheduled evaluation",
         parameters={
-            "schedule_id": {"type": str, "required": True, "help": "ID of the scheduled evaluation"},
+            "schedule_id": {
+                "type": str,
+                "required": True,
+                "help": "ID of the scheduled evaluation",
+            },
         },
-        method="status"
+        method="status",
     )

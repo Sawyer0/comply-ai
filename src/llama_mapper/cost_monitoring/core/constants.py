@@ -53,7 +53,7 @@ DEFAULT_MIN_DATA_POINTS = 7
 # Resource types
 RESOURCE_TYPES: List[str] = [
     "cpu",
-    "memory", 
+    "memory",
     "gpu",
     "storage",
     "network",
@@ -74,7 +74,7 @@ GUARDRAIL_METRIC_TYPES: List[str] = [
 # Alert severity levels
 ALERT_SEVERITY_LEVELS: List[str] = [
     "low",
-    "medium", 
+    "medium",
     "high",
     "critical",
 ]

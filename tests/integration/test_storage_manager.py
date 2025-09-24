@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.llama_mapper.config.settings import Settings, StorageConfig
 from llama_mapper.storage.manager import StorageBackend, StorageManager, StorageRecord
+from src.llama_mapper.config.settings import Settings, StorageConfig
 
 
 @pytest.fixture

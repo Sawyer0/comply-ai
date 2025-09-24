@@ -12,30 +12,45 @@ Key Components:
 - Configurable thresholds and alert routing
 """
 
-from .interfaces import (
-    QualityMetricType, AlertSeverity, AlertStatus, DegradationType,
-    QualityMetric, QualityThreshold, DegradationDetection, Alert,
-    IQualityMonitor, IQualityDetector, IAlertHandler, IAlertManager,
-    IQualityAlertingSystem
-)
-
-from .monitoring.quality_monitor import QualityMonitor
-from .detection.degradation_detector import QualityDegradationDetector
-from .alerting.alert_manager import AlertManager
 from .alerting.alert_handlers import (
-    LoggingAlertHandler, EmailAlertHandler, SlackAlertHandler,
-    WebhookAlertHandler, CompositeAlertHandler
+    CompositeAlertHandler,
+    EmailAlertHandler,
+    LoggingAlertHandler,
+    SlackAlertHandler,
+    WebhookAlertHandler,
 )
-from .quality_alerting_system import QualityAlertingSystem
+from .alerting.alert_manager import AlertManager
 from .config.quality_config import (
-    QualityAlertingConfig, QualityAlertingSettings,
-    EmailConfig, SlackConfig, WebhookConfig, QualityThresholdConfig
+    EmailConfig,
+    QualityAlertingConfig,
+    QualityAlertingSettings,
+    QualityThresholdConfig,
+    SlackConfig,
+    WebhookConfig,
 )
+from .detection.degradation_detector import QualityDegradationDetector
+from .interfaces import (
+    Alert,
+    AlertSeverity,
+    AlertStatus,
+    DegradationDetection,
+    DegradationType,
+    IAlertHandler,
+    IAlertManager,
+    IQualityAlertingSystem,
+    IQualityDetector,
+    IQualityMonitor,
+    QualityMetric,
+    QualityMetricType,
+    QualityThreshold,
+)
+from .monitoring.quality_monitor import QualityMonitor
+from .quality_alerting_system import QualityAlertingSystem
 
 __all__ = [
     # Interfaces
     "QualityMetricType",
-    "AlertSeverity", 
+    "AlertSeverity",
     "AlertStatus",
     "DegradationType",
     "QualityMetric",
@@ -47,7 +62,6 @@ __all__ = [
     "IAlertHandler",
     "IAlertManager",
     "IQualityAlertingSystem",
-    
     # Implementations
     "QualityMonitor",
     "QualityDegradationDetector",
@@ -58,12 +72,11 @@ __all__ = [
     "WebhookAlertHandler",
     "CompositeAlertHandler",
     "QualityAlertingSystem",
-    
     # Configuration
     "QualityAlertingConfig",
     "QualityAlertingSettings",
     "EmailConfig",
     "SlackConfig",
     "WebhookConfig",
-    "QualityThresholdConfig"
+    "QualityThresholdConfig",
 ]

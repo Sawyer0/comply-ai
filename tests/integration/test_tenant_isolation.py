@@ -7,13 +7,13 @@ access control, configuration management, and data filtering.
 
 import pytest
 
-from src.llama_mapper.config.settings import Settings
 from llama_mapper.storage.tenant_isolation import (
     TenantAccessLevel,
     TenantConfig,
     TenantIsolationError,
     TenantIsolationManager,
 )
+from src.llama_mapper.config.settings import Settings
 
 
 @pytest.fixture

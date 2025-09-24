@@ -6,9 +6,9 @@ API-specific concerns for the analysis module.
 """
 
 from .app import create_analysis_app
+from .dependencies import get_analysis_service, get_batch_analysis_service
 from .endpoints import AnalysisEndpoints
 from .middleware import AnalysisMiddleware
-from .dependencies import get_analysis_service, get_batch_analysis_service
 
 __all__ = [
     "create_analysis_app",

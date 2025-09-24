@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from .rate_limit_base import AllowResult, RateLimitRequest, RateLimiterBackend
+from .rate_limit_base import AllowResult, RateLimiterBackend, RateLimitRequest
 
 try:
     import redis  # type: ignore
@@ -61,9 +61,13 @@ class RedisRateLimiterBackend(RateLimiterBackend):
     async def allow(self, request: RateLimitRequest) -> AllowResult:
         # If Redis unavailable, signal backend error by returning a blocked result
         if not self._ensure_client():
-            return AllowResult(False, 0, request.limit, float(request.window), "api_key")
+            return AllowResult(
+                False, 0, request.limit, float(request.window), "api_key"
+            )
         if self._redis is None:
-            return AllowResult(False, 0, request.limit, float(request.window), "api_key")
+            return AllowResult(
+                False, 0, request.limit, float(request.window), "api_key"
+            )
 
         now = time.time()
         # Fixed window key: floor(now/window) bucket
@@ -82,7 +86,9 @@ class RedisRateLimiterBackend(RateLimiterBackend):
             return AllowResult(False, 0, request.limit, reset_seconds, "api_key")
         except (ConnectionError, TimeoutError, RuntimeError):
             # Return blocked; middleware will record backend error path
-            return AllowResult(False, 0, request.limit, float(request.window), "api_key")
+            return AllowResult(
+                False, 0, request.limit, float(request.window), "api_key"
+            )
 
     async def is_healthy(self) -> bool:
         if not self._ensure_client():

@@ -1,0 +1,53 @@
+detector: presidio
+version: "v1"
+notes: "Comprehensive mapping for Microsoft Presidio PII detector outputs."
+maps:
+  # Person information
+  PERSON: PII.Person.Name
+  FIRST_NAME: PII.Person.Name
+  LAST_NAME: PII.Person.Name
+  FULL_NAME: PII.Person.Name
+  
+  # Contact information
+  EMAIL_ADDRESS: PII.Contact.Email
+  PHONE_NUMBER: PII.Contact.Phone
+  URL: PII.Contact.URL
+  
+  # Location information
+  LOCATION: PII.Contact.Address
+  ADDRESS: PII.Contact.Address
+  CITY: PII.Contact.Address
+  STATE: PII.Contact.Address
+  ZIP_CODE: PII.Contact.Address
+  COUNTRY: PII.Contact.Address
+  
+  # Financial information
+  CREDIT_CARD: PII.Identifier.CreditCard
+  IBAN_CODE: PII.Identifier.BankAccount
+  
+  # Government identifiers
+  US_SSN: PII.Identifier.SSN
+  US_PASSPORT: PII.Identifier.Passport
+  US_DRIVER_LICENSE: PII.Identifier.Other
+  
+  # International identifiers
+  UK_NHS: PII.Health.HIPAA
+  AU_TFN: PII.Identifier.Other
+  AU_ABN: PII.Identifier.Other
+  
+  # Dates and temporal
+  DATE_TIME: PII.Person.DateOfBirth
+  DATE: PII.Person.DateOfBirth
+  TIME: PII.Person.DateOfBirth
+  
+  # Technical identifiers
+  IP_ADDRESS: PII.Identifier.Other
+  MAC_ADDRESS: PII.Identifier.Other
+  
+  # Medical information
+  MEDICAL_LICENSE: PII.Health.HIPAA
+  
+  # Generic fallbacks
+  PII: PII.Other
+  SENSITIVE: PII.Other
+  PERSONAL_INFO: PII.Other

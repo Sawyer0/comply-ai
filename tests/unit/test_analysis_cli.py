@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from src.llama_mapper.cli.main import main
 from src.llama_mapper.analysis import AnalysisResponse, HealthStatus
+from src.llama_mapper.cli.main import main
 
 
 class TestAnalysisCLI:
@@ -33,11 +33,11 @@ class TestAnalysisCLI:
                             "category": "vulnerability",
                             "description": "SQL injection vulnerability",
                             "affected_component": "auth-service",
-                            "confidence": 0.95
+                            "confidence": 0.95,
                         }
-                    ]
+                    ],
                 }
-            ]
+            ],
         }
 
     def test_analysis_help(self):
@@ -82,18 +82,19 @@ class TestAnalysisCLI:
         assert result.exit_code == 0
         assert "Validate analysis module configuration" in result.output
 
-    @patch('src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory')
-    @patch('src.llama_mapper.cli.commands.analysis.AnalyzeMetricsUseCase')
+    @patch("src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory")
+    @patch("src.llama_mapper.cli.commands.analysis.AnalyzeMetricsUseCase")
     def test_analyze_command_success(self, mock_use_case, mock_factory):
         """Test successful analysis command execution."""
         # Create temporary metrics file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(self.sample_metrics, f)
             metrics_file = f.name
 
         try:
             # Mock the analysis response
             from src.llama_mapper.analysis.domain.entities import VersionInfo
+
             mock_response = AnalysisResponse(
                 reason="Test explanation",
                 remediation="Test remediation",
@@ -103,11 +104,9 @@ class TestAnalysisCLI:
                 evidence_refs=["detector-1", "detector-2"],
                 notes="Test notes",
                 version_info=VersionInfo(
-                    taxonomy="1.0.0",
-                    frameworks="1.0.0",
-                    analyst_model="phi3-mini-3.8b"
+                    taxonomy="1.0.0", frameworks="1.0.0", analyst_model="phi3-mini-3.8b"
                 ),
-                processing_time_ms=150
+                processing_time_ms=150,
             )
 
             # Mock the use case execution
@@ -121,11 +120,17 @@ class TestAnalysisCLI:
             mock_factory.create_from_config.return_value = mock_factory_instance
 
             # Run the command
-            result = self.runner.invoke(main, [
-                "analysis", "analyze",
-                "--metrics-file", metrics_file,
-                "--format", "json"
-            ])
+            result = self.runner.invoke(
+                main,
+                [
+                    "analysis",
+                    "analyze",
+                    "--metrics-file",
+                    metrics_file,
+                    "--format",
+                    "json",
+                ],
+            )
 
             assert result.exit_code == 0
             assert "Test explanation" in result.output
@@ -135,8 +140,8 @@ class TestAnalysisCLI:
             # Clean up
             Path(metrics_file).unlink()
 
-    @patch('src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory')
-    @patch('src.llama_mapper.cli.commands.analysis.HealthCheckUseCase')
+    @patch("src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory")
+    @patch("src.llama_mapper.cli.commands.analysis.HealthCheckUseCase")
     def test_health_command_success(self, mock_use_case, mock_factory):
         """Test successful health command execution."""
         # Mock the health status
@@ -144,7 +149,7 @@ class TestAnalysisCLI:
             status="healthy",
             service="analysis-module",
             version="1.0.0",
-            checks={"model_server": "healthy", "validator": "healthy"}
+            checks={"model_server": "healthy", "validator": "healthy"},
         )
 
         # Mock the use case execution
@@ -164,8 +169,8 @@ class TestAnalysisCLI:
         assert "Status: healthy" in result.output
         assert "Version: 1.0.0" in result.output
 
-    @patch('src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory')
-    @patch('src.llama_mapper.cli.commands.analysis.QualityEvaluationUseCase')
+    @patch("src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory")
+    @patch("src.llama_mapper.cli.commands.analysis.QualityEvaluationUseCase")
     def test_quality_eval_command_success(self, mock_use_case, mock_factory):
         """Test successful quality evaluation command execution."""
         # Mock the quality evaluation result
@@ -173,12 +178,15 @@ class TestAnalysisCLI:
         mock_quality_result.overall_score = 8.5
         mock_quality_result.confidence = 0.9
         mock_quality_result.metrics = {"accuracy": 0.9, "completeness": 0.85}
-        mock_quality_result.recommendations = ["Improve accuracy", "Add more test cases"]
+        mock_quality_result.recommendations = [
+            "Improve accuracy",
+            "Add more test cases",
+        ]
         mock_quality_result.model_dump.return_value = {
             "overall_score": 8.5,
             "confidence": 0.9,
             "metrics": {"accuracy": 0.9, "completeness": 0.85},
-            "recommendations": ["Improve accuracy", "Add more test cases"]
+            "recommendations": ["Improve accuracy", "Add more test cases"],
         }
 
         # Mock the use case execution
@@ -198,8 +206,8 @@ class TestAnalysisCLI:
         assert "Overall Score: 8.50/10" in result.output
         assert "Confidence: 0.90" in result.output
 
-    @patch('src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory')
-    @patch('src.llama_mapper.cli.commands.analysis.CacheManagementUseCase')
+    @patch("src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory")
+    @patch("src.llama_mapper.cli.commands.analysis.CacheManagementUseCase")
     def test_cache_command_stats(self, mock_use_case, mock_factory):
         """Test cache stats command execution."""
         # Mock the cache stats result
@@ -237,10 +245,9 @@ class TestAnalysisCLI:
 
     def test_analyze_command_missing_file(self):
         """Test analyze command with missing metrics file."""
-        result = self.runner.invoke(main, [
-            "analysis", "analyze",
-            "--metrics-file", "nonexistent.json"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "analyze", "--metrics-file", "nonexistent.json"]
+        )
 
         assert result.exit_code != 0
         assert "does not exist" in result.output
@@ -248,15 +255,14 @@ class TestAnalysisCLI:
     def test_analyze_command_invalid_json(self):
         """Test analyze command with invalid JSON file."""
         # Create temporary file with invalid JSON
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("invalid json content")
             invalid_file = f.name
 
         try:
-            result = self.runner.invoke(main, [
-                "analysis", "analyze",
-                "--metrics-file", invalid_file
-            ])
+            result = self.runner.invoke(
+                main, ["analysis", "analyze", "--metrics-file", invalid_file]
+            )
 
             assert result.exit_code != 0
             assert "Expecting value" in result.output
@@ -265,23 +271,24 @@ class TestAnalysisCLI:
             # Clean up
             Path(invalid_file).unlink()
 
-    @patch('src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory')
+    @patch("src.llama_mapper.cli.commands.analysis.AnalysisModuleFactory")
     def test_analyze_command_factory_error(self, mock_factory):
         """Test analyze command with factory initialization error."""
         # Create temporary metrics file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(self.sample_metrics, f)
             metrics_file = f.name
 
         try:
             # Mock factory to raise an exception
-            mock_factory.create_from_config.side_effect = Exception("Factory initialization failed")
+            mock_factory.create_from_config.side_effect = Exception(
+                "Factory initialization failed"
+            )
 
             # Run the command
-            result = self.runner.invoke(main, [
-                "analysis", "analyze",
-                "--metrics-file", metrics_file
-            ])
+            result = self.runner.invoke(
+                main, ["analysis", "analyze", "--metrics-file", metrics_file]
+            )
 
             assert result.exit_code != 0
             assert "Analysis failed" in result.output
@@ -292,20 +299,18 @@ class TestAnalysisCLI:
 
     def test_batch_analyze_command_missing_file(self):
         """Test batch analyze command with missing batch file."""
-        result = self.runner.invoke(main, [
-            "analysis", "batch-analyze",
-            "--batch-file", "nonexistent.json"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "batch-analyze", "--batch-file", "nonexistent.json"]
+        )
 
         assert result.exit_code != 0
         assert "does not exist" in result.output
 
     def test_cache_command_invalid_action(self):
         """Test cache command with invalid action."""
-        result = self.runner.invoke(main, [
-            "analysis", "cache",
-            "--action", "invalid_action"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "cache", "--action", "invalid_action"]
+        )
 
         # Should show help or error message
         assert result.exit_code != 0 or "Usage:" in result.output

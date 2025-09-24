@@ -13,9 +13,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol
 
-from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
-
 import structlog
+from botocore.exceptions import ClientError, NoCredentialsError, PartialCredentialsError
 
 from ..config.settings import Settings
 

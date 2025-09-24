@@ -43,12 +43,30 @@ categories:
           - name: "PII.Health.HIPAA"
             description: "HIPAA-protected health information"
             aliases: ["health_info", "medical_info", "phi"]
+      Person:
+        description: "Personal information"
+        labels:
+          - name: "PII.Person.Name"
+            description: "Person's name (first, last, or full)"
+            aliases: ["name", "person", "full_name", "first_name", "last_name"]
+          - name: "PII.Person.DateOfBirth"
+            description: "Date of birth or age-related information"
+            aliases: ["dob", "birth_date", "age", "birthday"]
+          - name: "PII.Person.Age"
+            description: "Age information"
+            aliases: ["age", "years_old"]
       Other:
         description: "Other PII types"
         labels:
+          - name: "PII.Identifier.Other"
+            description: "Other identification numbers"
+            aliases: ["id", "identifier", "license", "registration"]
+          - name: "PII.Contact.URL"
+            description: "Website or URL associated with person"
+            aliases: ["url", "website", "link"]
           - name: "PII.Other"
             description: "Other personally identifiable information"
-            aliases: ["pii", "personal_info"]
+            aliases: ["pii", "personal_info", "sensitive"]
 
   JAILBREAK:
     description: "Jailbreak and prompt manipulation attempts"
@@ -145,7 +163,7 @@ categories:
         aliases: ["bias", "discrimination"]
 
   OTHER:
-    description: "Fallback categories"
+    description: "Fallback and system categories"
     labels:
       - name: "OTHER.Unknown"
         description: "Unknown or unmapped detector output"
@@ -153,3 +171,33 @@ categories:
       - name: "OTHER.ModelError"
         description: "Model generation or processing error"
         aliases: ["error", "model_error", "processing_error"]
+      - name: "OTHER.Safe"
+        description: "Content determined to be safe"
+        aliases: ["safe", "clean", "negative", "benign"]
+      - name: "OTHER.PolicyViolation"
+        description: "General policy violation"
+        aliases: ["policy_violation", "violation"]
+      - name: "OTHER.ContentFiltered"
+        description: "Content was filtered by system"
+        aliases: ["filtered", "blocked", "content_blocked"]
+      - name: "OTHER.OffTopic"
+        description: "Content is off-topic or irrelevant"
+        aliases: ["off_topic", "irrelevant", "topic_drift"]
+      - name: "OTHER.LowRisk"
+        description: "Low risk content"
+        aliases: ["low_risk", "minimal_risk"]
+      - name: "OTHER.NeedsReview"
+        description: "Content needs human review"
+        aliases: ["needs_review", "review_required", "flagged"]
+      - name: "OTHER.Misinformation"
+        description: "False or misleading information"
+        aliases: ["misinformation", "false_info", "misleading"]
+      - name: "OTHER.Hallucination"
+        description: "AI-generated false information"
+        aliases: ["hallucination", "fabricated", "made_up"]
+      - name: "OTHER.FactualError"
+        description: "Factually incorrect information"
+        aliases: ["factual_error", "incorrect", "wrong_facts"]
+      - name: "OTHER.LowQuality"
+        description: "Low quality content"
+        aliases: ["low_quality", "poor_quality", "spam"]

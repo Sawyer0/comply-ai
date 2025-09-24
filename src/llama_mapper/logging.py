@@ -8,9 +8,9 @@ to ensure compliance with data protection regulations.
 import logging
 import logging.config
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
-from dataclasses import dataclass
 
 import structlog
 from structlog.types import FilteringBoundLogger

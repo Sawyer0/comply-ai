@@ -8,17 +8,17 @@ backward compatibility with existing tests and code.
 from .domain.entities import (
     AnalysisRequest,
     AnalysisResponse,
+    AnalysisType,
     BatchAnalysisRequest,
     BatchAnalysisResponse,
-    AnalysisType,
-    VersionInfo,
     EvidenceReference,
+    VersionInfo,
 )
 from .validation.evidence_refs import ALLOWED_EVIDENCE_REFS
 
 __all__ = [
     "AnalysisRequest",
-    "AnalysisResponse", 
+    "AnalysisResponse",
     "BatchAnalysisRequest",
     "BatchAnalysisResponse",
     "AnalysisType",

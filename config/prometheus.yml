@@ -1,0 +1,37 @@
+# Prometheus configuration for Comply-AI Analysis Module
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "analysis_rules.yml"
+
+scrape_configs:
+  # Analysis Module metrics
+  - job_name: 'analysis-module'
+    static_configs:
+      - targets: ['localhost:8001']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    scrape_timeout: 5s
+    
+  # Additional analysis instances (for scaling)
+  - job_name: 'analysis-cluster'
+    static_configs:
+      - targets: 
+        - 'analysis-1:8001'
+        - 'analysis-2:8001'
+        - 'analysis-3:8001'
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    
+  # System metrics (optional)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['localhost:9100']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093

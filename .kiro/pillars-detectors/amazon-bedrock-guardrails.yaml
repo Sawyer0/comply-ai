@@ -1,0 +1,46 @@
+detector: amazon-bedrock-guardrails
+version: "v1"
+notes: "Mapping for Amazon Bedrock Guardrails content filtering outputs."
+maps:
+  # Hate speech categories
+  HATE: HARM.SPEECH.Hate.Other
+  HATE_SPEECH: HARM.SPEECH.Hate.Other
+  HATE_THREATENING: HARM.SPEECH.Hate.Other
+  
+  # Harassment categories
+  HARASSMENT: HARM.SPEECH.Insult
+  HARASSMENT_THREATENING: HARM.SPEECH.Threat
+  
+  # Self-harm categories
+  SELF_HARM: HARM.VIOLENCE.SelfHarm
+  SELF_HARM_INTENT: HARM.VIOLENCE.SelfHarm
+  SELF_HARM_INSTRUCTIONS: HARM.VIOLENCE.SelfHarm
+  
+  # Sexual content
+  SEXUAL: HARM.VIOLENCE.Sexual
+  SEXUAL_MINORS: HARM.VIOLENCE.ChildSexualAbuse
+  
+  # Violence categories
+  VIOLENCE: HARM.VIOLENCE.Physical
+  VIOLENCE_GRAPHIC: HARM.VIOLENCE.Physical
+  
+  # PII categories (Bedrock PII detection)
+  PERSON_NAME: PII.Person.Name
+  EMAIL: PII.Contact.Email
+  PHONE: PII.Contact.Phone
+  ADDRESS: PII.Contact.Address
+  SSN: PII.Identifier.SSN
+  CREDIT_CARD_NUMBER: PII.Identifier.CreditCard
+  
+  # Prompt injection and jailbreaks
+  PROMPT_INJECTION: PROMPT_INJECTION.Other
+  JAILBREAK: JAILBREAK.Attempt
+  
+  # Content policy violations
+  POLICY_VIOLATION: OTHER.PolicyViolation
+  CONTENT_FILTERED: OTHER.ContentFiltered
+  
+  # Bedrock-specific categories
+  MISCONDUCT: HARM.SPEECH.Toxicity
+  ILLEGAL_ACTIVITY: HARM.VIOLENCE.Other
+  REGULATED_SUBSTANCES: HARM.VIOLENCE.Other

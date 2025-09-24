@@ -27,7 +27,9 @@ class AdvancedTrainingDataGenerator:
 
         self._advanced_scenarios = self._create_advanced_scenarios()
 
-    def generate_fda_enforcement_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_fda_enforcement_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate FDA enforcement action examples."""
         logger.info("Generating %s FDA enforcement examples...", num_examples)
 
@@ -60,7 +62,9 @@ class AdvancedTrainingDataGenerator:
         logger.info("Generated %s FDA enforcement examples", len(examples))
         return examples
 
-    def generate_aml_compliance_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_aml_compliance_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate Anti-Money Laundering compliance examples."""
         logger.info("Generating %s AML compliance examples...", num_examples)
 
@@ -92,7 +96,9 @@ class AdvancedTrainingDataGenerator:
         logger.info("Generated %s AML compliance examples", len(examples))
         return examples
 
-    def generate_audit_findings_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_audit_findings_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate audit findings examples."""
         logger.info("Generating %s audit findings examples...", num_examples)
 
@@ -124,7 +130,9 @@ class AdvancedTrainingDataGenerator:
         logger.info("Generated %s audit findings examples", len(examples))
         return examples
 
-    def generate_legal_reasoning_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_legal_reasoning_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate legal reasoning examples."""
         logger.info("Generating %s legal reasoning examples...", num_examples)
 
@@ -156,7 +164,9 @@ class AdvancedTrainingDataGenerator:
         logger.info("Generated %s legal reasoning examples", len(examples))
         return examples
 
-    def generate_few_shot_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_few_shot_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate few-shot learning examples."""
         logger.info("Generating %s few-shot examples...", num_examples)
 
@@ -187,7 +197,9 @@ class AdvancedTrainingDataGenerator:
         logger.info("Generated %s few-shot examples", len(examples))
         return examples
 
-    def generate_chain_of_thought_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_chain_of_thought_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate chain-of-thought reasoning examples."""
         logger.info("Generating %s chain-of-thought examples...", num_examples)
 
@@ -394,7 +406,9 @@ class AdvancedTrainingDataGenerator:
                         "Step 5: Test threshold adjustments on validation data",
                         "Step 6: Implement gradual threshold increase with monitoring",
                     ],
-                    "canonical_labels": ["COMPLIANCE.Analysis.ThresholdOptimization.PII"],
+                    "canonical_labels": [
+                        "COMPLIANCE.Analysis.ThresholdOptimization.PII"
+                    ],
                 },
             ],
         }
@@ -411,18 +425,21 @@ class AdvancedTrainingDataGenerator:
 
     def _create_fda_response(self, case: Dict[str, Any], confidence: float) -> str:
         """Create response for FDA enforcement case."""
-        return json.dumps({
-            "taxonomy": [case["canonical_label"]],
-            "scores": {case["canonical_label"]: confidence},
-            "confidence": confidence,
-            "notes": f"FDA enforcement action: {case['case_summary']}",
-            "provenance": {
-                "detector": "fda-compliance-audit",
-                "detector_version": "advanced-v1",
-                "source": "FDA Enforcement Actions",
-                "case_id": case["case_id"],
+        return json.dumps(
+            {
+                "taxonomy": [case["canonical_label"]],
+                "scores": {case["canonical_label"]: confidence},
+                "confidence": confidence,
+                "notes": f"FDA enforcement action: {case['case_summary']}",
+                "provenance": {
+                    "detector": "fda-compliance-audit",
+                    "detector_version": "advanced-v1",
+                    "source": "FDA Enforcement Actions",
+                    "case_id": case["case_id"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
     def _create_aml_instruction(self, case: Dict[str, Any]) -> str:
         """Create instruction for AML compliance case."""
@@ -436,18 +453,21 @@ class AdvancedTrainingDataGenerator:
 
     def _create_aml_response(self, case: Dict[str, Any], confidence: float) -> str:
         """Create response for AML compliance case."""
-        return json.dumps({
-            "taxonomy": [case["canonical_label"]],
-            "scores": {case["canonical_label"]: confidence},
-            "confidence": confidence,
-            "notes": f"AML compliance violation: {case['case_summary']}",
-            "provenance": {
-                "detector": "aml-compliance-audit",
-                "detector_version": "advanced-v1",
-                "source": "AML Enforcement Actions",
-                "case_id": case["case_id"],
+        return json.dumps(
+            {
+                "taxonomy": [case["canonical_label"]],
+                "scores": {case["canonical_label"]: confidence},
+                "confidence": confidence,
+                "notes": f"AML compliance violation: {case['case_summary']}",
+                "provenance": {
+                    "detector": "aml-compliance-audit",
+                    "detector_version": "advanced-v1",
+                    "source": "AML Enforcement Actions",
+                    "case_id": case["case_id"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
     def _create_audit_instruction(self, case: Dict[str, Any]) -> str:
         """Create instruction for audit finding case."""
@@ -462,18 +482,21 @@ class AdvancedTrainingDataGenerator:
 
     def _create_audit_response(self, case: Dict[str, Any], confidence: float) -> str:
         """Create response for audit finding case."""
-        return json.dumps({
-            "taxonomy": [case["canonical_label"]],
-            "scores": {case["canonical_label"]: confidence},
-            "confidence": confidence,
-            "notes": f"Audit finding: {case['case_summary']}",
-            "provenance": {
-                "detector": "audit-compliance-audit",
-                "detector_version": "advanced-v1",
-                "source": "Audit Findings Database",
-                "case_id": case["case_id"],
+        return json.dumps(
+            {
+                "taxonomy": [case["canonical_label"]],
+                "scores": {case["canonical_label"]: confidence},
+                "confidence": confidence,
+                "notes": f"Audit finding: {case['case_summary']}",
+                "provenance": {
+                    "detector": "audit-compliance-audit",
+                    "detector_version": "advanced-v1",
+                    "source": "Audit Findings Database",
+                    "case_id": case["case_id"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
     def _create_legal_reasoning_instruction(self, case: Dict[str, Any]) -> str:
         """Create instruction for legal reasoning case."""
@@ -485,31 +508,40 @@ class AdvancedTrainingDataGenerator:
             f"Provide a detailed analysis with reasoning steps."
         )
 
-    def _create_legal_reasoning_response(self, case: Dict[str, Any], confidence: float) -> str:
+    def _create_legal_reasoning_response(
+        self, case: Dict[str, Any], confidence: float
+    ) -> str:
         """Create response for legal reasoning case."""
         reasoning_steps = case.get("reasoning_steps", [])
-        reasoning_text = "\n".join([f"{i+1}. {step}" for i, step in enumerate(reasoning_steps)])
-        
-        return json.dumps({
-            "taxonomy": [case["canonical_label"]],
-            "scores": {case["canonical_label"]: confidence},
-            "confidence": confidence,
-            "reasoning_steps": reasoning_steps,
-            "reasoning_text": reasoning_text,
-            "notes": f"Legal reasoning analysis: {case['case_summary']}",
-            "provenance": {
-                "detector": "legal-reasoning-audit",
-                "detector_version": "advanced-v1",
-                "source": "Legal Reasoning Database",
-                "case_id": case["case_id"],
+        reasoning_text = "\n".join(
+            [f"{i+1}. {step}" for i, step in enumerate(reasoning_steps)]
+        )
+
+        return json.dumps(
+            {
+                "taxonomy": [case["canonical_label"]],
+                "scores": {case["canonical_label"]: confidence},
+                "confidence": confidence,
+                "reasoning_steps": reasoning_steps,
+                "reasoning_text": reasoning_text,
+                "notes": f"Legal reasoning analysis: {case['case_summary']}",
+                "provenance": {
+                    "detector": "legal-reasoning-audit",
+                    "detector_version": "advanced-v1",
+                    "source": "Legal Reasoning Database",
+                    "case_id": case["case_id"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
     def _create_few_shot_instruction(self, template: Dict[str, Any]) -> str:
         """Create few-shot learning instruction."""
         examples = template["examples"]
-        examples_text = "\n".join([f"Example {i+1}: {example}" for i, example in enumerate(examples)])
-        
+        examples_text = "\n".join(
+            [f"Example {i+1}: {example}" for i, example in enumerate(examples)]
+        )
+
         return (
             f"Based on the following examples, classify the new scenario:\n\n"
             f"{examples_text}\n\n"
@@ -517,21 +549,26 @@ class AdvancedTrainingDataGenerator:
             f"Expected output: {template['expected_output']}"
         )
 
-    def _create_few_shot_response(self, template: Dict[str, Any], confidence: float) -> str:
+    def _create_few_shot_response(
+        self, template: Dict[str, Any], confidence: float
+    ) -> str:
         """Create few-shot learning response."""
-        return json.dumps({
-            "taxonomy": [template["expected_output"]],
-            "scores": {template["expected_output"]: confidence},
-            "confidence": confidence,
-            "reasoning": f"Based on {template['num_examples']} examples, this scenario matches the pattern",
-            "notes": f"Few-shot learning classification: {template['target_scenario']}",
-            "provenance": {
-                "detector": "few-shot-classifier",
-                "detector_version": "advanced-v1",
-                "source": "Few-Shot Learning Templates",
-                "template_type": template["template_type"],
+        return json.dumps(
+            {
+                "taxonomy": [template["expected_output"]],
+                "scores": {template["expected_output"]: confidence},
+                "confidence": confidence,
+                "reasoning": f"Based on {template['num_examples']} examples, this scenario matches the pattern",
+                "notes": f"Few-shot learning classification: {template['target_scenario']}",
+                "provenance": {
+                    "detector": "few-shot-classifier",
+                    "detector_version": "advanced-v1",
+                    "source": "Few-Shot Learning Templates",
+                    "template_type": template["template_type"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
     def _create_chain_of_thought_instruction(self, scenario: Dict[str, Any]) -> str:
         """Create chain-of-thought instruction."""
@@ -543,25 +580,30 @@ class AdvancedTrainingDataGenerator:
             f"Provide a detailed step-by-step analysis with reasoning."
         )
 
-    def _create_chain_of_thought_response(self, scenario: Dict[str, Any], confidence: float) -> str:
+    def _create_chain_of_thought_response(
+        self, scenario: Dict[str, Any], confidence: float
+    ) -> str:
         """Create chain-of-thought response."""
         reasoning_steps = scenario["reasoning_steps"]
         reasoning_text = "\n".join([f"{step}" for step in reasoning_steps])
-        
-        return json.dumps({
-            "taxonomy": scenario["canonical_labels"],
-            "scores": {label: confidence for label in scenario["canonical_labels"]},
-            "confidence": confidence,
-            "reasoning_steps": reasoning_steps,
-            "reasoning_text": reasoning_text,
-            "notes": f"Chain-of-thought analysis: {scenario['scenario']}",
-            "provenance": {
-                "detector": "chain-of-thought-analyzer",
-                "detector_version": "advanced-v1",
-                "source": "Chain-of-Thought Scenarios",
-                "scenario_type": scenario["scenario_type"],
+
+        return json.dumps(
+            {
+                "taxonomy": scenario["canonical_labels"],
+                "scores": {label: confidence for label in scenario["canonical_labels"]},
+                "confidence": confidence,
+                "reasoning_steps": reasoning_steps,
+                "reasoning_text": reasoning_text,
+                "notes": f"Chain-of-thought analysis: {scenario['scenario']}",
+                "provenance": {
+                    "detector": "chain-of-thought-analyzer",
+                    "detector_version": "advanced-v1",
+                    "source": "Chain-of-Thought Scenarios",
+                    "scenario_type": scenario["scenario_type"],
+                },
             },
-        }, ensure_ascii=False)
+            ensure_ascii=False,
+        )
 
 
 __all__ = ["AdvancedTrainingDataGenerator"]

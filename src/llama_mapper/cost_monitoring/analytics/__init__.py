@@ -3,10 +3,10 @@
 from .cost_analytics import (
     CostAnalytics,
     CostAnalyticsConfig,
-    CostTrend,
-    CostOptimizationRecommendation,
     CostAnomaly,
     CostForecast,
+    CostOptimizationRecommendation,
+    CostTrend,
 )
 
 __all__ = [

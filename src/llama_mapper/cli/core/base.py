@@ -75,14 +75,14 @@ class OutputFormatter:
         """Format data as JSON."""
         if isinstance(data, BaseModel):
             data = data.model_dump()
-        
+
         # Custom JSON encoder to handle datetime objects
         class DateTimeEncoder(json.JSONEncoder):
             def default(self, obj):
                 if isinstance(obj, datetime):
                     return obj.isoformat()
                 return super().default(obj)
-        
+
         return json.dumps(data, indent=indent, cls=DateTimeEncoder)
 
     @staticmethod
@@ -124,13 +124,17 @@ class OutputFormatter:
         # Build table
         lines = []
         separator = " | ".join("-" * width for width in col_widths)
-        header_line = " | ".join(header.ljust(width) for header, width in zip(headers, col_widths))
-        
+        header_line = " | ".join(
+            header.ljust(width) for header, width in zip(headers, col_widths)
+        )
+
         lines.append(header_line)
         lines.append(separator)
-        
+
         for row in rows:
-            row_line = " | ".join(str(cell)[:width].ljust(width) for cell, width in zip(row, col_widths))
+            row_line = " | ".join(
+                str(cell)[:width].ljust(width) for cell, width in zip(row, col_widths)
+            )
             lines.append(row_line)
 
         return "\n".join(lines)
@@ -152,7 +156,7 @@ def command_decorator(
     **click_options: Any,
 ) -> Callable:
     """Decorator to create Click commands from BaseCommand classes."""
-    
+
     def decorator(func: Callable) -> Callable:
         @click.pass_context
         def wrapper(ctx: click.Context, **kwargs: Any) -> None:
@@ -163,13 +167,13 @@ def command_decorator(
             except Exception as e:
                 command = command_class(ctx.obj["config"])
                 command.handle_error(e, ctx)
-        
+
         # Apply Click options
         for option_name, option_config in click_options.items():
             wrapper = click.option(option_name, **option_config)(wrapper)
-        
+
         return wrapper
-    
+
     return decorator
 
 
@@ -178,7 +182,7 @@ def async_command_decorator(
     **click_options: Any,
 ) -> Callable:
     """Decorator to create Click commands from AsyncCommand classes."""
-    
+
     def decorator(func: Callable) -> Callable:
         @click.pass_context
         def wrapper(ctx: click.Context, **kwargs: Any) -> None:
@@ -189,33 +193,33 @@ def async_command_decorator(
             except Exception as e:
                 command = command_class(ctx.obj["config"])
                 command.handle_error(e, ctx)
-        
+
         # Apply Click options
         for option_name, option_config in click_options.items():
             wrapper = click.option(option_name, **option_config)(wrapper)
-        
+
         return wrapper
-    
+
     return decorator
 
 
 def validate_file_path(path: str, must_exist: bool = True) -> Path:
     """Validate and return a Path object."""
     path_obj = Path(path)
-    
+
     if must_exist and not path_obj.exists():
         raise CLIError(f"File not found: {path}")
-    
+
     return path_obj
 
 
 def validate_output_path(path: str) -> Path:
     """Validate and return an output Path object."""
     path_obj = Path(path)
-    
+
     # Ensure parent directory exists
     path_obj.parent.mkdir(parents=True, exist_ok=True)
-    
+
     return path_obj
 
 

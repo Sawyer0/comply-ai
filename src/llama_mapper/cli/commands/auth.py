@@ -23,7 +23,9 @@ def register(main: click.Group) -> None:
         del ctx
 
     @auth.command("rotate-key")
-    @click.option("--tenant", required=True, help="Tenant ID to associate with the new key")
+    @click.option(
+        "--tenant", required=True, help="Tenant ID to associate with the new key"
+    )
     @click.option(
         "--scope",
         "scopes",
@@ -31,7 +33,9 @@ def register(main: click.Group) -> None:
         help="Scope to grant (repeat for multiple), e.g., map:write",
     )
     @click.option(
-        "--revoke-old/--keep-old", default=True, help="Revoke existing keys for this tenant"
+        "--revoke-old/--keep-old",
+        default=True,
+        help="Revoke existing keys for this tenant",
     )
     @click.option(
         "--print-key/--no-print-key",
@@ -79,7 +83,9 @@ def register(main: click.Group) -> None:
 
         new_key = secrets.token_urlsafe(32)
         granted_scopes = list(scopes) if scopes else ["map:write"]
-        api_keys[new_key] = APIKeyInfo(tenant_id=tenant, scopes=granted_scopes, active=True)
+        api_keys[new_key] = APIKeyInfo(
+            tenant_id=tenant, scopes=granted_scopes, active=True
+        )
 
         try:
             config_manager.save_config()

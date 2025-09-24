@@ -102,7 +102,9 @@ class StorageS3Mixin:
                     ):
                         return record
 
-        except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
             self.logger.error(
                 "Failed to retrieve from S3", record_id=record_id, error=str(exc)
             )

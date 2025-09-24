@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import List
 
 import pytest
@@ -17,16 +17,29 @@ def _ensure_orchestrator_on_path() -> None:
 
 _ensure_orchestrator_on_path()
 
+from detector_orchestration.aggregator import (  # type: ignore  # noqa: E402
+    ResponseAggregator,
+)
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
     ConflictResolutionRequest,
     ConflictResolver,
 )
-from detector_orchestration.aggregator import ResponseAggregator  # type: ignore  # noqa: E402
-from detector_orchestration.models import DetectorResult, DetectorStatus, ContentType, RoutingPlan  # type: ignore  # noqa: E402
+from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
+    DetectorResult,
+    DetectorStatus,
+    RoutingPlan,
+)
 
 
 def _res(det: str, out: str, conf: float) -> DetectorResult:
-    return DetectorResult(detector=det, status=DetectorStatus.SUCCESS, output=out, confidence=conf, processing_time_ms=5)
+    return DetectorResult(
+        detector=det,
+        status=DetectorStatus.SUCCESS,
+        output=out,
+        confidence=conf,
+        processing_time_ms=5,
+    )
 
 
 @pytest.mark.performance

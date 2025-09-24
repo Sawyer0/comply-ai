@@ -93,16 +93,50 @@ class ServingConfig(BaseModel):
     )
 
 
+class AzureStorageConfig(BaseModel):
+    """Azure-specific storage configuration."""
+    
+    # Azure Database configuration
+    subscription_id: Optional[str] = Field(default=None, description="Azure subscription ID")
+    resource_group: Optional[str] = Field(default=None, description="Azure resource group")
+    server_name: Optional[str] = Field(default=None, description="Azure Database server name")
+    azure_db_host: Optional[str] = Field(default=None, description="Azure Database host FQDN")
+    
+    # Azure authentication
+    use_managed_identity: bool = Field(default=True, description="Use Azure Managed Identity")
+    key_vault_url: Optional[str] = Field(default=None, description="Azure Key Vault URL")
+    
+    # Connection settings
+    ssl_mode: str = Field(default="require", description="SSL mode for Azure Database")
+    connection_timeout: int = Field(default=30, description="Connection timeout in seconds")
+    command_timeout: int = Field(default=60, description="Command timeout in seconds")
+    
+    # Pool settings
+    min_pool_size: int = Field(default=5, ge=1, le=50, description="Minimum pool size")
+    max_pool_size: int = Field(default=20, ge=1, le=100, description="Maximum pool size")
+    
+    # Read replicas
+    read_replica_regions: List[str] = Field(default_factory=list, description="Read replica regions")
+    
+    # Azure Monitor
+    enable_azure_monitor: bool = Field(default=True, description="Enable Azure Monitor integration")
+    log_analytics_workspace_id: Optional[str] = Field(default=None, description="Log Analytics workspace ID")
+    
+    # Backup settings
+    backup_retention_days: int = Field(default=30, ge=7, le=365, description="Backup retention in days")
+    geo_redundant_backup: bool = Field(default=True, description="Enable geo-redundant backup")
+
+
 class StorageConfig(BaseModel):
     """Storage configuration settings."""
 
-    # S3 Configuration
+    # S3/Azure Blob Configuration
     s3_bucket: Optional[str] = Field(
-        default=None, description="S3 bucket for immutable storage"
+        default=None, description="S3 bucket or Azure container for immutable storage"
     )
-    s3_prefix: str = Field(default="mapper-outputs", description="S3 key prefix")
+    s3_prefix: str = Field(default="mapper-outputs", description="S3 key prefix or blob prefix")
     s3_retention_years: int = Field(
-        default=7, ge=1, le=50, description="S3 WORM retention in years"
+        default=7, ge=1, le=50, description="S3/Blob WORM retention in years"
     )
 
     # AWS Configuration
@@ -123,6 +157,12 @@ class StorageConfig(BaseModel):
     db_name: str = Field(default="llama_mapper", description="Database name")
     db_user: Optional[str] = Field(default=None, description="Database user")
     db_password: Optional[str] = Field(default=None, description="Database password")
+    
+    # Enhanced database settings
+    db_server_name: Optional[str] = Field(default=None, description="Database server name (for Azure)")
+    enable_ssl: bool = Field(default=True, description="Enable SSL for database connections")
+    enable_rls: bool = Field(default=True, description="Enable row-level security")
+    enable_audit_logging: bool = Field(default=True, description="Enable audit logging")
 
     # Encryption Configuration
     kms_key_id: Optional[str] = Field(
@@ -131,11 +171,25 @@ class StorageConfig(BaseModel):
     encryption_key: str = Field(
         default="default-key-change-in-production", description="Local encryption key"
     )
+    field_encryption_enabled: bool = Field(
+        default=True, description="Enable field-level encryption"
+    )
 
     # Retention Configuration
     retention_days: int = Field(
         default=90, ge=1, le=365, description="Hot data retention in days"
     )
+    
+    # Performance Configuration
+    enable_connection_pooling: bool = Field(
+        default=True, description="Enable database connection pooling"
+    )
+    query_timeout_seconds: int = Field(
+        default=30, ge=5, le=300, description="Query timeout in seconds"
+    )
+    
+    # Azure-specific configuration
+    azure: AzureStorageConfig = Field(default_factory=AzureStorageConfig)
 
 
 class LoggingConfig(BaseModel):
@@ -177,7 +231,7 @@ class AnalysisConfig(BaseModel):
     analysis_confidence_cutoff: float = Field(
         default=0.3, ge=0.0, le=1.0, description="Confidence cutoff for fallback"
     )
-    
+
     # Processing configuration
     max_concurrent_requests: int = Field(
         default=10, ge=1, le=100, description="Maximum concurrent analysis requests"
@@ -188,10 +242,13 @@ class AnalysisConfig(BaseModel):
     batch_size_limit: int = Field(
         default=100, ge=1, le=1000, description="Maximum batch size"
     )
-    
+
     # Quality configuration
     schema_validation_threshold: float = Field(
-        default=0.98, ge=0.0, le=1.0, description="Minimum schema validation success rate"
+        default=0.98,
+        ge=0.0,
+        le=1.0,
+        description="Minimum schema validation success rate",
     )
     template_fallback_threshold: float = Field(
         default=0.10, ge=0.0, le=1.0, description="Maximum template fallback rate"
@@ -199,7 +256,7 @@ class AnalysisConfig(BaseModel):
     opa_compilation_threshold: float = Field(
         default=0.95, ge=0.0, le=1.0, description="Minimum OPA compilation success rate"
     )
-    
+
     # Caching configuration
     idempotency_cache_ttl_hours: int = Field(
         default=24, ge=1, le=168, description="Idempotency cache TTL in hours"
@@ -207,7 +264,7 @@ class AnalysisConfig(BaseModel):
     cache_max_items: int = Field(
         default=1000, ge=100, le=10000, description="Maximum cache items"
     )
-    
+
     # Monitoring configuration
     enable_quality_evaluation: bool = Field(
         default=True, description="Enable quality evaluation"
@@ -218,16 +275,20 @@ class AnalysisConfig(BaseModel):
     evaluation_interval_hours: int = Field(
         default=24, ge=1, le=168, description="Quality evaluation interval in hours"
     )
-    
+
     # Weekly evaluation configuration
     enable_weekly_evaluations: bool = Field(
         default=True, description="Enable weekly evaluation scheduling"
     )
     default_weekly_schedule: str = Field(
-        default="0 9 * * 1", description="Default cron schedule for weekly evaluations (Monday 9 AM)"
+        default="0 9 * * 1",
+        description="Default cron schedule for weekly evaluations (Monday 9 AM)",
     )
     weekly_evaluation_retention_days: int = Field(
-        default=90, ge=7, le=365, description="Retention period for weekly evaluation reports"
+        default=90,
+        ge=7,
+        le=365,
+        description="Retention period for weekly evaluation reports",
     )
     weekly_evaluation_notifications: bool = Field(
         default=True, description="Enable notifications for weekly evaluation reports"

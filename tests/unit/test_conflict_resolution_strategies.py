@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 import pytest
 
 
@@ -16,13 +17,13 @@ _ensure_orchestrator_on_path()
 
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
     ConflictResolutionRequest,
-    ConflictResolver,
     ConflictResolutionStrategy,
+    ConflictResolver,
 )
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
     DetectorResult,
     DetectorStatus,
-    ContentType,
 )
 
 
@@ -43,8 +44,16 @@ async def test_highest_confidence_default_for_image(conflict_scenarios):
     # Use 'agreement' scenario (both safe) to ensure clear winner
     scen = conflict_scenarios["agreement"]
     results = [
-        _res(scen["detectors"][0]["detector"], scen["detectors"][0]["output"], scen["detectors"][0]["confidence"]),
-        _res(scen["detectors"][1]["detector"], scen["detectors"][1]["output"], scen["detectors"][1]["confidence"]),
+        _res(
+            scen["detectors"][0]["detector"],
+            scen["detectors"][0]["output"],
+            scen["detectors"][0]["confidence"],
+        ),
+        _res(
+            scen["detectors"][1]["detector"],
+            scen["detectors"][1]["output"],
+            scen["detectors"][1]["confidence"],
+        ),
     ]
     request = ConflictResolutionRequest(
         tenant_id="t1",
@@ -105,7 +114,9 @@ async def test_majority_vote_default_for_code_with_tie_breaker(conflict_scenario
 
 
 @pytest.mark.asyncio
-async def test_most_restrictive_default_for_document_approximates_weighted(conflict_scenarios):
+async def test_most_restrictive_default_for_document_approximates_weighted(
+    conflict_scenarios,
+):
     # For documents, default strategy is MOST_RESTRICTIVE (approximated via weighted)
     resolver = ConflictResolver()
     scen = conflict_scenarios["outlier"]
@@ -130,8 +141,16 @@ async def test_tie_breaker_alphabetical_when_all_equal(conflict_scenarios):
     tie = conflict_scenarios["tie"]
     # Equal top confidences; ensure deterministic alphabetical fallback
     results = [
-        _res(tie["detectors"][0]["detector"], tie["detectors"][0]["output"], tie["detectors"][0]["confidence"]),
-        _res(tie["detectors"][1]["detector"], tie["detectors"][1]["output"], tie["detectors"][1]["confidence"]),
+        _res(
+            tie["detectors"][0]["detector"],
+            tie["detectors"][0]["output"],
+            tie["detectors"][0]["confidence"],
+        ),
+        _res(
+            tie["detectors"][1]["detector"],
+            tie["detectors"][1]["output"],
+            tie["detectors"][1]["confidence"],
+        ),
     ]
     out = await resolver.resolve(
         tenant_id="t1",

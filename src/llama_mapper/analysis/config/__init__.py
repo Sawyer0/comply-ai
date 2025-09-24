@@ -1,15 +1,36 @@
 """
-Configuration management for the Analysis Module.
+Configuration management for analysis engines.
 
-This package contains configuration classes, settings, and environment
-management for the analysis module.
+This package provides comprehensive configuration management with validation,
+environment-based overrides, and hot-reloading capabilities.
 """
 
-from .settings import AnalysisSettings, AnalysisConfig
-from .factory import AnalysisModuleFactory
+from .risk_scoring_config import (
+    RiskScoringConfiguration,
+    RiskWeightsConfig,
+    CVSSConfig,
+    BusinessContextConfig,
+    RegulatoryConfig,
+    TemporalConfig,
+    PerformanceConfig,
+    ValidationConfig,
+    RiskCalculationMethod,
+    ComplianceFramework,
+    get_default_config,
+    load_config_from_file
+)
 
 __all__ = [
-    "AnalysisSettings",
-    "AnalysisConfig", 
-    "AnalysisModuleFactory",
+    'RiskScoringConfiguration',
+    'RiskWeightsConfig',
+    'CVSSConfig',
+    'BusinessContextConfig',
+    'RegulatoryConfig',
+    'TemporalConfig',
+    'PerformanceConfig',
+    'ValidationConfig',
+    'RiskCalculationMethod',
+    'ComplianceFramework',
+    'get_default_config',
+    'load_config_from_file'
 ]

@@ -53,17 +53,17 @@ class FallbackMapper:
                     detector_name = config.get("detector")
                     if detector_name and "maps" in config:
                         self.detector_mappings[detector_name] = config["maps"]
-                        logger.info(f"Loaded mappings for detector: {detector_name}")
+                        logger.info("Loaded mappings for detector: %s", detector_name)
 
                 except Exception as e:
                     logger.warning(
                         f"Failed to load detector config {config_file}: {str(e)}"
                     )
 
-            logger.info(f"Loaded {len(self.detector_mappings)} detector mappings")
+            logger.info("Loaded %s detector mappings", len(self.detector_mappings))
 
         except Exception as e:
-            logger.error(f"Failed to load detector mappings: {str(e)}")
+            logger.error("Failed to load detector mappings: %s", str(e))
             self.detector_mappings = {}
 
     def map(
@@ -88,13 +88,15 @@ class FallbackMapper:
             "fallback_usage_total", {"detector": detector, "reason": reason}
         )
 
-        logger.info(f"Using fallback mapper for detector {detector}, reason: {reason}")
+        logger.info(
+            "Using fallback mapper for detector %s, reason: %s", detector, reason
+        )
 
         # Get detector mappings
         detector_maps = self.detector_mappings.get(detector, {})
 
         if not detector_maps:
-            logger.warning(f"No mappings found for detector: {detector}")
+            logger.warning("No mappings found for detector: %s", detector)
             self.metrics_collector.increment_counter(
                 "fallback_no_mapping_total", {"detector": detector}
             )
@@ -134,8 +136,8 @@ class FallbackMapper:
         # Try partial match
         for rule_output, canonical_label in detector_maps.items():
             if (
-                rule_output.lower() in output_lower or
-                output_lower in rule_output.lower()
+                rule_output.lower() in output_lower
+                or output_lower in rule_output.lower()
             ):
                 self.metrics_collector.increment_counter(
                     "fallback_partial_match_total", {"detector": detector}
@@ -220,7 +222,7 @@ class FallbackMapper:
             mappings: Dictionary of output -> canonical_label mappings
         """
         self.detector_mappings[detector] = mappings
-        logger.info(f"Added/updated mappings for detector: {detector}")
+        logger.info("Added/updated mappings for detector: %s", detector)
 
     def get_mapping_stats(self) -> Dict[str, Any]:
         """
@@ -280,8 +282,8 @@ class FallbackMapper:
 
                             if detector:
                                 fallback_stats["by_detector"][detector] = (
-                                    fallback_stats["by_detector"].get(detector, 0) +
-                                    count
+                                    fallback_stats["by_detector"].get(detector, 0)
+                                    + count
                                 )
                             if reason:
                                 fallback_stats["by_reason"][reason] = (
@@ -314,7 +316,7 @@ class FallbackMapper:
             return
 
         logger.info("=== Fallback Usage Analysis for Model Improvement ===")
-        logger.info(f"Total fallback usage: {stats['total_fallback_usage']}")
+        logger.info("Total fallback usage: %s", stats["total_fallback_usage"])
 
         # Analyze by detector
         if stats["by_detector"]:
@@ -323,13 +325,13 @@ class FallbackMapper:
                 stats["by_detector"].items(), key=lambda x: x[1], reverse=True
             )
             for detector, count in sorted_detectors[:5]:
-                logger.info(f"  {detector}: {count} fallbacks")
+                logger.info("  %s: %s fallbacks", detector, count)
 
         # Analyze by reason
         if stats["by_reason"]:
             logger.info("Fallback reasons:")
             for reason, count in stats["by_reason"].items():
-                logger.info(f"  {reason}: {count} cases")
+                logger.info("  %s: %s cases", reason, count)
 
         # Analyze match types
         match_types = stats["match_types"]
@@ -369,8 +371,8 @@ class FallbackMapper:
             )
 
         if (
-            stats["by_reason"].get("low_confidence", 0) >
-            stats["total_fallback_usage"] * 0.5
+            stats["by_reason"].get("low_confidence", 0)
+            > stats["total_fallback_usage"] * 0.5
         ):
             logger.warning(
                 "High rate of low-confidence fallbacks - consider retraining "

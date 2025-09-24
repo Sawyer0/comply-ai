@@ -18,13 +18,13 @@ _ensure_orchestrator_on_path()
 
 from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
     ConflictResolutionRequest,
-    ConflictResolver,
     ConflictResolutionStrategy,
+    ConflictResolver,
 )
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
     DetectorResult,
     DetectorStatus,
-    ContentType,
 )
 
 
@@ -64,14 +64,26 @@ def _request(
 
 
 @pytest.mark.asyncio
-async def test_opa_overrides_default_strategy(conflict_scenarios, opa_decision_fixtures):
+async def test_opa_overrides_default_strategy(
+    conflict_scenarios, opa_decision_fixtures
+):
     # Default for TEXT is WEIGHTED_AVERAGE, but OPA requests HIGHEST_CONFIDENCE
     tie = conflict_scenarios["tie"]
     results = [
-        _res(tie["detectors"][0]["detector"], tie["detectors"][0]["output"], tie["detectors"][0]["confidence"]),
-        _res(tie["detectors"][1]["detector"], tie["detectors"][1]["output"], tie["detectors"][1]["confidence"]),
+        _res(
+            tie["detectors"][0]["detector"],
+            tie["detectors"][0]["output"],
+            tie["detectors"][0]["confidence"],
+        ),
+        _res(
+            tie["detectors"][1]["detector"],
+            tie["detectors"][1]["output"],
+            tie["detectors"][1]["confidence"],
+        ),
     ]
-    resolver = ConflictResolver(opa_engine=FakeOPA(opa_decision_fixtures["highest_confidence"]))
+    resolver = ConflictResolver(
+        opa_engine=FakeOPA(opa_decision_fixtures["highest_confidence"])
+    )
     weights = {tie["detectors"][0]["detector"]: 10.0}
     out = await resolver.resolve(
         _request(
@@ -86,11 +98,19 @@ async def test_opa_overrides_default_strategy(conflict_scenarios, opa_decision_f
 
 
 @pytest.mark.asyncio
-async def test_opa_tenant_preference_picks_preferred_detector_output(conflict_scenarios, opa_decision_fixtures):
+async def test_opa_tenant_preference_picks_preferred_detector_output(
+    conflict_scenarios, opa_decision_fixtures
+):
     scen = conflict_scenarios["outlier"]
     # Ensure preferred detector matches one in the scenario (det-C)
     resolver = ConflictResolver(
-        opa_engine=FakeOPA({"strategy": "tenant_preference", "preferred_detector": "det-C", "tie_breaker": "detector_priority"})
+        opa_engine=FakeOPA(
+            {
+                "strategy": "tenant_preference",
+                "preferred_detector": "det-C",
+                "tie_breaker": "detector_priority",
+            }
+        )
     )
     results = [
         _res(d["detector"], d["output"], d["confidence"]) for d in scen["detectors"]
@@ -101,7 +121,9 @@ async def test_opa_tenant_preference_picks_preferred_detector_output(conflict_sc
     assert out.strategy_used == ConflictResolutionStrategy.TENANT_PREFERENCE
     assert out.winning_detector == "det-C"
     assert out.winning_output == "toxic"
-    assert (out.tie_breaker_applied is None) or ("preferred_detector" in (out.tie_breaker_applied or ""))
+    assert (out.tie_breaker_applied is None) or (
+        "preferred_detector" in (out.tie_breaker_applied or "")
+    )
 
 
 @pytest.mark.asyncio
@@ -109,8 +131,16 @@ async def test_opa_failure_falls_back_to_default(conflict_scenarios):
     # Raise error -> fall back to content-type default (TEXT => WEIGHTED_AVERAGE)
     tie = conflict_scenarios["tie"]
     results = [
-        _res(tie["detectors"][0]["detector"], tie["detectors"][0]["output"], tie["detectors"][0]["confidence"]),
-        _res(tie["detectors"][1]["detector"], tie["detectors"][1]["output"], tie["detectors"][1]["confidence"]),
+        _res(
+            tie["detectors"][0]["detector"],
+            tie["detectors"][0]["output"],
+            tie["detectors"][0]["confidence"],
+        ),
+        _res(
+            tie["detectors"][1]["detector"],
+            tie["detectors"][1]["output"],
+            tie["detectors"][1]["confidence"],
+        ),
     ]
     resolver = ConflictResolver(opa_engine=FakeOPA(RuntimeError("opa down")))
     out = await resolver.resolve(

@@ -1,0 +1,60 @@
+{
+  "dataset_path": "llm/llm-reports/enhanced_hybrid_sample.jsonl",
+  "model_type": "mapper",
+  "statistics": {
+    "total_examples": 50,
+    "mean_length": 260.06,
+    "median_length": 249.0,
+    "std_length": 27.55751077292722,
+    "min_length": 231,
+    "max_length": 336,
+    "percentiles": {
+      "50": 249.0,
+      "75": 268.75,
+      "90": 306.0,
+      "95": 328.0,
+      "99": 336.0
+    }
+  },
+  "outliers": [],
+  "recommendations": {
+    "recommended_max_length": 360,
+    "target_95th_percentile": 512,
+    "outlier_threshold": 336,
+    "packing_efficiency": "high",
+    "memory_impact": "low",
+    "truncation_risk": "low",
+    "action_required": "Current length is optimal",
+    "chunking_recommended": false
+  },
+  "length_distribution": {
+    "249": 3,
+    "253": 1,
+    "245": 2,
+    "278": 3,
+    "282": 1,
+    "336": 2,
+    "247": 5,
+    "277": 1,
+    "306": 2,
+    "233": 3,
+    "262": 1,
+    "235": 6,
+    "273": 1,
+    "246": 1,
+    "238": 1,
+    "264": 2,
+    "250": 1,
+    "265": 1,
+    "268": 2,
+    "243": 1,
+    "266": 1,
+    "231": 1,
+    "251": 1,
+    "240": 1,
+    "254": 1,
+    "269": 1,
+    "242": 2,
+    "328": 2
+  }
+}

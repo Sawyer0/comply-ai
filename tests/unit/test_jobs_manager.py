@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import sys
 import asyncio
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import pytest
 
@@ -20,13 +20,13 @@ _ensure_orchestrator_on_path()
 
 from detector_orchestration.jobs import JobManager  # type: ignore  # noqa: E402
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
     OrchestrationRequest,
     OrchestrationResponse,
+    Priority,
+    ProcessingMode,
     RoutingDecision,
     RoutingPlan,
-    ContentType,
-    ProcessingMode,
-    Priority,
 )
 
 
@@ -65,7 +65,9 @@ def _mk_plan() -> RoutingPlan:
     )
 
 
-def _mk_response(req: OrchestrationRequest, dec: RoutingDecision) -> OrchestrationResponse:
+def _mk_response(
+    req: OrchestrationRequest, dec: RoutingDecision
+) -> OrchestrationResponse:
     return OrchestrationResponse(
         request_id="req",
         processing_mode=req.processing_mode,
@@ -87,7 +89,9 @@ def _mk_response(req: OrchestrationRequest, dec: RoutingDecision) -> Orchestrati
 @pytest.mark.asyncio
 async def test_job_manager_priority_ordering():
     # Arrange: single worker to enforce ordering
-    async def run_fn(req, idem, dec, plan, progress_cb: Optional[Callable[[float], None]]):
+    async def run_fn(
+        req, idem, dec, plan, progress_cb: Optional[Callable[[float], None]]
+    ):
         if progress_cb:
             progress_cb(0.5)
         # Critical jobs finish faster to observe ordering
@@ -98,8 +102,12 @@ async def test_job_manager_priority_ordering():
     await jm.start()
 
     # Enqueue normal first, then critical. Critical should complete before normal even though enqueued second.
-    normal_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
-    critical_id = await jm.enqueue(_mk_request(Priority.CRITICAL), None, _mk_decision(), _mk_plan())
+    normal_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
+    critical_id = await jm.enqueue(
+        _mk_request(Priority.CRITICAL), None, _mk_decision(), _mk_plan()
+    )
 
     # Act/Assert: after ~0.2s, critical should be completed, normal should not.
     await asyncio.sleep(0.2)
@@ -120,7 +128,9 @@ async def test_job_manager_priority_ordering():
 @pytest.mark.asyncio
 async def test_job_manager_progress_updates_and_completion():
     # Arrange
-    async def run_fn(req, idem, dec, plan, progress_cb: Optional[Callable[[float], None]]):
+    async def run_fn(
+        req, idem, dec, plan, progress_cb: Optional[Callable[[float], None]]
+    ):
         if progress_cb:
             progress_cb(0.2)
         await asyncio.sleep(0.05)
@@ -132,7 +142,9 @@ async def test_job_manager_progress_updates_and_completion():
     jm = JobManager(run_fn=run_fn, workers=1)
     await jm.start()
 
-    job_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
+    job_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
 
     # Assert progress increases and then completes
     saw_mid_progress = False
@@ -182,7 +194,13 @@ async def test_job_manager_callback_invoked(monkeypatch):
     jm = JobManager(run_fn=run_fn, workers=1)
     await jm.start()
 
-    job_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan(), callback_url="http://localhost/callback")
+    job_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL),
+        None,
+        _mk_decision(),
+        _mk_plan(),
+        callback_url="http://localhost/callback",
+    )
 
     # Wait for completion and callback
     for _ in range(60):
@@ -213,8 +231,12 @@ async def test_job_manager_cancel_before_run():
     jm = JobManager(run_fn=run_fn, workers=1)
     await jm.start()
 
-    first_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
-    second_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
+    first_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
+    second_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
 
     # Cancel the second while the first is still running
     cancelled = jm.cancel(second_id)
@@ -242,7 +264,9 @@ async def test_job_manager_failure_sets_failed_status():
     jm = JobManager(run_fn=run_fn, workers=1)
     await jm.start()
 
-    job_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
+    job_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
 
     for _ in range(40):
         s = jm.get_status(job_id)
@@ -266,7 +290,9 @@ async def test_job_manager_status_transitions():
     jm = JobManager(run_fn=run_fn, workers=1)
     await jm.start()
 
-    job_id = await jm.enqueue(_mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan())
+    job_id = await jm.enqueue(
+        _mk_request(Priority.NORMAL), None, _mk_decision(), _mk_plan()
+    )
 
     saw_pending = False
     saw_running = False

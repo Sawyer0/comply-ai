@@ -8,11 +8,11 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Optional, TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ..models import DetectorRequest, MappingResponse, Provenance, VersionInfo
 from ...security.redaction import SENSITIVE_KEYS, redact_dict
 from ...storage.manager import StorageRecord
+from ..models import DetectorRequest, MappingResponse, Provenance, VersionInfo
 
 if TYPE_CHECKING:  # pragma: no cover
     from .app import MapperAPI
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MappingContext:
     """Context information for mapping operations."""
+
     request_id: str
     mapping_method: str
     fallback_reason: Optional[str]
@@ -125,8 +126,10 @@ class MappingService:
             version_info = self._mapper.version_manager.get_version_info_dict()
             provenance.model_version = version_info.get("model", "unknown")
             fallback_result.provenance = provenance
-            fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
-                f"Rule-based mapping due to model failure: {exc}"
+            fallback_result.notes = (
+                self._mapper.version_manager.annotate_notes_with_versions(
+                    f"Rule-based mapping due to model failure: {exc}"
+                )
             )
             vi = self._mapper.version_manager.get_version_info_dict()
             # Ensure all version info values are strings
@@ -150,7 +153,7 @@ class MappingService:
 
         validation_result = self._validate_model_output(model_output, request)
         is_valid, parsed_output, confidence_threshold = validation_result
-        
+
         # Check if confidence is above threshold
         if is_valid and parsed_output:
             confidence = getattr(parsed_output, "confidence", 0.0)
@@ -179,8 +182,10 @@ class MappingService:
         version_info = self._mapper.version_manager.get_version_info_dict()
         provenance.model_version = version_info.get("model", "unknown")
         fallback_result.provenance = provenance
-        fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
-            "Rule-based mapping due to low confidence"
+        fallback_result.notes = (
+            self._mapper.version_manager.annotate_notes_with_versions(
+                "Rule-based mapping due to low confidence"
+            )
         )
         vi = self._mapper.version_manager.get_version_info_dict()
         # Ensure all version info values are strings
@@ -202,13 +207,19 @@ class MappingService:
         )
         return fallback_result
 
-    def _is_model_output_valid(self, model_output: str, request: DetectorRequest) -> bool:
+    def _is_model_output_valid(
+        self, model_output: str, request: DetectorRequest
+    ) -> bool:
         """Check if model output is valid and meets confidence threshold."""
         is_valid, _, _ = self._validate_model_output(model_output, request)
         return is_valid
 
     async def _process_valid_model_output(
-        self, model_output: str, request: DetectorRequest, provenance: Provenance, request_id: str
+        self,
+        model_output: str,
+        request: DetectorRequest,
+        provenance: Provenance,
+        request_id: str,
     ) -> MappingResponse:
         """Process valid model output and return mapping response."""
         parsed_output = self._mapper.json_validator.parse_output(model_output)
@@ -258,11 +269,13 @@ class MappingService:
         model_output: str,
         request: DetectorRequest,
         provenance: Provenance,
-        context: MappingContext
+        context: MappingContext,
     ) -> MappingResponse:
         """Handle invalid model output with fallback mapping."""
         is_valid, validation_errors = self._mapper.json_validator.validate(model_output)
-        self._mapper.metrics_collector.record_schema_validation(request.detector, is_valid)
+        self._mapper.metrics_collector.record_schema_validation(
+            request.detector, is_valid
+        )
 
         if not is_valid:
             logger.warning("Schema validation failed: %s", validation_errors)
@@ -281,8 +294,10 @@ class MappingService:
         )
         self._mapper.version_manager.apply_to_provenance(provenance)
         fallback_result.provenance = provenance
-        fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
-            "Generated using rule-based fallback mapping"
+        fallback_result.notes = (
+            self._mapper.version_manager.annotate_notes_with_versions(
+                "Generated using rule-based fallback mapping"
+            )
         )
         vi = self._mapper.version_manager.get_version_info_dict()
         # Ensure all version info values are strings
@@ -297,8 +312,9 @@ class MappingService:
             # Version info parsing failed - continuing without version info
             pass
         fallback_metric = (
-            context.fallback_reason.split('_', maxsplit=1)[0]
-            if context.fallback_reason else "unknown"
+            context.fallback_reason.split("_", maxsplit=1)[0]
+            if context.fallback_reason
+            else "unknown"
         )
         self._mapper.metrics_collector.record_fallback_usage(
             request.detector, fallback_metric
@@ -356,9 +372,7 @@ class MappingService:
                 }
                 if request.metadata:
                     try:
-                        source_payload["metadata"] = redact_dict(
-                            request.metadata
-                        )
+                        source_payload["metadata"] = redact_dict(request.metadata)
                     except (TypeError, AttributeError, KeyError) as _:
                         # Request metadata redaction failed - using empty dict
                         # to avoid data exposure
@@ -404,10 +418,14 @@ class MappingService:
             )
         except (ConnectionError, TimeoutError, AttributeError, OSError) as _:
             logger.warning(
-                "Failed to update audit trail for request %s", context.request_id, exc_info=True
+                "Failed to update audit trail for request %s",
+                context.request_id,
+                exc_info=True,
             )
 
-    def create_error_response(self, detector: str, error_message: str) -> MappingResponse:
+    def create_error_response(
+        self, detector: str, error_message: str
+    ) -> MappingResponse:
         """Create an error response for failed mapping operations.
 
         Args:
@@ -436,7 +454,9 @@ class MappingService:
     def _should_use_fallback_for_rules_only_mode(self) -> bool:
         """Check if kill-switch is active and fallback should be used."""
         try:
-            runtime_mode = getattr(self._mapper.config_manager.serving, "mode", "hybrid")
+            runtime_mode = getattr(
+                self._mapper.config_manager.serving, "mode", "hybrid"
+            )
         except (AttributeError, TypeError) as _:
             # Configuration retrieval failed, using hybrid mode as default
             runtime_mode = "hybrid"
@@ -447,7 +467,9 @@ class MappingService:
     ) -> tuple[bool, Optional[Any], float]:
         """Validate model output and return validation result, parsed output, and confidence threshold."""
         is_valid, _ = self._mapper.json_validator.validate(model_output)
-        self._mapper.metrics_collector.record_schema_validation(request.detector, is_valid)
+        self._mapper.metrics_collector.record_schema_validation(
+            request.detector, is_valid
+        )
 
         if not is_valid:
             return False, None, 0.0
@@ -493,8 +515,10 @@ class MappingService:
         )
         self._mapper.version_manager.apply_to_provenance(provenance)
         fallback_result.provenance = provenance
-        fallback_result.notes = self._mapper.version_manager.annotate_notes_with_versions(
-            "Kill-switch active: rule-based mapping enforced"
+        fallback_result.notes = (
+            self._mapper.version_manager.annotate_notes_with_versions(
+                "Kill-switch active: rule-based mapping enforced"
+            )
         )
         self._mapper.metrics_collector.record_fallback_usage(
             request.detector, "kill_switch"

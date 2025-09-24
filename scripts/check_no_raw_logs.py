@@ -71,11 +71,19 @@ def scan_file(path: Path) -> List[str]:
         if "# ok-to-log" in line:
             continue
         # Only inspect lines with logger or print calls
-        if not (LOGGER_CALL_RE.search(line) or PRINT_CALL_RE.search(line) or FSTRING_OUTPUT_RE.search(line)):
+        if not (
+            LOGGER_CALL_RE.search(line)
+            or PRINT_CALL_RE.search(line)
+            or FSTRING_OUTPUT_RE.search(line)
+        ):
             continue
         low = line.lower()
-        if any(tok in low for tok in SUSPICIOUS_TOKENS) or FSTRING_OUTPUT_RE.search(line):
-            violations.append(f"{path}:{lineno}: potential raw content logging: {line.strip()[:200]}")
+        if any(tok in low for tok in SUSPICIOUS_TOKENS) or FSTRING_OUTPUT_RE.search(
+            line
+        ):
+            violations.append(
+                f"{path}:{lineno}: potential raw content logging: {line.strip()[:200]}"
+            )
     return violations
 
 
@@ -90,7 +98,9 @@ def main(argv: List[str]) -> int:
         print("Found potential raw-content logging violations:")
         for v in violations:
             print("  ", v)
-        print("\nIf this is a false positive, add '# ok-to-log' to the line after sanitizing.")
+        print(
+            "\nIf this is a false positive, add '# ok-to-log' to the line after sanitizing."
+        )
         return 1
     return 0
 

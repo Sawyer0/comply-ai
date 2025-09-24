@@ -15,30 +15,37 @@ try:
         confusion_matrix,
         precision_recall_fscore_support,
     )
+
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
+
     # Fallback implementations
     def accuracy_score(y_true, y_pred):
-        return sum(1 for true, pred in zip(y_true, y_pred) if true == pred) / len(y_true)
-    
-    def precision_recall_fscore_support(y_true, y_pred, average="weighted", zero_division=0):
+        return sum(1 for true, pred in zip(y_true, y_pred) if true == pred) / len(
+            y_true
+        )
+
+    def precision_recall_fscore_support(
+        y_true, y_pred, average="weighted", zero_division=0
+    ):
         # Simple fallback implementation
         accuracy = accuracy_score(y_true, y_pred)
         return accuracy, accuracy, accuracy, None
-    
+
     def confusion_matrix(y_true, y_pred):
         # Simple fallback implementation
         unique_labels = list(set(y_true + y_pred))
         matrix = [[0] * len(unique_labels) for _ in range(len(unique_labels))]
         label_to_idx = {label: i for i, label in enumerate(unique_labels)}
-        
+
         for true, pred in zip(y_true, y_pred):
             true_idx = label_to_idx[true]
             pred_idx = label_to_idx[pred]
             matrix[true_idx][pred_idx] += 1
-        
+
         return matrix
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +68,19 @@ class ComplianceModelEvaluator:
 
         results = {
             "model_name": model_name,
-            "overall_metrics": self._calculate_overall_metrics(predictions, ground_truth),
-            "category_metrics": self._calculate_category_metrics(predictions, ground_truth),
-            "confidence_calibration": self._calculate_confidence_calibration(predictions, ground_truth),
+            "overall_metrics": self._calculate_overall_metrics(
+                predictions, ground_truth
+            ),
+            "category_metrics": self._calculate_category_metrics(
+                predictions, ground_truth
+            ),
+            "confidence_calibration": self._calculate_confidence_calibration(
+                predictions, ground_truth
+            ),
             "bias_analysis": self._analyze_bias(predictions, ground_truth),
-            "edge_case_performance": self._evaluate_edge_cases(predictions, ground_truth),
+            "edge_case_performance": self._evaluate_edge_cases(
+                predictions, ground_truth
+            ),
             "error_analysis": self._analyze_errors(predictions, ground_truth),
         }
 
@@ -81,7 +96,9 @@ class ComplianceModelEvaluator:
         y_conf = [pred["confidence"] for pred in predictions]
 
         accuracy = accuracy_score(y_true, y_pred)
-        precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, average="weighted")
+        precision, recall, f1, _ = precision_recall_fscore_support(
+            y_true, y_pred, average="weighted"
+        )
 
         return {
             "accuracy": accuracy,
@@ -136,8 +153,10 @@ class ComplianceModelEvaluator:
         y_conf = [pred["confidence"] for pred in predictions]
 
         # Calculate calibration error
-        correct_predictions = [1 if true == pred else 0 for true, pred in zip(y_true, y_pred)]
-        
+        correct_predictions = [
+            1 if true == pred else 0 for true, pred in zip(y_true, y_pred)
+        ]
+
         # Bin confidence scores
         bins = np.linspace(0, 1, 11)
         bin_centers = (bins[:-1] + bins[1:]) / 2
@@ -148,8 +167,14 @@ class ComplianceModelEvaluator:
         for i in range(len(bins) - 1):
             mask = (np.array(y_conf) >= bins[i]) & (np.array(y_conf) < bins[i + 1])
             if np.sum(mask) > 0:
-                bin_accuracies.append(np.mean([correct_predictions[j] for j in range(len(mask)) if mask[j]]))
-                bin_confidences.append(np.mean([y_conf[j] for j in range(len(mask)) if mask[j]]))
+                bin_accuracies.append(
+                    np.mean(
+                        [correct_predictions[j] for j in range(len(mask)) if mask[j]]
+                    )
+                )
+                bin_confidences.append(
+                    np.mean([y_conf[j] for j in range(len(mask)) if mask[j]])
+                )
                 bin_counts.append(np.sum(mask))
 
         # Calculate Expected Calibration Error (ECE)
@@ -163,8 +188,12 @@ class ComplianceModelEvaluator:
             "bin_accuracies": bin_accuracies,
             "bin_confidences": bin_confidences,
             "bin_counts": bin_counts,
-            "overconfident_predictions": sum(1 for acc, conf in zip(bin_accuracies, bin_confidences) if conf > acc),
-            "underconfident_predictions": sum(1 for acc, conf in zip(bin_accuracies, bin_confidences) if conf < acc),
+            "overconfident_predictions": sum(
+                1 for acc, conf in zip(bin_accuracies, bin_confidences) if conf > acc
+            ),
+            "underconfident_predictions": sum(
+                1 for acc, conf in zip(bin_accuracies, bin_confidences) if conf < acc
+            ),
         }
 
     def _analyze_bias(
@@ -177,7 +206,8 @@ class ComplianceModelEvaluator:
         industries = ["healthcare", "financial", "technology", "retail", "government"]
         for industry in industries:
             industry_indices = [
-                i for i, gt in enumerate(ground_truth)
+                i
+                for i, gt in enumerate(ground_truth)
                 if industry in gt.get("metadata", {}).get("industry", "").lower()
             ]
             if industry_indices:
@@ -191,7 +221,8 @@ class ComplianceModelEvaluator:
         severities = ["low", "medium", "high", "critical"]
         for severity in severities:
             severity_indices = [
-                i for i, gt in enumerate(ground_truth)
+                i
+                for i, gt in enumerate(ground_truth)
                 if gt.get("metadata", {}).get("severity", "").lower() == severity
             ]
             if severity_indices:
@@ -208,7 +239,8 @@ class ComplianceModelEvaluator:
     ) -> Dict[str, Any]:
         """Evaluate performance on edge cases."""
         edge_case_indices = [
-            i for i, gt in enumerate(ground_truth)
+            i
+            for i, gt in enumerate(ground_truth)
             if gt.get("metadata", {}).get("complexity_level") == "high"
             or gt.get("metadata", {}).get("multi_category", False)
         ]
@@ -234,7 +266,8 @@ class ComplianceModelEvaluator:
     ) -> Dict[str, Any]:
         """Evaluate performance on multi-category cases."""
         multi_category_indices = [
-            i for i, gt in enumerate(ground_truth)
+            i
+            for i, gt in enumerate(ground_truth)
             if gt.get("metadata", {}).get("multi_category", False)
         ]
 
@@ -251,7 +284,7 @@ class ComplianceModelEvaluator:
         for pred, gt in zip(multi_category_predictions, multi_category_ground_truth):
             pred_taxonomy = set(pred["taxonomy"])
             gt_taxonomy = set(gt["taxonomy"])
-            
+
             if pred_taxonomy == gt_taxonomy:
                 exact_matches += 1
             elif pred_taxonomy.intersection(gt_taxonomy):
@@ -260,7 +293,8 @@ class ComplianceModelEvaluator:
         return {
             "total_multi_category_cases": len(multi_category_indices),
             "exact_match_accuracy": exact_matches / len(multi_category_indices),
-            "partial_match_accuracy": (exact_matches + partial_matches) / len(multi_category_indices),
+            "partial_match_accuracy": (exact_matches + partial_matches)
+            / len(multi_category_indices),
             "exact_matches": exact_matches,
             "partial_matches": partial_matches,
         }
@@ -274,8 +308,10 @@ class ComplianceModelEvaluator:
         y_conf = [pred["confidence"] for pred in predictions]
 
         # Find incorrect predictions
-        incorrect_indices = [i for i, (true, pred) in enumerate(zip(y_true, y_pred)) if true != pred]
-        
+        incorrect_indices = [
+            i for i, (true, pred) in enumerate(zip(y_true, y_pred)) if true != pred
+        ]
+
         if not incorrect_indices:
             return {"message": "No errors found"}
 
@@ -288,34 +324,46 @@ class ComplianceModelEvaluator:
             "total_errors": len(incorrect_indices),
             "error_rate": len(incorrect_indices) / len(predictions),
             "average_confidence_of_errors": np.mean(incorrect_confidences),
-            "high_confidence_errors": sum(1 for conf in incorrect_confidences if conf > 0.8),
-            "low_confidence_errors": sum(1 for conf in incorrect_confidences if conf < 0.6),
+            "high_confidence_errors": sum(
+                1 for conf in incorrect_confidences if conf > 0.8
+            ),
+            "low_confidence_errors": sum(
+                1 for conf in incorrect_confidences if conf < 0.6
+            ),
             "confusion_matrix": confusion_matrix(y_true, y_pred).tolist(),
-            "most_common_errors": self._find_most_common_errors(incorrect_predictions, incorrect_ground_truth),
+            "most_common_errors": self._find_most_common_errors(
+                incorrect_predictions, incorrect_ground_truth
+            ),
         }
 
         return error_analysis
 
     def _find_most_common_errors(
-        self, incorrect_predictions: List[Dict[str, Any]], incorrect_ground_truth: List[Dict[str, Any]]
+        self,
+        incorrect_predictions: List[Dict[str, Any]],
+        incorrect_ground_truth: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Find the most common error patterns."""
         error_patterns = {}
-        
+
         for pred, gt in zip(incorrect_predictions, incorrect_ground_truth):
             pred_label = pred["taxonomy"][0]
             gt_label = gt["taxonomy"][0]
             error_key = f"{gt_label} -> {pred_label}"
-            
+
             if error_key not in error_patterns:
                 error_patterns[error_key] = 0
             error_patterns[error_key] += 1
 
         # Sort by frequency
         sorted_errors = sorted(error_patterns.items(), key=lambda x: x[1], reverse=True)
-        
+
         return [
-            {"error_pattern": error, "count": count, "percentage": count / len(incorrect_predictions) * 100}
+            {
+                "error_pattern": error,
+                "count": count,
+                "percentage": count / len(incorrect_predictions) * 100,
+            }
             for error, count in sorted_errors[:10]  # Top 10 most common errors
         ]
 
@@ -373,7 +421,7 @@ class ComplianceModelEvaluator:
 
 ## Category Performance
 """
-        for category, metrics in evaluation_results['category_metrics'].items():
+        for category, metrics in evaluation_results["category_metrics"].items():
             report += f"""
 ### {category}
 - **Accuracy**: {metrics['accuracy']:.3f}
