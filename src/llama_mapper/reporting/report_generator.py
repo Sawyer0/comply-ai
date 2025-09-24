@@ -377,7 +377,7 @@ class ReportGenerator:
                 # Fallback to JSON representation
                 buffer.write(f"Data: {json.dumps(custom_data, indent=2)}\n")
         except Exception as e:
-            logger.warning(f"Failed to convert custom data to CSV: {e}")
+            logger.warning("Failed to convert custom data to CSV: %s", e)
             buffer.write(f"Data: {json.dumps(custom_data, indent=2)}\n")
 
     def generate_compliance_report(
@@ -571,7 +571,7 @@ class ReportGenerator:
         # Create default templates if they don't exist
         self._create_default_templates()
 
-        logger.info(f"Template directory created at: {self.template_dir}")
+        logger.info("Template directory created at: %s", self.template_dir)
 
     def _create_default_templates(self) -> None:
         """Create default HTML templates for PDF generation."""

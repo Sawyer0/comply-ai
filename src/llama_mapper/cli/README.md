@@ -203,7 +203,7 @@ def my_command(ctx, input):
         # Command logic
         logger.info("Command executed")
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error("Error: %s", e)
         click.echo(f"Error: {e}")
         ctx.exit(1)
 ```

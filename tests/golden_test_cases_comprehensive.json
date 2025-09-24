@@ -1,0 +1,252 @@
+[
+  {
+    "id": "mapper_001",
+    "input": {
+      "detector_outputs": {
+        "pii_detector": {
+          "category": "PII",
+          "confidence": 0.95,
+          "details": "Email address detected"
+        }
+      },
+      "context": "User registration form",
+      "metadata": {
+        "source": "web_form",
+        "timestamp": "2024-01-15T10:30:00Z"
+      }
+    },
+    "expected_output": {
+      "scores": {
+        "PII.Contact.Email": 0.95
+      },
+      "confidence": 0.95
+    }
+  },
+  {
+    "id": "mapper_002",
+    "input": {
+      "detector_outputs": {
+        "security_detector": {
+          "category": "Security",
+          "confidence": 0.88,
+          "details": "Potential SQL injection pattern"
+        }
+      },
+      "context": "Database query log",
+      "metadata": {
+        "source": "application_log",
+        "timestamp": "2024-01-15T11:45:00Z"
+      }
+    },
+    "expected_output": {
+      "scores": {
+        "Security.Injection.SQL": 0.88
+      },
+      "confidence": 0.88
+    }
+  },
+  {
+    "id": "mapper_003",
+    "input": {
+      "detector_outputs": {
+        "content_detector": {
+          "category": "Content",
+          "confidence": 0.92,
+          "details": "Toxic language detected"
+        }
+      },
+      "context": "User comment",
+      "metadata": {
+        "source": "social_media",
+        "timestamp": "2024-01-15T12:15:00Z"
+      }
+    },
+    "expected_output": {
+      "scores": {
+        "Content.Toxic.Hate": 0.92
+      },
+      "confidence": 0.92
+    }
+  },
+  {
+    "id": "analyst_001",
+    "input": {
+      "content": "User data containing email addresses and phone numbers",
+      "mapping_result": {
+        "scores": {
+          "PII.Contact.Email": 0.95,
+          "PII.Contact.Phone": 0.87
+        },
+        "confidence": 0.91
+      },
+      "context": "Customer database export",
+      "requirements": ["GDPR", "CCPA"]
+    },
+    "expected_output": {
+      "analysis_type": "privacy_risk",
+      "risk_level": "high",
+      "recommendations": [
+        "Implement data anonymization",
+        "Add access controls",
+        "Conduct privacy impact assessment"
+      ],
+      "reason": "Multiple PII types detected with high confidence",
+      "compliance_frameworks": ["GDPR", "CCPA"],
+      "remediation_priority": "urgent"
+    }
+  },
+  {
+    "id": "analyst_002",
+    "input": {
+      "content": "Application logs showing potential security vulnerabilities",
+      "mapping_result": {
+        "scores": {
+          "Security.Injection.SQL": 0.88,
+          "Security.Authentication.Weak": 0.75
+        },
+        "confidence": 0.82
+      },
+      "context": "Web application security scan",
+      "requirements": ["SOC-2", "ISO-27001"]
+    },
+    "expected_output": {
+      "analysis_type": "security_risk",
+      "risk_level": "medium",
+      "recommendations": [
+        "Implement input validation",
+        "Strengthen authentication mechanisms",
+        "Conduct security code review"
+      ],
+      "reason": "Multiple security vulnerabilities detected",
+      "compliance_frameworks": ["SOC-2", "ISO-27001"],
+      "remediation_priority": "high"
+    }
+  },
+  {
+    "id": "analyst_003",
+    "input": {
+      "content": "User-generated content with inappropriate language",
+      "mapping_result": {
+        "scores": {
+          "Content.Toxic.Hate": 0.92,
+          "Content.Toxic.Harassment": 0.78
+        },
+        "confidence": 0.85
+      },
+      "context": "Social media platform moderation",
+      "requirements": ["Community Guidelines", "Content Policy"]
+    },
+    "expected_output": {
+      "analysis_type": "content_risk",
+      "risk_level": "high",
+      "recommendations": [
+        "Remove inappropriate content",
+        "Implement content filtering",
+        "Review user moderation policies"
+      ],
+      "reason": "High-confidence toxic content detected",
+      "compliance_frameworks": ["Community Guidelines", "Content Policy"],
+      "remediation_priority": "immediate"
+    }
+  },
+  {
+    "id": "mapper_004",
+    "input": {
+      "detector_outputs": {
+        "compliance_detector": {
+          "category": "Compliance",
+          "confidence": 0.83,
+          "details": "HIPAA violation potential"
+        }
+      },
+      "context": "Medical record access",
+      "metadata": {
+        "source": "healthcare_system",
+        "timestamp": "2024-01-15T14:20:00Z"
+      }
+    },
+    "expected_output": {
+      "scores": {
+        "Compliance.HIPAA.Access": 0.83
+      },
+      "confidence": 0.83
+    }
+  },
+  {
+    "id": "analyst_004",
+    "input": {
+      "content": "Healthcare data access logs showing potential HIPAA violations",
+      "mapping_result": {
+        "scores": {
+          "Compliance.HIPAA.Access": 0.83,
+          "PII.Health.Medical": 0.91
+        },
+        "confidence": 0.87
+      },
+      "context": "Healthcare system audit",
+      "requirements": ["HIPAA", "HITECH"]
+    },
+    "expected_output": {
+      "analysis_type": "compliance_risk",
+      "risk_level": "high",
+      "recommendations": [
+        "Review access controls",
+        "Implement audit logging",
+        "Conduct HIPAA compliance review"
+      ],
+      "reason": "Potential HIPAA violation with high confidence",
+      "compliance_frameworks": ["HIPAA", "HITECH"],
+      "remediation_priority": "urgent"
+    }
+  },
+  {
+    "id": "mapper_005",
+    "input": {
+      "detector_outputs": {
+        "financial_detector": {
+          "category": "Financial",
+          "confidence": 0.79,
+          "details": "Credit card number pattern"
+        }
+      },
+      "context": "Payment processing",
+      "metadata": {
+        "source": "ecommerce_system",
+        "timestamp": "2024-01-15T15:30:00Z"
+      }
+    },
+    "expected_output": {
+      "scores": {
+        "Financial.Payment.CreditCard": 0.79
+      },
+      "confidence": 0.79
+    }
+  },
+  {
+    "id": "analyst_005",
+    "input": {
+      "content": "Payment processing logs with potential PCI-DSS violations",
+      "mapping_result": {
+        "scores": {
+          "Financial.Payment.CreditCard": 0.79,
+          "Security.Encryption.Weak": 0.65
+        },
+        "confidence": 0.72
+      },
+      "context": "E-commerce payment system",
+      "requirements": ["PCI-DSS", "SOX"]
+    },
+    "expected_output": {
+      "analysis_type": "compliance_risk",
+      "risk_level": "medium",
+      "recommendations": [
+        "Strengthen encryption",
+        "Implement PCI-DSS controls",
+        "Conduct security assessment"
+      ],
+      "reason": "Payment data handling concerns identified",
+      "compliance_frameworks": ["PCI-DSS", "SOX"],
+      "remediation_priority": "high"
+    }
+  }
+]

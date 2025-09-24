@@ -91,7 +91,9 @@ class StorageInitializationMixin:
     async def _init_clickhouse(self) -> None:
         """Initialize ClickHouse client."""
         try:
-            from clickhouse_driver import Client as ClickHouseClient  # type: ignore  # pylint: disable=import-outside-toplevel
+            from clickhouse_driver import (
+                Client as ClickHouseClient,  # type: ignore  # pylint: disable=import-outside-toplevel
+            )
 
             self._clickhouse_client = ClickHouseClient(
                 host=self.settings.db_host,
@@ -116,6 +118,7 @@ class StorageInitializationMixin:
     async def _init_encryption(self) -> None:
         """Initialize encryption using KMS or local key."""
         try:
+
             class _DummyFernet:
                 def __init__(self, key: bytes) -> None:
                     self.key = key
@@ -146,7 +149,9 @@ class StorageInitializationMixin:
             fernet_key = base64.urlsafe_b64encode(raw_key)
 
             try:
-                from cryptography.fernet import Fernet  # type: ignore  # pylint: disable=import-outside-toplevel
+                from cryptography.fernet import (
+                    Fernet,  # type: ignore  # pylint: disable=import-outside-toplevel
+                )
 
                 try:
                     self._fernet = Fernet(fernet_key)
@@ -154,7 +159,9 @@ class StorageInitializationMixin:
                         "Encryption initialized",
                         kms_enabled=bool(self.settings.kms_key_id),
                     )
-                except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
                     self._fernet = _DummyFernet(fernet_key)
                     self.logger.warning(
                         "Invalid encryption key; using dummy Fernet (no-op)",
@@ -166,7 +173,9 @@ class StorageInitializationMixin:
                     "cryptography not installed; using dummy Fernet (no-op)"
                 )
 
-        except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
             self.logger.error("Encryption initialization failed", error=str(exc))
             raise
 

@@ -1,0 +1,37 @@
+detector: nvidia-nemo-guardrails
+version: "v1"
+notes: "Mapping for NVIDIA NeMo Guardrails safety outputs."
+maps:
+  # NeMo safety categories
+  jailbreak: JAILBREAK.Attempt
+  prompt_injection: PROMPT_INJECTION.Other
+  harmful_content: HARM.SPEECH.Toxicity
+  toxic_language: HARM.SPEECH.Toxicity
+  hate_speech: HARM.SPEECH.Hate.Other
+  violence: HARM.VIOLENCE.Physical
+  self_harm: HARM.VIOLENCE.SelfHarm
+  
+  # PII detection from NeMo
+  pii_detected: PII.Other
+  personal_info: PII.Other
+  sensitive_data: PII.Other
+  
+  # Content filtering
+  inappropriate_content: HARM.SPEECH.Toxicity
+  policy_violation: OTHER.PolicyViolation
+  content_blocked: OTHER.ContentFiltered
+  
+  # NeMo-specific guardrails
+  off_topic: OTHER.OffTopic
+  factual_error: OTHER.FactualError
+  hallucination: OTHER.Hallucination
+  
+  # Conversation flow control
+  conversation_hijack: PROMPT_INJECTION.PolicyOverride
+  topic_drift: OTHER.OffTopic
+  
+  # Safety levels
+  high_risk: HARM.SPEECH.Toxicity
+  medium_risk: HARM.SPEECH.Toxicity
+  low_risk: OTHER.LowRisk
+  safe: OTHER.Safe

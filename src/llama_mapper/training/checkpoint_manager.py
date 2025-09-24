@@ -237,12 +237,16 @@ class CheckpointManager:
                 "training_metrics": training_metrics,
                 "model_config": (
                     getattr(model, "config", None).to_dict()  # type: ignore[attr-defined]
-                    if (getattr(model, "config", None) is not None
-                        and hasattr(getattr(model, "config", None), "to_dict"))
+                    if (
+                        getattr(model, "config", None) is not None
+                        and hasattr(getattr(model, "config", None), "to_dict")
+                    )
                     else {}
                 ),
                 "peft_config": (
-                    getattr(model, "peft_config", None) if hasattr(model, "peft_config") else {}
+                    getattr(model, "peft_config", None)
+                    if hasattr(model, "peft_config")
+                    else {}
                 ),
                 "tags": tags or [],
                 "created_by": "CheckpointManager",
@@ -272,8 +276,8 @@ class CheckpointManager:
             logger.info(
                 "Checkpoint saved successfully",
                 version_id=version_id,
-                checkpoint_size_mb=self._get_directory_size(checkpoint_dir) /
-                (1024 * 1024),
+                checkpoint_size_mb=self._get_directory_size(checkpoint_dir)
+                / (1024 * 1024),
             )
 
             return version_id
@@ -333,7 +337,9 @@ class CheckpointManager:
                 model = PeftModel.from_pretrained(base_model, checkpoint_dir / "model")
             else:
                 # Load PEFT model with base model
-                from peft import AutoPeftModelForCausalLM  # type: ignore[import-untyped]
+                from peft import (
+                    AutoPeftModelForCausalLM,  # type: ignore[import-untyped]
+                )
 
                 model = AutoPeftModelForCausalLM.from_pretrained(
                     checkpoint_dir / "model"
@@ -569,8 +575,8 @@ class CheckpointManager:
             "checkpoint_path": version.checkpoint_path,
             "created_at": version.created_at.isoformat(),
             "metadata": version.metadata,
-            "model_size_mb": self._get_directory_size(Path(version.checkpoint_path)) /
-            (1024 * 1024),
+            "model_size_mb": self._get_directory_size(Path(version.checkpoint_path))
+            / (1024 * 1024),
             "tags": version.metadata.get("tags", []),
             "training_metrics": version.metadata.get("training_metrics", {}),
         }

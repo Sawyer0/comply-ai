@@ -18,7 +18,10 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
-from detector_orchestration.models import RoutingPlan, RoutingDecision  # type: ignore  # noqa: E402
+from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    RoutingDecision,
+    RoutingPlan,
+)
 from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
 
 
@@ -65,5 +68,6 @@ def test_secondary_routing_improves_taxonomy_coverage(monkeypatch):
     data = r.json()
     # Should have executed both detectors to reach full taxonomy coverage
     assert data["detectors_attempted"] == 2
-    assert data["coverage_achieved"] >= 1.0 or abs(data["coverage_achieved"] - 1.0) < 1e-6
-
+    assert (
+        data["coverage_achieved"] >= 1.0 or abs(data["coverage_achieved"] - 1.0) < 1e-6
+    )

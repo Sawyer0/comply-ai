@@ -18,48 +18,48 @@ logger = logging.getLogger(__name__)
 class OPAPolicyGenerator(IOPAGenerator):
     """
     OPA policy generator implementation.
-    
+
     Provides concrete implementation of the IOPAGenerator interface
     for generating and validating OPA/Rego policies.
     """
-    
+
     def __init__(self):
         """Initialize the OPA policy generator."""
         logger.info("Initialized OPA Policy Generator")
-    
+
     def validate_rego(self, rego_snippet: str) -> bool:
         """
         Validate Rego syntax using OPA compiler.
-        
+
         Args:
             rego_snippet: Rego policy snippet to validate
-            
+
         Returns:
             True if valid, False otherwise
         """
         if not rego_snippet.strip():
             return True  # Empty is valid
-        
+
         try:
             # Write snippet to temporary file
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.rego', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".rego", delete=False
+            ) as f:
                 f.write(rego_snippet)
                 temp_file = f.name
-            
+
             # Run OPA check command
             result = subprocess.run(
-                ['opa', 'check', temp_file],
-                capture_output=True,
-                text=True,
-                timeout=10
+                ["opa", "check", temp_file], capture_output=True, text=True, timeout=10
             )
-            
+
             # Clean up temporary file
             import os
+
             os.unlink(temp_file)
-            
+
             return result.returncode == 0
-            
+
         except subprocess.TimeoutExpired:
             logger.warning("OPA validation timeout")
             return False
@@ -67,21 +67,19 @@ class OPAPolicyGenerator(IOPAGenerator):
             logger.warning("OPA command not found, skipping validation")
             return True  # Assume valid if OPA not available
         except Exception as e:
-            logger.error(f"OPA validation error: {e}")
+            logger.error("OPA validation error: %s", e)
             return False
-    
+
     def generate_coverage_policy(
-        self, 
-        required_detectors: List[str],
-        required_coverage: dict
+        self, required_detectors: List[str], required_coverage: dict
     ) -> str:
         """
         Generate OPA policy for coverage violations.
-        
+
         Args:
             required_detectors: List of required detector names
             required_coverage: Required coverage per detector
-            
+
         Returns:
             OPA/Rego policy string
         """
@@ -105,7 +103,7 @@ violation[msg] {
 
 # Specific detector coverage requirements
 """
-        
+
         # Add specific coverage requirements
         for detector, coverage in required_coverage.items():
             if detector in required_detectors:
@@ -117,21 +115,17 @@ violation[msg] {{
     msg := sprintf("Detector %v coverage below required threshold: %v < {coverage}", [detector, observed])
 }}
 """
-        
+
         return policy
-    
-    def generate_threshold_policy(
-        self, 
-        detector: str, 
-        new_threshold: float
-    ) -> str:
+
+    def generate_threshold_policy(self, detector: str, new_threshold: float) -> str:
         """
         Generate OPA policy for threshold adjustments.
-        
+
         Args:
             detector: Detector name
             new_threshold: New threshold value
-            
+
         Returns:
             OPA/Rego policy string
         """

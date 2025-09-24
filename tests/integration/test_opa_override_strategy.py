@@ -18,15 +18,17 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
+from detector_orchestration.coordinator import (  # type: ignore  # noqa: E402
+    DetectorCoordinator,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
-    RoutingPlan,
-    RoutingDecision,
     DetectorResult,
     DetectorStatus,
+    RoutingDecision,
+    RoutingPlan,
 )
-from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
-from detector_orchestration.coordinator import DetectorCoordinator  # type: ignore  # noqa: E402
 from detector_orchestration.policy import OPAPolicyEngine  # type: ignore  # noqa: E402
+from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
 
 
 @pytest.mark.integration
@@ -45,13 +47,15 @@ def test_opa_override_changes_strategy_and_metadata(monkeypatch):
             coverage_method="required_set",
             # Provide weights that would bias WEIGHTED_AVERAGE toward toxic if used
             # (not strictly used by coordinator here, but included for parity)
-            
         )
         decision = RoutingDecision(
             selected_detectors=["det-A", "det-B"],
             routing_reason="test",
             policy_applied=request.policy_bundle,
-            coverage_requirements={"min_success_fraction": 1.0, "weights": {"det-A": 10.0, "det-B": 1.0}},
+            coverage_requirements={
+                "min_success_fraction": 1.0,
+                "weights": {"det-A": 10.0, "det-B": 1.0},
+            },
             health_status={"det-A": True, "det-B": True},
         )
         return plan, decision
@@ -60,11 +64,30 @@ def test_opa_override_changes_strategy_and_metadata(monkeypatch):
     async def _fake_exec(self, detectors, content, plan, meta):  # type: ignore[override]
         import json
         from pathlib import Path
-        scenarios = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "conflict_scenarios.json").read_text(encoding="utf-8"))
+
+        scenarios = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / "fixtures"
+                / "conflict_scenarios.json"
+            ).read_text(encoding="utf-8")
+        )
         tie = scenarios["tie"]
         return [
-            DetectorResult(detector=detectors[0], status=DetectorStatus.SUCCESS, output=tie["detectors"][0]["output"], confidence=tie["detectors"][0]["confidence"], processing_time_ms=12),
-            DetectorResult(detector=detectors[1], status=DetectorStatus.SUCCESS, output=tie["detectors"][1]["output"], confidence=tie["detectors"][1]["confidence"], processing_time_ms=10),
+            DetectorResult(
+                detector=detectors[0],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][0]["output"],
+                confidence=tie["detectors"][0]["confidence"],
+                processing_time_ms=12,
+            ),
+            DetectorResult(
+                detector=detectors[1],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][1]["output"],
+                confidence=tie["detectors"][1]["confidence"],
+                processing_time_ms=10,
+            ),
         ]
 
     # Force OPA to request highest_confidence regardless of default (TEXT defaults to WEIGHTED_AVERAGE)

@@ -10,7 +10,6 @@ import httpx
 
 from ..core import BaseCommand, CLIError
 from ..decorators.common import handle_errors, timing
-from ..utils import get_config_manager
 
 
 class ApiTestCommand(BaseCommand):
@@ -60,9 +59,9 @@ class ApiHealthCommand(BaseCommand):
             with httpx.Client(timeout=10) as client:
                 response = client.get(api_url)
                 response.raise_for_status()
-                
+
                 health_data = response.json()
-                
+
                 click.echo("API Health Check")
                 click.echo("=" * 20)
                 click.echo(f"Status: {health_data.get('status', 'unknown')}")
@@ -90,9 +89,9 @@ class ApiMetricsCommand(BaseCommand):
             with httpx.Client(timeout=10) as client:
                 response = client.get(api_url)
                 response.raise_for_status()
-                
+
                 metrics = response.json()
-                
+
                 if format_type == "json":
                     click.echo(json.dumps(metrics, indent=2))
                 else:
@@ -108,8 +107,10 @@ class ApiMetricsCommand(BaseCommand):
 def register(registry) -> None:
     """Register API client commands with the new registry system."""
     # Register command group
-    api_client_group = registry.register_group("api-client", "API client commands for testing and interaction")
-    
+    api_client_group = registry.register_group(
+        "api-client", "API client commands for testing and interaction"
+    )
+
     # Register the test command
     registry.register_command(
         "test",
@@ -117,12 +118,21 @@ def register(registry) -> None:
         group="api-client",
         help="Test API connectivity and basic functionality",
         options=[
-            click.Option(["--endpoint"], default="/health", help="API endpoint to test"),
-            click.Option(["--method"], type=click.Choice(["GET", "POST"]), default="GET", help="HTTP method to use"),
-            click.Option(["--timeout"], type=int, default=10, help="Request timeout in seconds"),
-        ]
+            click.Option(
+                ["--endpoint"], default="/health", help="API endpoint to test"
+            ),
+            click.Option(
+                ["--method"],
+                type=click.Choice(["GET", "POST"]),
+                default="GET",
+                help="HTTP method to use",
+            ),
+            click.Option(
+                ["--timeout"], type=int, default=10, help="Request timeout in seconds"
+            ),
+        ],
     )
-    
+
     # Register health command
     registry.register_command(
         "health",
@@ -130,7 +140,7 @@ def register(registry) -> None:
         group="api-client",
         help="Check API health status",
     )
-    
+
     # Register metrics command
     registry.register_command(
         "metrics",
@@ -138,6 +148,11 @@ def register(registry) -> None:
         group="api-client",
         help="Get API metrics",
         options=[
-            click.Option(["--format", "fmt"], type=click.Choice(["json", "text"]), default="json", help="Output format"),
-        ]
+            click.Option(
+                ["--format", "fmt"],
+                type=click.Choice(["json", "text"]),
+                default="json",
+                help="Output format",
+            ),
+        ],
     )

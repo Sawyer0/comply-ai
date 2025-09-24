@@ -4,25 +4,24 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Optional
 
 import click
 
 from ...analysis import (
-    AnalysisModuleFactory,
     AnalysisConfig,
+    AnalysisModuleFactory,
     AnalysisRequest,
-    BatchAnalysisRequest,
     AnalysisType,
+    BatchAnalysisRequest,
     HealthStatus,
 )
 from ...analysis.application.use_cases import (
     AnalyzeMetricsUseCase,
     BatchAnalyzeMetricsUseCase,
-    QualityEvaluationUseCase,
     CacheManagementUseCase,
     HealthCheckUseCase,
+    QualityEvaluationUseCase,
 )
 from ...logging import get_logger
 from ..utils import get_config_manager
@@ -48,7 +47,14 @@ def register(main: click.Group) -> None:
     @click.option(
         "--analysis-type",
         "-t",
-        type=click.Choice(["coverage_gap", "false_positive_tuning", "incident_summary", "insufficient_data"]),
+        type=click.Choice(
+            [
+                "coverage_gap",
+                "false_positive_tuning",
+                "incident_summary",
+                "insufficient_data",
+            ]
+        ),
         default="coverage_gap",
         help="Type of analysis to perform",
     )
@@ -117,14 +123,21 @@ def register(main: click.Group) -> None:
                     output_data = result.model_dump()
                 elif fmt == "yaml":
                     import yaml
-                    output_data = yaml.dump(result.model_dump(), default_flow_style=False)
+
+                    output_data = yaml.dump(
+                        result.model_dump(), default_flow_style=False
+                    )
                 else:  # text
                     output_data = _format_analysis_text(result)
 
                 # Write output
                 if output:
                     with open(output, "w", encoding="utf-8") as f:
-                        f.write(output_data if fmt != "json" else json.dumps(output_data, indent=2))
+                        f.write(
+                            output_data
+                            if fmt != "json"
+                            else json.dumps(output_data, indent=2)
+                        )
                     click.echo(f"✓ Analysis results saved to: {output}")
                 else:
                     if fmt == "json":
@@ -202,7 +215,9 @@ def register(main: click.Group) -> None:
                 batch_use_case = factory.get_component(BatchAnalyzeMetricsUseCase)
 
                 # Perform batch analysis
-                logger.info("Starting batch analysis", request_count=len(batch_request.requests))
+                logger.info(
+                    "Starting batch analysis", request_count=len(batch_request.requests)
+                )
                 result = await batch_use_case.execute(batch_request)
 
                 # Format output
@@ -210,12 +225,19 @@ def register(main: click.Group) -> None:
                     output_data = result.model_dump()
                 else:  # yaml
                     import yaml
-                    output_data = yaml.dump(result.model_dump(), default_flow_style=False)
+
+                    output_data = yaml.dump(
+                        result.model_dump(), default_flow_style=False
+                    )
 
                 # Write output
                 if output:
                     with open(output, "w", encoding="utf-8") as f:
-                        f.write(output_data if fmt != "json" else json.dumps(output_data, indent=2))
+                        f.write(
+                            output_data
+                            if fmt != "json"
+                            else json.dumps(output_data, indent=2)
+                        )
                     click.echo(f"✓ Batch analysis results saved to: {output}")
                 else:
                     if fmt == "json":
@@ -404,12 +426,14 @@ def register(main: click.Group) -> None:
                     click.echo(f"Cache Entries (pattern: {pattern or 'all'}):")
                     click.echo("=" * 40)
                     for entry in result.entries:
-                        click.echo(f"  {entry.key}: {entry.size_bytes} bytes, {entry.age_seconds}s old")
+                        click.echo(
+                            f"  {entry.key}: {entry.size_bytes} bytes, {entry.age_seconds}s old"
+                        )
 
-                logger.info(f"Cache {action} completed successfully")
+                logger.info("Cache %s completed successfully", action)
 
             except Exception as exc:  # noqa: BLE001
-                logger.error(f"Cache {action} failed", error=str(exc))
+                logger.error("Cache %s failed", action, error=str(exc))
                 click.echo(f"✗ Cache {action} failed: {exc}")
                 ctx.exit(1)
 
@@ -485,8 +509,10 @@ def register(main: click.Group) -> None:
                     "config_summary": {
                         "model_name": analysis_config.model.get("model_name"),
                         "api_host": analysis_config.api.get("host"),
-                        "confidence_threshold": analysis_config.quality.get("confidence_threshold"),
-                    }
+                        "confidence_threshold": analysis_config.quality.get(
+                            "confidence_threshold"
+                        ),
+                    },
                 }
                 with open(output, "w", encoding="utf-8") as f:
                     json.dump(report, f, indent=2)
@@ -508,21 +534,21 @@ def _format_analysis_text(result) -> str:
     output.append(f"Analysis Type: {result.analysis_type}")
     output.append(f"Confidence: {result.confidence:.2f}")
     output.append(f"Processing Time: {result.processing_time_ms}ms")
-    
+
     if result.explanation:
         output.append(f"\nExplanation:\n{result.explanation}")
-    
+
     if result.remediation:
         output.append(f"\nRemediation:\n{result.remediation}")
-    
+
     if result.policy_recommendations:
         output.append(f"\nPolicy Recommendations:")
         for rec in result.policy_recommendations:
             output.append(f"  • {rec}")
-    
+
     if result.quality_metrics:
         output.append(f"\nQuality Metrics:")
         for metric, value in result.quality_metrics.items():
             output.append(f"  {metric}: {value}")
-    
+
     return "\n".join(output)

@@ -7,21 +7,22 @@ Usage (PowerShell):
 This builds the app using a lightweight stub ModelServer (no real model load),
 then writes openapi.yaml.
 """
+
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import yaml  # type: ignore
 
 # Build the app similarly to tests/integration/test_version_tags.py
 from src.llama_mapper.api.mapper import create_app
-from src.llama_mapper.serving.model_server import ModelServer
-from src.llama_mapper.serving.json_validator import JSONValidator
-from src.llama_mapper.serving.fallback_mapper import FallbackMapper
 from src.llama_mapper.config.manager import ConfigManager
 from src.llama_mapper.monitoring.metrics_collector import MetricsCollector
+from src.llama_mapper.serving.fallback_mapper import FallbackMapper
+from src.llama_mapper.serving.json_validator import JSONValidator
+from src.llama_mapper.serving.model_server import ModelServer
 
 
 class _StubModelServer(ModelServer):
@@ -39,8 +40,8 @@ class _StubModelServer(ModelServer):
 def _build_app() -> any:
     config = ConfigManager()
     # Use local .kiro schema and detectors if available; fallbacks to defaults
-    schema_path = str(Path('.kiro/pillars-detectors/schema.json'))
-    detectors_dir = str(Path('.kiro/pillars-detectors'))
+    schema_path = str(Path(".kiro/pillars-detectors/schema.json"))
+    detectors_dir = str(Path(".kiro/pillars-detectors"))
 
     model_server = _StubModelServer(model_path="stub")
     json_validator = JSONValidator(schema_path=schema_path)
@@ -70,13 +71,13 @@ def _ensure_components(openapi_dict: dict) -> dict:
 def _inject_request_schemas(openapi_dict: dict) -> dict:
     """Inject oneOf requestBody schemas for /map and /map/batch, and ensure models exist in components."""
     from src.llama_mapper.api.models import (
-        MapperPayload,
-        DetectorRequest,
         BatchDetectorRequest,
-        MappingResponse,
+        DetectorRequest,
         ErrorBody,
-        Provenance,
+        MapperPayload,
+        MappingResponse,
         PolicyContext,
+        Provenance,
         VersionInfo,
     )
 
@@ -87,7 +88,9 @@ def _inject_request_schemas(openapi_dict: dict) -> dict:
     def add_model_schema(model, name: str) -> None:
         if name not in schemas:
             try:
-                schemas[name] = model.model_json_schema(ref_template="#/components/schemas/{model}")
+                schemas[name] = model.model_json_schema(
+                    ref_template="#/components/schemas/{model}"
+                )
             except Exception:
                 schemas[name] = model.model_json_schema()
 
@@ -126,7 +129,10 @@ def _inject_request_schemas(openapi_dict: dict) -> dict:
                     "schema": {
                         "oneOf": [
                             {"$ref": "#/components/schemas/MapperPayload"},
-                            {"$ref": "#/components/schemas/DetectorRequest", "deprecated": True},
+                            {
+                                "$ref": "#/components/schemas/DetectorRequest",
+                                "deprecated": True,
+                            },
                         ]
                     }
                 }
@@ -145,7 +151,10 @@ def _inject_request_schemas(openapi_dict: dict) -> dict:
                     "schema": {
                         "oneOf": [
                             {"$ref": "#/components/schemas/BatchMapperPayload"},
-                            {"$ref": "#/components/schemas/BatchDetectorRequest", "deprecated": True},
+                            {
+                                "$ref": "#/components/schemas/BatchDetectorRequest",
+                                "deprecated": True,
+                            },
                         ]
                     }
                 }
@@ -158,8 +167,12 @@ def _inject_request_schemas(openapi_dict: dict) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Export OpenAPI YAML from live app instance")
-    parser.add_argument("--output", "-o", type=str, default="docs/openapi.yaml", help="Output file path")
+    parser = argparse.ArgumentParser(
+        description="Export OpenAPI YAML from live app instance"
+    )
+    parser.add_argument(
+        "--output", "-o", type=str, default="docs/openapi.yaml", help="Output file path"
+    )
     args = parser.parse_args()
 
     app = _build_app()

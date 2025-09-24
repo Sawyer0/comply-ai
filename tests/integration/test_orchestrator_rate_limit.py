@@ -45,7 +45,9 @@ def test_orchestrate_rate_limit_works_and_returns_rate_limited_error_code():
     assert r2.status_code == 403
     data = r2.json()
     # Middleware sets error and error_code to RATE_LIMITED
-    assert data.get("error_code") == "RATE_LIMITED" or data.get("error") == "RATE_LIMITED"
+    assert (
+        data.get("error_code") == "RATE_LIMITED" or data.get("error") == "RATE_LIMITED"
+    )
 
 
 @pytest.mark.integration
@@ -76,4 +78,6 @@ def test_orchestrate_batch_rate_limit_works():
     r2 = client.post("/orchestrate/batch", json=batch, headers=headers)
     assert r2.status_code == 403
     data = r2.json()
-    assert data.get("error_code") == "RATE_LIMITED" or data.get("error") == "RATE_LIMITED"
+    assert (
+        data.get("error_code") == "RATE_LIMITED" or data.get("error") == "RATE_LIMITED"
+    )

@@ -12,7 +12,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 
-from ..auth import IdempotencyCache, build_api_key_auth
 from ...config.manager import ConfigManager
 from ...monitoring.metrics_collector import MetricsCollector
 from ...reporting.audit_trail import AuditTrailManager
@@ -21,8 +20,11 @@ from ...serving.json_validator import JSONValidator
 from ...serving.model_server import ModelServer
 from ...storage.manager import StorageManager
 from ...versioning import VersionManager
+from ..auth import IdempotencyCache, build_api_key_auth
+from ..middleware.correlation import CorrelationMiddleware
 from .routes import register_routes
 from .service import MappingService
+from ..demo import router as demo_router
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +44,9 @@ class MapperAPI:
             try:
                 return StorageManager(storage_settings)
             except (ImportError, AttributeError, ValueError, RuntimeError) as e:
-                logger.warning("Storage manager initialization failed: %s", e, exc_info=True)
+                logger.warning(
+                    "Storage manager initialization failed: %s", e, exc_info=True
+                )
         return None
 
     def _configure_app(self) -> None:
@@ -98,6 +102,9 @@ class MapperAPI:
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+        # Add correlation ID middleware
+        self.app.add_middleware(CorrelationMiddleware)
 
         @self.app.middleware("http")
         async def add_request_id(
@@ -164,7 +171,9 @@ class MapperAPI:
         except (AttributeError, TypeError):
             return "memory", None, "idem:mapper:"
 
-    def _setup_redis_idempotency(self, ttl_seconds: int, redis_url: str, redis_prefix: str) -> None:
+    def _setup_redis_idempotency(
+        self, ttl_seconds: int, redis_url: str, redis_prefix: str
+    ) -> None:
         """Set up Redis-based idempotency cache."""
         try:
             # Import inside try block since Redis is optional dependency
@@ -198,7 +207,9 @@ class MapperAPI:
             if fallback:
                 fallback_metric.labels(component="idempotency").inc()
         except (AttributeError, RuntimeError):
-            self.metrics_collector.set_gauge("redis_idempotency_up", 1 if success else 0)
+            self.metrics_collector.set_gauge(
+                "redis_idempotency_up", 1 if success else 0
+            )
             if fallback:
                 self.metrics_collector.increment_counter(
                     "redis_idempotency_fallback_total"
@@ -208,6 +219,9 @@ class MapperAPI:
         """Configure business logic services."""
         self.service = MappingService(self)
         register_routes(self)
+        
+        # Add demo endpoints for investor demonstrations
+        self.app.include_router(demo_router)
 
     def _configure_middleware(self) -> None:
         """Configure additional middleware."""

@@ -1,0 +1,67 @@
+# RAG System Configuration
+rag_system:
+  # Vector store configuration
+  vector_store:
+    type: "chromadb"  # or "pinecone", "weaviate"
+    host: "localhost"
+    port: 8000
+    collection_name: "compliance_knowledge"
+    persist_directory: "./chroma_db"
+    
+  # Embedding model configuration
+  embeddings:
+    model: "sentence-transformers/all-MiniLM-L6-v2"
+    dimension: 384
+    batch_size: 32
+    device: "cpu"  # or "cuda"
+    
+  # Retrieval configuration
+  retrieval:
+    top_k: 10
+    similarity_threshold: 0.7
+    rerank: true
+    rerank_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    
+  # Knowledge base configuration
+  knowledge_base:
+    update_frequency: "daily"
+    quality_threshold: 0.8
+    max_documents: 100000
+    
+  # Monitoring configuration
+  monitoring:
+    enable_metrics: true
+    quality_tracking: true
+    performance_monitoring: true
+    
+  # Guardrails configuration
+  guardrails:
+    enable_citation_requirements: true
+    enable_risk_assessment_requirements: true
+    enable_regulatory_accuracy_checks: true
+    enable_evidence_requirements: true
+    enable_conservative_approach: true
+    
+  # Fine-tuning configuration
+  fine_tuning:
+    model_name: "microsoft/DialoGPT-medium"
+    use_lora: true
+    lora_r: 16
+    lora_alpha: 32
+    lora_dropout: 0.1
+    num_epochs: 3
+    batch_size: 4
+    learning_rate: 2e-4
+    
+  # API configuration
+  api:
+    host: "0.0.0.0"
+    port: 8000
+    workers: 1
+    timeout: 30
+    
+  # Logging configuration
+  logging:
+    level: "INFO"
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file: "rag_system.log"

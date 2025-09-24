@@ -1,0 +1,97 @@
+{
+  "gold_set_path": "tests/golden_test_cases_comprehensive.json",
+  "model_type": "mapper",
+  "total_cases": 10,
+  "tokenization_consistency": true,
+  "template_consistency": false,
+  "issues": [
+    {
+      "case_index": 0,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input"
+      ]
+    },
+    {
+      "case_index": 1,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input"
+      ]
+    },
+    {
+      "case_index": 2,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input"
+      ]
+    },
+    {
+      "case_index": 3,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input",
+        "Missing required field in expected output: scores",
+        "Missing required field in expected output: confidence"
+      ]
+    },
+    {
+      "case_index": 4,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input",
+        "Missing required field in expected output: scores",
+        "Missing required field in expected output: confidence"
+      ]
+    },
+    {
+      "case_index": 5,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input",
+        "Missing required field in expected output: scores",
+        "Missing required field in expected output: confidence"
+      ]
+    },
+    {
+      "case_index": 6,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input"
+      ]
+    },
+    {
+      "case_index": 7,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input",
+        "Missing required field in expected output: scores",
+        "Missing required field in expected output: confidence"
+      ]
+    },
+    {
+      "case_index": 8,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input"
+      ]
+    },
+    {
+      "case_index": 9,
+      "issue": "template_inconsistency",
+      "details": [
+        "Missing Llama-3 special tokens in input",
+        "Missing required field in expected output: scores",
+        "Missing required field in expected output: confidence"
+      ]
+    }
+  ],
+  "recommendations": [
+    "Update mapper gold set to use current chat template format",
+    "Review and fix 10 issues in mapper gold set",
+    "Ensure gold sets are updated whenever training tokenization changes",
+    "Run this validation script before each training run",
+    "Consider versioning gold sets with tokenizer configurations"
+  ],
+  "tokenization_hash": "766a4594d0bbb99dfff877735ec74f2b"
+}

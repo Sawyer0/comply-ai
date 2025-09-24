@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-import pytest
-from hypothesis import given, settings, assume
 import hypothesis.strategies as st
+import pytest
+from hypothesis import assume, given, settings
 
 
 def _ensure_orchestrator_on_path() -> None:
@@ -23,9 +23,9 @@ from detector_orchestration.conflict import (  # type: ignore  # noqa: E402
     ConflictResolver,
 )
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
+    ContentType,
     DetectorResult,
     DetectorStatus,
-    ContentType,
 )
 
 
@@ -63,7 +63,9 @@ def _request(
             _res,
             detector=st.text(min_size=1, max_size=6),
             output=st.sampled_from(["safe", "toxic"]),
-            conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            conf=st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
         ),
         min_size=2,
         max_size=8,
@@ -80,9 +82,7 @@ async def test_order_invariance_hypothesis(results: List[DetectorResult]):
     )
     # Simple permutation (reverse) suffices; Hypothesis varies input lists
     rev = list(reversed(results))
-    out = await resolver.resolve(
-        _request(content_type=ContentType.IMAGE, results=rev)
-    )
+    out = await resolver.resolve(_request(content_type=ContentType.IMAGE, results=rev))
     assert out.winning_output == base.winning_output
 
 
@@ -93,7 +93,9 @@ async def test_order_invariance_hypothesis(results: List[DetectorResult]):
             _res,
             detector=st.text(min_size=1, max_size=6),
             output=st.sampled_from(["safe", "toxic"]),
-            conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            conf=st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
         ),
         min_size=2,
         max_size=8,
@@ -138,7 +140,9 @@ async def test_weight_scaling_invariance_hypothesis(
             _res,
             detector=st.text(min_size=1, max_size=6),
             output=st.sampled_from(["safe", "toxic", "none"]),
-            conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            conf=st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
         ),
         min_size=1,
         max_size=8,
@@ -156,9 +160,7 @@ async def test_normalized_scores_bounds_hypothesis(results: List[DetectorResult]
 
 
 # Tie determinism: When highest confidences tie across outputs, fallback is alphabetical by output
-@given(
-    st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False)
-)
+@given(st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False))
 @settings(max_examples=30, deadline=None)
 @pytest.mark.asyncio
 async def test_tie_determinism_alphabetical_highest_confidence(c: float):
@@ -186,7 +188,9 @@ async def test_tie_determinism_alphabetical_highest_confidence(c: float):
             _res,
             detector=st.text(min_size=1, max_size=6),
             output=st.sampled_from(["safe", "toxic"]),
-            conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            conf=st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
         ),
         min_size=1,
         max_size=8,
@@ -195,7 +199,9 @@ async def test_tie_determinism_alphabetical_highest_confidence(c: float):
 )
 @settings(max_examples=40, deadline=None)
 @pytest.mark.asyncio
-async def test_monotonicity_majority_vote(results: List[DetectorResult], extra_conf: float):
+async def test_monotonicity_majority_vote(
+    results: List[DetectorResult], extra_conf: float
+):
     resolver = ConflictResolver()
     base = await resolver.resolve(
         _request(content_type=ContentType.CODE, results=results)
@@ -219,7 +225,9 @@ async def test_monotonicity_majority_vote(results: List[DetectorResult], extra_c
             _res,
             detector=st.text(min_size=1, max_size=6),
             output=st.sampled_from(["safe", "toxic"]),
-            conf=st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            conf=st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
         ),
         min_size=0,
         max_size=5,

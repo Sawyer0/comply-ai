@@ -7,22 +7,22 @@ layers and external interfaces.
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional, Union
-from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 from ..domain.entities import (
+    AnalysisErrorResponse,
     AnalysisRequest,
     AnalysisResponse,
     BatchAnalysisRequest,
     BatchAnalysisResponse,
-    AnalysisErrorResponse,
     VersionInfo,
 )
 
 
 class AnalysisRequestDTO(BaseModel):
     """DTO for analysis request data transfer."""
+
     period: str
     tenant: str
     app: str
@@ -35,7 +35,7 @@ class AnalysisRequestDTO(BaseModel):
     false_positive_bands: List[Dict[str, Any]]
     policy_bundle: str
     env: Literal["dev", "stage", "prod"]
-    
+
     def to_domain_entity(self) -> AnalysisRequest:
         """Convert DTO to domain entity."""
         return AnalysisRequest(
@@ -50,12 +50,13 @@ class AnalysisRequestDTO(BaseModel):
             high_sev_hits=self.high_sev_hits,
             false_positive_bands=self.false_positive_bands,
             policy_bundle=self.policy_bundle,
-            env=self.env
+            env=self.env,
         )
 
 
 class AnalysisResponseDTO(BaseModel):
     """DTO for analysis response data transfer."""
+
     reason: str
     remediation: str
     opa_diff: str
@@ -67,7 +68,7 @@ class AnalysisResponseDTO(BaseModel):
     request_id: str
     timestamp: datetime
     processing_time_ms: int
-    
+
     @classmethod
     def from_domain_entity(cls, entity: AnalysisResponse) -> "AnalysisResponseDTO":
         """Create DTO from domain entity."""
@@ -82,17 +83,15 @@ class AnalysisResponseDTO(BaseModel):
             version_info=entity.version_info,
             request_id=entity.request_id,
             timestamp=entity.timestamp,
-            processing_time_ms=entity.processing_time_ms
+            processing_time_ms=entity.processing_time_ms,
         )
 
 
 class AnalysisErrorResponseDTO(BaseModel):
     """DTO for analysis error response data transfer."""
+
     error_type: Literal[
-        "validation_error", 
-        "processing_error", 
-        "timeout_error", 
-        "confidence_fallback"
+        "validation_error", "processing_error", "timeout_error", "confidence_fallback"
     ]
     message: str
     request_id: str
@@ -100,14 +99,18 @@ class AnalysisErrorResponseDTO(BaseModel):
     fallback_used: bool
     mode: Literal["error", "fallback"]
     template_response: Optional[AnalysisResponseDTO] = None
-    
+
     @classmethod
-    def from_domain_entity(cls, entity: AnalysisErrorResponse) -> "AnalysisErrorResponseDTO":
+    def from_domain_entity(
+        cls, entity: AnalysisErrorResponse
+    ) -> "AnalysisErrorResponseDTO":
         """Create DTO from domain entity."""
         template_response = None
         if entity.template_response:
-            template_response = AnalysisResponseDTO.from_domain_entity(entity.template_response)
-        
+            template_response = AnalysisResponseDTO.from_domain_entity(
+                entity.template_response
+            )
+
         return cls(
             error_type=entity.error_type,
             message=entity.message,
@@ -115,14 +118,15 @@ class AnalysisErrorResponseDTO(BaseModel):
             timestamp=entity.timestamp,
             fallback_used=entity.fallback_used,
             mode=entity.mode,
-            template_response=template_response
+            template_response=template_response,
         )
 
 
 class BatchAnalysisRequestDTO(BaseModel):
     """DTO for batch analysis request data transfer."""
+
     requests: List[AnalysisRequestDTO]
-    
+
     def to_domain_entity(self) -> BatchAnalysisRequest:
         """Convert DTO to domain entity."""
         return BatchAnalysisRequest(
@@ -132,15 +136,18 @@ class BatchAnalysisRequestDTO(BaseModel):
 
 class BatchAnalysisResponseDTO(BaseModel):
     """DTO for batch analysis response data transfer."""
+
     responses: List[Union[AnalysisResponseDTO, AnalysisErrorResponseDTO]]
     batch_id: str
     idempotency_key: str
     total_processing_time_ms: int
     success_count: int
     error_count: int
-    
+
     @classmethod
-    def from_domain_entity(cls, entity: BatchAnalysisResponse) -> "BatchAnalysisResponseDTO":
+    def from_domain_entity(
+        cls, entity: BatchAnalysisResponse
+    ) -> "BatchAnalysisResponseDTO":
         """Create DTO from domain entity."""
         responses = []
         for response in entity.responses:
@@ -148,19 +155,20 @@ class BatchAnalysisResponseDTO(BaseModel):
                 responses.append(AnalysisResponseDTO.from_domain_entity(response))
             elif isinstance(response, AnalysisErrorResponse):
                 responses.append(AnalysisErrorResponseDTO.from_domain_entity(response))
-        
+
         return cls(
             responses=responses,
             batch_id=entity.batch_id,
             idempotency_key=entity.idempotency_key,
             total_processing_time_ms=entity.total_processing_time_ms,
             success_count=entity.success_count,
-            error_count=entity.error_count
+            error_count=entity.error_count,
         )
 
 
 class AnalysisMetricsDTO(BaseModel):
     """DTO for analysis metrics data transfer."""
+
     schema_valid_rate: float
     template_fallback_rate: float
     opa_compile_success_rate: float
@@ -172,6 +180,7 @@ class AnalysisMetricsDTO(BaseModel):
 
 class QualityEvaluationDTO(BaseModel):
     """DTO for quality evaluation data transfer."""
+
     total_examples: int
     schema_valid_rate: float
     rubric_score: float
@@ -183,6 +192,7 @@ class QualityEvaluationDTO(BaseModel):
 
 class HealthCheckDTO(BaseModel):
     """DTO for health check data transfer."""
+
     status: Literal["healthy", "unhealthy", "degraded"]
     service: str
     version: str

@@ -24,7 +24,9 @@ def register(main: click.Group) -> None:
         """Detector configuration commands."""
 
     @detectors.command("add")
-    @click.option("--name", required=True, help="Detector name (e.g., openai-moderation)")
+    @click.option(
+        "--name", required=True, help="Detector name (e.g., openai-moderation)"
+    )
     @click.option(
         "--version", default="v1", show_default=True, help="Detector config version"
     )
@@ -60,14 +62,20 @@ def register(main: click.Group) -> None:
         help="Directory with taxonomy.yaml and detector YAMLs",
     )
     @click.option("--format", "fmt", type=click.Choice(["json"]), default=None)
-    @click.option("--strict", is_flag=True, default=False, help="Treat warnings as errors")
-    def detectors_lint(data_dir: Optional[str], fmt: Optional[str], strict: bool) -> None:
+    @click.option(
+        "--strict", is_flag=True, default=False, help="Treat warnings as errors"
+    )
+    def detectors_lint(
+        data_dir: Optional[str], fmt: Optional[str], strict: bool
+    ) -> None:
         """Lint detector YAMLs against the taxonomy and report issues."""
         result = validate_configuration(Path(data_dir) if data_dir else None)
 
         issues = []
         if not result.taxonomy.ok:
-            issues.append("Taxonomy invalid; fix taxonomy.yaml before linting detectors.")
+            issues.append(
+                "Taxonomy invalid; fix taxonomy.yaml before linting detectors."
+            )
         if not result.detectors.ok:
             issues.extend(result.detectors.errors)
 
@@ -162,7 +170,9 @@ def register(main: click.Group) -> None:
                 click.echo(f"  skipped: {summary['skipped']}")
                 if summary.get("updated_files"):
                     click.echo("  updated_files:")
-                    updated_files = cast(dict[str, int], summary.get("updated_files", {}))
+                    updated_files = cast(
+                        dict[str, int], summary.get("updated_files", {})
+                    )
                     for file_path, count in updated_files.items():
                         click.echo(f"    - {file_path}: {count} change(s)")
             new_plan = build_detector_fix_plan(Path(data_dir) if data_dir else None)

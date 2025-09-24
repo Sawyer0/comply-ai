@@ -132,7 +132,8 @@ class TaxonomyMigrator:
             else:
                 # Keep as is; if label no longer exists, route to OTHER.Unknown
                 if self.new_taxonomy and not any(
-                    label.name == canonical for label in self.new_taxonomy.get_all_labels()
+                    label.name == canonical
+                    for label in self.new_taxonomy.get_all_labels()
                 ):
                     new_maps[det_label] = "OTHER.Unknown"
                     unknown_after += 1

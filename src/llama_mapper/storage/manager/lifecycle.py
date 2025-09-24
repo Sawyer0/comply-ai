@@ -30,7 +30,9 @@ class StorageLifecycleMixin:
             self.logger.info("Cleanup completed", records_removed=count)
             return count
 
-        except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
             self.logger.error("Cleanup failed", error=str(exc))
             raise
 
@@ -42,7 +44,9 @@ class StorageLifecycleMixin:
 
             self.logger.info("Storage manager closed successfully")
 
-        except Exception as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - defensive logging  # pylint: disable=broad-exception-caught
             self.logger.error("Error closing storage manager", error=str(exc))
 
 

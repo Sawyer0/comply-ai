@@ -47,9 +47,7 @@ class TrainingDataGenerator:
         logger.info(
             "Loaded taxonomy with %s labels", len(self._taxonomy.get_all_labels())
         )
-        logger.info(
-            "Loaded %s detector configurations", len(self._detector_mappings)
-        )
+        logger.info("Loaded %s detector configurations", len(self._detector_mappings))
 
     def generate_training_examples(
         self,
@@ -102,9 +100,7 @@ class TrainingDataGenerator:
         assert self._taxonomy is not None
         taxonomy_label = self._taxonomy.get_label_by_name(canonical_label)
         if not taxonomy_label:
-            logger.warning(
-                "Canonical label not found in taxonomy: %s", canonical_label
-            )
+            logger.warning("Canonical label not found in taxonomy: %s", canonical_label)
             return examples
 
         base_confidence = random.uniform(*self.confidence_range)
@@ -132,10 +128,14 @@ class TrainingDataGenerator:
             )
 
             scores = {canonical_label: confidence}
-            if (include_variations and hasattr(taxonomy_label, "related_labels")
-                    and taxonomy_label.related_labels):  # type: ignore[attr-defined]
+            if (
+                include_variations
+                and hasattr(taxonomy_label, "related_labels")
+                and taxonomy_label.related_labels
+            ):  # type: ignore[attr-defined]
                 related_label = random.choice(
-                    list(taxonomy_label.related_labels))  # type: ignore[attr-defined]
+                    list(taxonomy_label.related_labels)
+                )  # type: ignore[attr-defined]
                 scores[related_label] = max(confidence - 0.1, 0.5)
 
             response = MapperCanonicalEvent(
@@ -178,9 +178,7 @@ class TrainingDataGenerator:
                 f"multiple categories for '{detector_output}'. Map it to the canonical taxonomy."
             )
 
-            scores = {
-                label: random.uniform(0.6, 0.9) for label in canonical_labels
-            }
+            scores = {label: random.uniform(0.6, 0.9) for label in canonical_labels}
             confidence = sum(scores.values()) / len(scores)
 
             response = MapperCanonicalEvent(
@@ -230,7 +228,8 @@ class TrainingDataGenerator:
                     taxonomy_label = self._taxonomy.get_label_by_name(canonical_label)
                     related_labels = (
                         getattr(taxonomy_label, "related_labels", set())
-                        if taxonomy_label else set()  # type: ignore[attr-defined]
+                        if taxonomy_label
+                        else set()  # type: ignore[attr-defined]
                     )
 
                     scenarios.append(
@@ -264,8 +263,7 @@ class TrainingDataGenerator:
             "Map detector result to canonical taxonomy: {detector} → {output}",
             "Convert to canonical format: {detector} output '{detector_output}'",
             "Standardize this detection: {detector} found '{output}'",
-            "Canonical mapping for: {detector} detector output "
-            "'{detector_output}'",
+            "Canonical mapping for: {detector} detector output " "'{detector_output}'",
             "Normalize to taxonomy: {detector} result = {output}",
             "Map to canonical labels: {detector} detected '{detector_output}'",
         ]
@@ -342,9 +340,7 @@ class TrainingDataGenerator:
                 confidences.append(confidence)
 
             except (json.JSONDecodeError, KeyError) as exc:
-                logger.warning(
-                    "Failed to parse response for statistics: %s", exc
-                )
+                logger.warning("Failed to parse response for statistics: %s", exc)
 
         if confidences:
             stats["confidence_stats"]["min"] = min(confidences)

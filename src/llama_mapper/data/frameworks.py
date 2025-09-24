@@ -378,7 +378,7 @@ class FrameworkMapper:
             )
             return self._framework_mapping
 
-        logger.info(f"Loading framework mapping from: {self.frameworks_path}")
+        logger.info("Loading framework mapping from: %s", self.frameworks_path)
 
         try:
             with open(self.frameworks_path, "r", encoding="utf-8") as f:
@@ -401,7 +401,10 @@ class FrameworkMapper:
             )
 
             # Parse frameworks
-            for framework_name, controls_data in config.frameworks.items():
+            for (
+                framework_name,
+                controls_data,
+            ) in config.frameworks.items():  # pylint: disable=no-member
                 framework = ComplianceFramework(
                     name=framework_name, controls=controls_data
                 )
@@ -413,7 +416,7 @@ class FrameworkMapper:
             self._framework_mapping = mapping
             self._last_modified = current_modified
 
-            logger.info(f"Successfully loaded framework mapping: {mapping}")
+            logger.info("Successfully loaded framework mapping: %s", mapping)
             return mapping
 
         except yaml.YAMLError as e:
@@ -440,7 +443,7 @@ class FrameworkMapper:
             self.load_framework_mapping(force_reload=True)
             return True
         except Exception as e:
-            logger.error(f"Framework mapping validation failed: {e}")
+            logger.error("Framework mapping validation failed: %s", e)
             return False
 
     def get_compliance_controls_for_label(
@@ -618,7 +621,7 @@ class FrameworkMapper:
         # Check for empty frameworks
         for framework_name, framework in mapping.frameworks.items():
             if not framework.controls:
-                logger.warning(f"Framework '{framework_name}' has no controls defined")
+                logger.warning("Framework '%s' has no controls defined", framework_name)
 
         # Check for unmapped frameworks
         used_frameworks = set()

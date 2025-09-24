@@ -1,0 +1,113 @@
+{
+  "experiment_name": "comply-ai-optimized-dual-model",
+  "description": "Optimized training configuration with packing and token limits",
+  "models": {
+    "mapper": {
+      "base_model": "meta-llama/Llama-3-8B-Instruct",
+      "max_sequence_length": 360,
+      "lora": {
+        "r": 256,
+        "alpha": 512,
+        "target_modules": [
+          "q_proj",
+          "k_proj",
+          "v_proj",
+          "o_proj",
+          "gate_proj",
+          "up_proj",
+          "down_proj"
+        ],
+        "dropout": 0.1
+      }
+    },
+    "analyst": {
+      "base_model": "microsoft/Phi-3-mini-4k-instruct",
+      "max_sequence_length": 299,
+      "lora": {
+        "r": 128,
+        "alpha": 256,
+        "target_modules": [
+          "q_proj",
+          "k_proj",
+          "v_proj",
+          "o_proj"
+        ],
+        "dropout": 0.1
+      }
+    }
+  },
+  "training": {
+    "mapper": {
+      "batch_size": 4,
+      "gradient_accumulation": 8,
+      "effective_batch_size": 32,
+      "target_tokens_per_step": 48000,
+      "max_sequence_length": 360,
+      "learning_rate": 5e-05,
+      "epochs": 3,
+      "optimization": {
+        "use_gradient_checkpointing": true,
+        "use_flash_attention": true,
+        "mixed_precision": "fp16"
+      }
+    },
+    "analyst": {
+      "batch_size": 8,
+      "gradient_accumulation": 4,
+      "effective_batch_size": 32,
+      "target_tokens_per_step": 24000,
+      "max_sequence_length": 299,
+      "learning_rate": 0.0001,
+      "epochs": 2,
+      "optimization": {
+        "use_gradient_checkpointing": true,
+        "use_flash_attention": true,
+        "mixed_precision": "fp16"
+      }
+    }
+  },
+  "packing": {
+    "mapper": {
+      "strategy": "simple_packing",
+      "efficiency": 0.9,
+      "estimated_memory_gb": 257.152,
+      "recommendations": {
+        "strategy": "simple_packing",
+        "efficiency_rating": "high",
+        "memory_requirement": "257.2GB",
+        "gpu_recommendation": "A100 (80GB) or multiple GPUs",
+        "optimization_suggestions": [
+          "Use standard padding - most samples fit within target length",
+          "Consider reducing batch size or using gradient checkpointing"
+        ]
+      }
+    },
+    "analyst": {
+      "strategy": "simple_packing",
+      "efficiency": 0.9,
+      "estimated_memory_gb": 64.4784,
+      "recommendations": {
+        "strategy": "simple_packing",
+        "efficiency_rating": "high",
+        "memory_requirement": "64.5GB",
+        "gpu_recommendation": "A100 (80GB) or multiple GPUs",
+        "optimization_suggestions": [
+          "Use standard padding - most samples fit within target length",
+          "Consider reducing batch size or using gradient checkpointing"
+        ]
+      }
+    }
+  },
+  "performance_targets": {
+    "mapper": {
+      "target_throughput": 800.0,
+      "memory_limit_gb": 308.58239999999995,
+      "gpu_recommendation": "A100 (80GB) or multiple GPUs"
+    },
+    "analyst": {
+      "target_throughput": 400.0,
+      "memory_limit_gb": 77.37407999999999,
+      "gpu_recommendation": "A100 (80GB) or multiple GPUs"
+    }
+  }
+}

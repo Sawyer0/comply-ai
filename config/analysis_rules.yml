@@ -1,0 +1,166 @@
+# Prometheus alerting rules for Analysis Module
+groups:
+- name: analysis_module_golden_alerts
+  rules:
+  
+  # Golden Alert: P95 Latency SLO Breach
+  - alert: AnalysisP95LatencyHigh
+    expr: histogram_quantile(0.95, rate(analysis_request_duration_seconds_bucket[5m])) > 0.5
+    for: 5m
+    labels:
+      severity: critical
+      service: analysis-module
+      slo: latency
+    annotations:
+      summary: "Analysis P95 latency exceeds SLO"
+      description: "95th percentile latency is {{ $value }}s, exceeding 0.5s SLO for 5+ minutes"
+      runbook_url: "https://comply-ai.com/runbooks/latency-slo-breach"
+      
+  # Golden Alert: Error Rate SLO Breach  
+  - alert: AnalysisErrorRateHigh
+    expr: rate(analysis_errors_total[5m]) / rate(analysis_requests_total[5m]) > 0.01
+    for: 2m
+    labels:
+      severity: critical
+      service: analysis-module
+      slo: error_rate
+    annotations:
+      summary: "Analysis error rate exceeds SLO"
+      description: "Error rate is {{ $value | humanizePercentage }}, exceeding 1% SLO for 2+ minutes"
+      runbook_url: "https://comply-ai.com/runbooks/error-rate-slo-breach"
+
+- name: analysis_module_alerts
+  rules:
+  
+  # High error rate alert
+  - alert: AnalysisHighErrorRate
+    expr: rate(analysis_errors_total[5m]) > 0.1
+    for: 2m
+    labels:
+      severity: warning
+      service: analysis-module
+    annotations:
+      summary: "High error rate in analysis module"
+      description: "Analysis module error rate is {{ $value }} errors/sec for the last 5 minutes"
+      
+  # Low confidence rate alert  
+  - alert: AnalysisLowConfidenceRate
+    expr: rate(analysis_low_confidence_total[5m]) > 0.5
+    for: 3m
+    labels:
+      severity: warning
+      service: analysis-module
+    annotations:
+      summary: "High rate of low confidence analysis results"
+      description: "{{ $value }} low confidence results/sec over the last 5 minutes"
+      
+  # High coverage gap rate
+  - alert: AnalysisHighCoverageGapRate
+    expr: avg(coverage_gap_rate) by (tenant) > 0.3
+    for: 5m
+    labels:
+      severity: critical
+      service: analysis-module
+    annotations:
+      summary: "High coverage gap rate for tenant {{ $labels.tenant }}"
+      description: "Coverage gap rate is {{ $value }} for tenant {{ $labels.tenant }}"
+      
+  # Slow response time
+  - alert: AnalysisSlowResponseTime
+    expr: histogram_quantile(0.95, rate(analysis_request_duration_seconds_bucket[5m])) > 2.0
+    for: 3m
+    labels:
+      severity: warning
+      service: analysis-module
+    annotations:
+      summary: "Analysis module response time is slow"
+      description: "95th percentile response time is {{ $value }}s"
+      
+  # Service down
+  - alert: AnalysisServiceDown
+    expr: up{job="analysis-module"} == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: analysis-module
+    annotations:
+      summary: "Analysis module is down"
+      description: "Analysis module has been down for more than 1 minute"
+      
+  # OPA policy generation slow
+  - alert: OPAPolicyGenerationSlow
+    expr: histogram_quantile(0.95, rate(opa_policy_generation_duration_seconds_bucket[5m])) > 1.0
+    for: 2m
+    labels:
+      severity: warning
+      service: analysis-module
+    annotations:
+      summary: "OPA policy generation is slow"
+      description: "95th percentile OPA policy generation time is {{ $value }}s"
+
+- name: analysis_module_tenant_sla
+  rules:
+  
+  # Per-Tenant P95 Latency SLO Breach
+  - alert: AnalysisTenantP95LatencyHigh
+    expr: histogram_quantile(0.95, rate(analysis_request_duration_seconds_bucket[5m])) by (tenant) > 0.5
+    for: 5m
+    labels:
+      severity: warning
+      service: analysis-module
+      slo: tenant_latency
+    annotations:
+      summary: "Tenant {{ $labels.tenant }} P95 latency exceeds SLO"
+      description: "Tenant {{ $labels.tenant }} 95th percentile latency is {{ $value }}s, exceeding 0.5s SLO"
+      tenant: "{{ $labels.tenant }}"
+      
+  # Per-Tenant Error Rate SLO Breach
+  - alert: AnalysisTenantErrorRateHigh
+    expr: (rate(analysis_errors_total[5m]) / rate(analysis_requests_total[5m])) by (tenant) > 0.01
+    for: 3m
+    labels:
+      severity: warning
+      service: analysis-module
+      slo: tenant_error_rate
+    annotations:
+      summary: "Tenant {{ $labels.tenant }} error rate exceeds SLO"
+      description: "Tenant {{ $labels.tenant }} error rate is {{ $value | humanizePercentage }}, exceeding 1% SLO"
+      tenant: "{{ $labels.tenant }}"
+      
+  # Per-Tenant SLA Compliance Monitoring
+  - alert: AnalysisTenantSLACompliance
+    expr: (1 - (rate(analysis_errors_total[5m]) / rate(analysis_requests_total[5m]))) by (tenant) < 0.999
+    for: 10m
+    labels:
+      severity: info
+      service: analysis-module
+      slo: tenant_availability
+    annotations:
+      summary: "Tenant {{ $labels.tenant }} SLA compliance below 99.9%"
+      description: "Tenant {{ $labels.tenant }} SLA compliance is {{ $value | humanizePercentage }}, below 99.9% target"
+      tenant: "{{ $labels.tenant }}"
+
+- name: analysis_module_capacity
+  rules:
+  
+  # Request rate trending up
+  - alert: AnalysisRequestRateIncreasing
+    expr: deriv(rate(analysis_requests_total[1h])[30m:]) > 0.1
+    for: 10m
+    labels:
+      severity: info
+      service: analysis-module
+    annotations:
+      summary: "Analysis request rate is increasing"
+      description: "Request rate has been increasing by {{ $value }} req/sec over the last 30 minutes"
+      
+  # Active tenants growing
+  - alert: AnalysisActiveTenantGrowth
+    expr: increase(analysis_active_tenants[1h]) > 10
+    for: 5m
+    labels:
+      severity: info
+      service: analysis-module
+    annotations:
+      summary: "Number of active tenants is growing rapidly"
+      description: "{{ $value }} new tenants in the last hour"

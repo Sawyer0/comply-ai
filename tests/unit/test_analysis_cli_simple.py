@@ -1,7 +1,7 @@
 """Simple tests for analysis CLI commands that don't require model loading."""
 
-from click.testing import CliRunner
 import pytest
+from click.testing import CliRunner
 
 from src.llama_mapper.cli.main import main
 
@@ -57,30 +57,27 @@ class TestAnalysisCLISimple:
 
     def test_analyze_command_missing_file(self):
         """Test analyze command with missing metrics file."""
-        result = self.runner.invoke(main, [
-            "analysis", "analyze",
-            "--metrics-file", "nonexistent.json"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "analyze", "--metrics-file", "nonexistent.json"]
+        )
 
         assert result.exit_code != 0
         assert "does not exist" in result.output
 
     def test_batch_analyze_command_missing_file(self):
         """Test batch analyze command with missing batch file."""
-        result = self.runner.invoke(main, [
-            "analysis", "batch-analyze",
-            "--batch-file", "nonexistent.json"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "batch-analyze", "--batch-file", "nonexistent.json"]
+        )
 
         assert result.exit_code != 0
         assert "does not exist" in result.output
 
     def test_cache_command_invalid_action(self):
         """Test cache command with invalid action."""
-        result = self.runner.invoke(main, [
-            "analysis", "cache",
-            "--action", "invalid_action"
-        ])
+        result = self.runner.invoke(
+            main, ["analysis", "cache", "--action", "invalid_action"]
+        )
 
         # Should show help or error message
         assert result.exit_code != 0 or "Usage:" in result.output

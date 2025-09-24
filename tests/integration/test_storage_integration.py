@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.llama_mapper.config.manager import ConfigManager
-from src.llama_mapper.storage.manager import StorageManager, StorageRecord
 from src.llama_mapper.config.settings import StorageConfig
+from src.llama_mapper.storage.manager import StorageManager, StorageRecord
 
 
 class TestStorageIntegration:
@@ -24,7 +24,7 @@ class TestStorageIntegration:
             storage_backend="postgresql",
             db_host="localhost",
             db_port=5432,
-            db_name="test_db"
+            db_name="test_db",
         )
         storage_manager = StorageManager(storage_config)
 
@@ -37,7 +37,7 @@ class TestStorageIntegration:
         config_manager = ConfigManager()
 
         # Check default values (these may vary based on actual config structure)
-        assert hasattr(config_manager, 'storage')
+        assert hasattr(config_manager, "storage")
         storage_config = config_manager.storage
         # Note: exact property names may differ in current implementation
 
@@ -47,10 +47,10 @@ class TestStorageIntegration:
             storage_backend="clickhouse",
             db_host="localhost",
             db_port=8123,
-            db_name="test_db"
+            db_name="test_db",
         )
         storage_manager = StorageManager(storage_config)
-        
+
         assert storage_manager.backend.value == "clickhouse"
 
     @pytest.mark.asyncio
@@ -60,7 +60,7 @@ class TestStorageIntegration:
             storage_backend="postgresql",
             db_host="localhost",
             db_port=5432,
-            db_name="test_db"
+            db_name="test_db",
         )
 
         with (

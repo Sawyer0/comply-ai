@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.llama_mapper.config.settings import Settings
 from llama_mapper.storage.manager import StorageManager, StorageRecord
 from llama_mapper.storage.tenant_isolation import (
     TenantAccessLevel,
 )
+from src.llama_mapper.config.settings import Settings
 
 
 @pytest.fixture

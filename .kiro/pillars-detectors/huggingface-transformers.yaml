@@ -1,0 +1,45 @@
+detector: huggingface-transformers
+version: "v1"
+notes: "Generic mapping for Hugging Face Transformers safety models (various architectures)."
+maps:
+  # Common toxicity labels
+  TOXIC: HARM.SPEECH.Toxicity
+  SEVERE_TOXIC: HARM.SPEECH.Toxicity
+  OBSCENE: HARM.SPEECH.Obscenity
+  THREAT: HARM.SPEECH.Threat
+  INSULT: HARM.SPEECH.Insult
+  IDENTITY_HATE: HARM.SPEECH.Hate.Other
+  
+  # Lowercase variants
+  toxic: HARM.SPEECH.Toxicity
+  severe_toxic: HARM.SPEECH.Toxicity
+  obscene: HARM.SPEECH.Obscenity
+  threat: HARM.SPEECH.Threat
+  insult: HARM.SPEECH.Insult
+  identity_hate: HARM.SPEECH.Hate.Other
+  
+  # Binary classifications
+  POSITIVE: HARM.SPEECH.Toxicity
+  NEGATIVE: OTHER.Safe
+  positive: HARM.SPEECH.Toxicity
+  negative: OTHER.Safe
+  
+  # Hate speech subcategories
+  hate: HARM.SPEECH.Hate.Other
+  hate_speech: HARM.SPEECH.Hate.Other
+  racism: HARM.SPEECH.Hate.Race
+  sexism: HARM.SPEECH.Hate.Gender
+  
+  # Violence categories
+  violence: HARM.VIOLENCE.Physical
+  self_harm: HARM.VIOLENCE.SelfHarm
+  
+  # Content categories
+  harassment: HARM.SPEECH.Insult
+  bullying: HARM.SPEECH.Insult
+  cyberbullying: HARM.SPEECH.Insult
+  
+  # Quality indicators
+  clean: OTHER.Safe
+  safe: OTHER.Safe
+  unsafe: HARM.SPEECH.Toxicity

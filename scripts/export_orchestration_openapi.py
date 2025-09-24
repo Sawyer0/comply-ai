@@ -36,23 +36,23 @@ def _ensure_components(openapi_dict: dict) -> dict:
 def _inject_orchestration_schemas(openapi_dict: dict) -> dict:
     """Inject orchestration-specific schemas into OpenAPI spec."""
     from detector_orchestration.models import (
-        OrchestrationRequest,
-        OrchestrationResponse,
-        DetectorResult,
-        MapperPayload,
-        RoutingDecision,
-        RoutingPlan,
         ContentType,
-        ProcessingMode,
-        Priority,
-        DetectorStatus,
-        Provenance,
-        PolicyContext,
-        MappingResponse,
         DetectorCapabilities,
+        DetectorResult,
+        DetectorStatus,
+        ErrorBody,
         JobStatus,
         JobStatusResponse,
-        ErrorBody,
+        MapperPayload,
+        MappingResponse,
+        OrchestrationRequest,
+        OrchestrationResponse,
+        PolicyContext,
+        Priority,
+        ProcessingMode,
+        Provenance,
+        RoutingDecision,
+        RoutingPlan,
     )
 
     openapi_dict = _ensure_components(openapi_dict)
@@ -63,14 +63,16 @@ def _inject_orchestration_schemas(openapi_dict: dict) -> dict:
         if name not in schemas:
             try:
                 # Check if it's a Pydantic model
-                if hasattr(model, 'model_json_schema'):
-                    schemas[name] = model.model_json_schema(ref_template="#/components/schemas/{model}")
+                if hasattr(model, "model_json_schema"):
+                    schemas[name] = model.model_json_schema(
+                        ref_template="#/components/schemas/{model}"
+                    )
                 # Check if it's an Enum
-                elif hasattr(model, '__members__'):
+                elif hasattr(model, "__members__"):
                     schemas[name] = {
                         "type": "string",
                         "enum": list(model.__members__.keys()),
-                        "title": name
+                        "title": name,
                     }
                 else:
                     # Fallback for other types
@@ -143,29 +145,31 @@ def _inject_orchestration_schemas(openapi_dict: dict) -> dict:
 
 def main():
     """Main function to export OpenAPI specification."""
-    parser = argparse.ArgumentParser(description="Export Detector Orchestration OpenAPI YAML")
+    parser = argparse.ArgumentParser(
+        description="Export Detector Orchestration OpenAPI YAML"
+    )
     parser.add_argument(
-        "--output", 
-        "-o", 
-        type=str, 
-        default="detector-orchestration/docs/openapi.yaml", 
-        help="Output file path"
+        "--output",
+        "-o",
+        type=str,
+        default="detector-orchestration/docs/openapi.yaml",
+        help="Output file path",
     )
     args = parser.parse_args()
 
     # Get OpenAPI spec from the app
     openapi_dict = app.openapi()
-    
+
     # Post-process: inject orchestration-specific schemas
     openapi_dict = _inject_orchestration_schemas(openapi_dict)
 
     # Write to file
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     with open(output_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(openapi_dict, f, sort_keys=False)
-    
+
     print(f"✓ Detector Orchestration OpenAPI spec written to {output_path}")
 
 

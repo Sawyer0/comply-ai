@@ -43,6 +43,15 @@ dependencies = [
     "asyncpg>=0.29.0",
     "clickhouse-driver>=0.2.6",
     "cryptography>=41.0.0",
+    # Security and rotation dependencies
+    "croniter>=2.0.0",
+    "hvac>=2.0.0",
+    # Redis for correlation and caching
+    "redis>=5.0.0",
+    # File watching for configuration hot-reload
+    "watchdog>=3.0.0",
+    # Process monitoring
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]

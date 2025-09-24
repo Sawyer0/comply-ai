@@ -27,7 +27,9 @@ class AnalysisModuleDataGenerator:
 
         self._analysis_scenarios = self._create_analysis_scenarios()
 
-    def generate_coverage_gap_examples(self, num_examples: int = 200) -> List[TrainingExample]:
+    def generate_coverage_gap_examples(
+        self, num_examples: int = 200
+    ) -> List[TrainingExample]:
         """Generate coverage gap analysis training examples."""
         logger.info("Generating %s coverage gap analysis examples...", num_examples)
 
@@ -84,7 +86,9 @@ class AnalysisModuleDataGenerator:
         logger.info("Generated %s coverage gap analysis examples", len(examples))
         return examples
 
-    def generate_incident_anomaly_examples(self, num_examples: int = 150) -> List[TrainingExample]:
+    def generate_incident_anomaly_examples(
+        self, num_examples: int = 150
+    ) -> List[TrainingExample]:
         """Generate incident and anomaly summary training examples."""
         logger.info("Generating %s incident/anomaly analysis examples...", num_examples)
 
@@ -141,7 +145,9 @@ class AnalysisModuleDataGenerator:
         logger.info("Generated %s incident/anomaly analysis examples", len(examples))
         return examples
 
-    def generate_threshold_tuning_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_threshold_tuning_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate threshold tuning suggestion training examples."""
         logger.info("Generating %s threshold tuning examples...", num_examples)
 
@@ -189,7 +195,9 @@ class AnalysisModuleDataGenerator:
                         "tenant": scenario["tenant"],
                         "app": scenario["app"],
                         "route": scenario["route"],
-                        "tuning_type": scenario.get("tuning_type", "threshold_adjustment"),
+                        "tuning_type": scenario.get(
+                            "tuning_type", "threshold_adjustment"
+                        ),
                         "fp_rate": scenario.get("fp_rate", 0.0),
                     },
                 )
@@ -198,7 +206,9 @@ class AnalysisModuleDataGenerator:
         logger.info("Generated %s threshold tuning examples", len(examples))
         return examples
 
-    def generate_opa_policy_examples(self, num_examples: int = 100) -> List[TrainingExample]:
+    def generate_opa_policy_examples(
+        self, num_examples: int = 100
+    ) -> List[TrainingExample]:
         """Generate OPA policy generation training examples."""
         logger.info("Generating %s OPA policy examples...", num_examples)
 
@@ -246,7 +256,9 @@ class AnalysisModuleDataGenerator:
                         "tenant": scenario["tenant"],
                         "app": scenario["app"],
                         "route": scenario["route"],
-                        "policy_type": scenario.get("policy_type", "coverage_requirement"),
+                        "policy_type": scenario.get(
+                            "policy_type", "coverage_requirement"
+                        ),
                         "has_opa_diff": bool(scenario.get("opa_diff")),
                     },
                 )
@@ -302,8 +314,16 @@ class AnalysisModuleDataGenerator:
                     "app": "user-management",
                     "route": "/api/users/*",
                     "required_detectors": ["pii", "jailbreak", "toxicity"],
-                    "observed_coverage": {"pii": 0.95, "jailbreak": 0.0, "toxicity": 0.88},
-                    "required_coverage": {"pii": 0.95, "jailbreak": 0.95, "toxicity": 0.90},
+                    "observed_coverage": {
+                        "pii": 0.95,
+                        "jailbreak": 0.0,
+                        "toxicity": 0.88,
+                    },
+                    "required_coverage": {
+                        "pii": 0.95,
+                        "jailbreak": 0.95,
+                        "toxicity": 0.90,
+                    },
                     "detector_errors": {"jailbreak": {"5xx": 142}},
                     "reason": "Jailbreak detector down causing coverage gap",
                     "remediation": "Restart jailbreak detector service",
@@ -317,8 +337,16 @@ class AnalysisModuleDataGenerator:
                     "app": "payment-processing",
                     "route": "/api/payments/*",
                     "required_detectors": ["pii", "fraud", "compliance"],
-                    "observed_coverage": {"pii": 0.78, "fraud": 0.92, "compliance": 0.65},
-                    "required_coverage": {"pii": 0.95, "fraud": 0.95, "compliance": 0.90},
+                    "observed_coverage": {
+                        "pii": 0.78,
+                        "fraud": 0.92,
+                        "compliance": 0.65,
+                    },
+                    "required_coverage": {
+                        "pii": 0.95,
+                        "fraud": 0.95,
+                        "compliance": 0.90,
+                    },
                     "reason": "PII and compliance detectors below threshold",
                     "remediation": "Increase PII detector sensitivity and add compliance checks",
                     "opa_diff": "",
@@ -331,8 +359,16 @@ class AnalysisModuleDataGenerator:
                     "app": "patient-portal",
                     "route": "/api/patients/*",
                     "required_detectors": ["hipaa", "pii", "access-control"],
-                    "observed_coverage": {"hipaa": 0.99, "pii": 0.85, "access-control": 0.70},
-                    "required_coverage": {"hipaa": 0.99, "pii": 0.95, "access-control": 0.90},
+                    "observed_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.85,
+                        "access-control": 0.70,
+                    },
+                    "required_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.95,
+                        "access-control": 0.90,
+                    },
                     "reason": "Access control detector coverage insufficient",
                     "remediation": "Deploy additional access control monitoring",
                     "opa_diff": "",
@@ -351,8 +387,16 @@ class AnalysisModuleDataGenerator:
                     "required_coverage": {"fraud": 0.95, "pii": 0.95, "payment": 0.95},
                     "detector_errors": {},
                     "high_sev_hits": [
-                        {"taxonomy": "FRAUD.PaymentFraud", "count": 45, "p95_score": 0.92},
-                        {"taxonomy": "PII.Identifier.CreditCard", "count": 12, "p95_score": 0.88},
+                        {
+                            "taxonomy": "FRAUD.PaymentFraud",
+                            "count": 45,
+                            "p95_score": 0.92,
+                        },
+                        {
+                            "taxonomy": "PII.Identifier.CreditCard",
+                            "count": 12,
+                            "p95_score": 0.88,
+                        },
                     ],
                     "reason": "Payment fraud spike detected in checkout flow",
                     "remediation": "Increase fraud detection sensitivity and review payment patterns",
@@ -367,11 +411,28 @@ class AnalysisModuleDataGenerator:
                     "app": "content-moderation",
                     "route": "/api/posts/*",
                     "required_detectors": ["toxicity", "hate-speech", "spam"],
-                    "observed_coverage": {"toxicity": 0.90, "hate-speech": 0.85, "spam": 0.95},
-                    "required_coverage": {"toxicity": 0.90, "hate-speech": 0.90, "spam": 0.95},
-                    "detector_errors": {"hate-speech": {"5xx": 23, "time_buckets": ["2024-01-15T14:00:00Z"]}},
+                    "observed_coverage": {
+                        "toxicity": 0.90,
+                        "hate-speech": 0.85,
+                        "spam": 0.95,
+                    },
+                    "required_coverage": {
+                        "toxicity": 0.90,
+                        "hate-speech": 0.90,
+                        "spam": 0.95,
+                    },
+                    "detector_errors": {
+                        "hate-speech": {
+                            "5xx": 23,
+                            "time_buckets": ["2024-01-15T14:00:00Z"],
+                        }
+                    },
                     "high_sev_hits": [
-                        {"taxonomy": "CONTENT.Toxicity.Hate", "count": 156, "p95_score": 0.94},
+                        {
+                            "taxonomy": "CONTENT.Toxicity.Hate",
+                            "count": 156,
+                            "p95_score": 0.94,
+                        },
                     ],
                     "reason": "Hate speech detector errors causing missed content",
                     "remediation": "Fix hate speech detector and review missed content",
@@ -388,15 +449,33 @@ class AnalysisModuleDataGenerator:
                     "app": "account-management",
                     "route": "/api/accounts/*",
                     "required_detectors": ["pii", "fraud", "compliance"],
-                    "observed_coverage": {"pii": 0.95, "fraud": 0.95, "compliance": 0.95},
-                    "required_coverage": {"pii": 0.95, "fraud": 0.95, "compliance": 0.95},
+                    "observed_coverage": {
+                        "pii": 0.95,
+                        "fraud": 0.95,
+                        "compliance": 0.95,
+                    },
+                    "required_coverage": {
+                        "pii": 0.95,
+                        "fraud": 0.95,
+                        "compliance": 0.95,
+                    },
                     "false_positive_bands": [
-                        {"detector": "pii", "score_min": 0.6, "score_max": 0.7, "fp_rate": 0.72},
-                        {"detector": "fraud", "score_min": 0.5, "score_max": 0.6, "fp_rate": 0.45},
+                        {
+                            "detector": "pii",
+                            "score_min": 0.6,
+                            "score_max": 0.7,
+                            "fp_rate": 0.72,
+                        },
+                        {
+                            "detector": "fraud",
+                            "score_min": 0.5,
+                            "score_max": 0.6,
+                            "fp_rate": 0.45,
+                        },
                     ],
                     "reason": "PII detector producing high false positive rate",
                     "remediation": "Increase PII detector threshold to 0.75",
-                    "opa_diff": 'package riskpack\n\npii_threshold = 0.75',
+                    "opa_diff": "package riskpack\n\npii_threshold = 0.75",
                     "evidence_refs": ["pii_fp_band"],
                     "notes": "Threshold adjustment needed to reduce noise",
                     "tuning_type": "threshold_increase",
@@ -407,14 +486,27 @@ class AnalysisModuleDataGenerator:
                     "app": "patient-data",
                     "route": "/api/patients/*",
                     "required_detectors": ["hipaa", "pii", "access-control"],
-                    "observed_coverage": {"hipaa": 0.99, "pii": 0.95, "access-control": 0.90},
-                    "required_coverage": {"hipaa": 0.99, "pii": 0.95, "access-control": 0.90},
+                    "observed_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.95,
+                        "access-control": 0.90,
+                    },
+                    "required_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.95,
+                        "access-control": 0.90,
+                    },
                     "false_positive_bands": [
-                        {"detector": "access-control", "score_min": 0.8, "score_max": 0.9, "fp_rate": 0.15},
+                        {
+                            "detector": "access-control",
+                            "score_min": 0.8,
+                            "score_max": 0.9,
+                            "fp_rate": 0.15,
+                        },
                     ],
                     "reason": "Access control detector threshold too high",
                     "remediation": "Lower access control threshold to 0.75 for better coverage",
-                    "opa_diff": 'package riskpack\n\naccess_control_threshold = 0.75',
+                    "opa_diff": "package riskpack\n\naccess_control_threshold = 0.75",
                     "evidence_refs": ["access_control_fp_band"],
                     "notes": "Threshold too conservative, missing legitimate access violations",
                     "tuning_type": "threshold_decrease",
@@ -427,8 +519,16 @@ class AnalysisModuleDataGenerator:
                     "app": "payment-processing",
                     "route": "/api/payments/*",
                     "required_detectors": ["fraud", "pii", "compliance"],
-                    "observed_coverage": {"fraud": 0.85, "pii": 0.90, "compliance": 0.80},
-                    "required_coverage": {"fraud": 0.95, "pii": 0.95, "compliance": 0.90},
+                    "observed_coverage": {
+                        "fraud": 0.85,
+                        "pii": 0.90,
+                        "compliance": 0.80,
+                    },
+                    "required_coverage": {
+                        "fraud": 0.95,
+                        "pii": 0.95,
+                        "compliance": 0.90,
+                    },
                     "reason": "Payment processing requires higher coverage thresholds",
                     "remediation": "Update policy to require 95% coverage for all detectors",
                     "opa_diff": 'package riskpack\n\npayment_coverage_requirements = {\n    "fraud": 0.95,\n    "pii": 0.95,\n    "compliance": 0.90\n}',
@@ -441,8 +541,16 @@ class AnalysisModuleDataGenerator:
                     "app": "patient-portal",
                     "route": "/api/patients/*",
                     "required_detectors": ["hipaa", "pii", "access-control"],
-                    "observed_coverage": {"hipaa": 0.99, "pii": 0.95, "access-control": 0.90},
-                    "required_coverage": {"hipaa": 0.99, "pii": 0.95, "access-control": 0.90},
+                    "observed_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.95,
+                        "access-control": 0.90,
+                    },
+                    "required_coverage": {
+                        "hipaa": 0.99,
+                        "pii": 0.95,
+                        "access-control": 0.90,
+                    },
                     "reason": "HIPAA compliance requires specific detector configuration",
                     "remediation": "Add HIPAA-specific detector requirements to policy",
                     "opa_diff": 'package riskpack\n\nhipaa_requirements = {\n    "hipaa": 0.99,\n    "pii": 0.95,\n    "access_control": 0.90\n}\n\nhipaa_compliance_check = {\n    "required": hipaa_requirements,\n    "enforcement": "strict"\n}',
@@ -473,7 +581,9 @@ class AnalysisModuleDataGenerator:
             f"OPA diff (if applicable), confidence score, evidence references, and notes."
         )
 
-    def _create_incident_anomaly_instruction(self, analysis_input: Dict[str, Any]) -> str:
+    def _create_incident_anomaly_instruction(
+        self, analysis_input: Dict[str, Any]
+    ) -> str:
         """Create instruction for incident/anomaly analysis."""
         return (
             f"Analyze the following compliance metrics and provide incident/anomaly summary:\n\n"
@@ -493,7 +603,9 @@ class AnalysisModuleDataGenerator:
             f"OPA diff (if applicable), confidence score, evidence references, and notes."
         )
 
-    def _create_threshold_tuning_instruction(self, analysis_input: Dict[str, Any]) -> str:
+    def _create_threshold_tuning_instruction(
+        self, analysis_input: Dict[str, Any]
+    ) -> str:
         """Create instruction for threshold tuning analysis."""
         return (
             f"Analyze the following compliance metrics and provide threshold tuning suggestions:\n\n"
@@ -562,12 +674,8 @@ class AnalysisModuleDataGenerator:
             stats["analysis_types"][analysis_type] = (
                 stats["analysis_types"].get(analysis_type, 0) + 1
             )
-            stats["tenants"][tenant] = (
-                stats["tenants"].get(tenant, 0) + 1
-            )
-            stats["apps"][app] = (
-                stats["apps"].get(app, 0) + 1
-            )
+            stats["tenants"][tenant] = stats["tenants"].get(tenant, 0) + 1
+            stats["apps"][app] = stats["apps"].get(app, 0) + 1
             stats["severity_levels"][severity] = (
                 stats["severity_levels"].get(severity, 0) + 1
             )
@@ -577,7 +685,8 @@ class AnalysisModuleDataGenerator:
                 stats["opa_policy_stats"]["total_with_opa"] += 1
                 policy_type = metadata.get("policy_type", "unknown")
                 stats["opa_policy_stats"]["opa_policy_types"][policy_type] = (
-                    stats["opa_policy_stats"]["opa_policy_types"].get(policy_type, 0) + 1
+                    stats["opa_policy_stats"]["opa_policy_types"].get(policy_type, 0)
+                    + 1
                 )
 
             try:

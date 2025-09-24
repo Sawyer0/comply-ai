@@ -8,7 +8,8 @@ and S3 integration. Can be used with Azure Blob Storage (S3-compatible) or AWS S
 """
 
 import argparse
-import asyncio
+
+# import asyncio  # Not used
 import json
 import logging
 import os
@@ -20,191 +21,183 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import boto3
-import psycopg2
+
+# import psycopg2  # Not used directly
 import redis
 from botocore.exceptions import ClientError, NoCredentialsError
+
 from clickhouse_driver import Client as ClickHouseClient
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('/var/log/backup.log')
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler("/var/log/backup.log")],
 )
 logger = logging.getLogger(__name__)
 
 
 class DatabaseBackupError(Exception):
     """Custom exception for database backup errors."""
-    pass
 
 
 class S3BackupManager:
     """Manages S3 backup operations (works with AWS S3 and Azure Blob Storage)."""
-    
-    def __init__(self, bucket: str, region: str = 'us-east-1', endpoint_url: Optional[str] = None):
+
+    def __init__(
+        self, bucket: str, region: str = "us-east-1", endpoint_url: Optional[str] = None
+    ):
         self.bucket = bucket
         self.region = region
         self.endpoint_url = endpoint_url
-        
+
         # Initialize S3 client (works with AWS S3 or Azure Blob Storage)
         if endpoint_url:
             # Azure Blob Storage with S3-compatible API
             self.s3_client = boto3.client(
-                's3',
+                "s3",
                 region_name=region,
                 endpoint_url=endpoint_url,
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             )
         else:
             # AWS S3
-            self.s3_client = boto3.client('s3', region_name=region)
-    
-    def upload_backup(self, local_path: str, s3_key: str, metadata: Optional[Dict] = None) -> bool:
+            self.s3_client = boto3.client("s3", region_name=region)
+
+    def upload_backup(
+        self, local_path: str, s3_key: str, metadata: Optional[Dict] = None
+    ) -> bool:
         """Upload backup file to S3 (AWS or Azure Blob Storage)."""
         try:
             extra_args = {}
             if metadata:
-                extra_args['Metadata'] = metadata
-            
+                extra_args["Metadata"] = metadata
+
             self.s3_client.upload_file(
+                local_path, self.bucket, s3_key, ExtraArgs=extra_args
+            )
+            logger.info(
+                "Successfully uploaded %s to s3://%s/%s",
                 local_path,
                 self.bucket,
                 s3_key,
-                ExtraArgs=extra_args
             )
-            logger.info(f"Successfully uploaded {local_path} to s3://{self.bucket}/{s3_key}")
             return True
         except (ClientError, NoCredentialsError) as e:
-            logger.error(f"Failed to upload {local_path} to S3: {e}")
+            logger.error("Failed to upload %s to S3: %s", local_path, e)
             return False
-    
+
     def list_backups(self, prefix: str) -> List[Dict]:
         """List available backups in S3."""
         try:
-            response = self.s3_client.list_objects_v2(
-                Bucket=self.bucket,
-                Prefix=prefix
-            )
-            return response.get('Contents', [])
+            response = self.s3_client.list_objects_v2(Bucket=self.bucket, Prefix=prefix)
+            return response.get("Contents", [])
         except ClientError as e:
-            logger.error(f"Failed to list backups: {e}")
+            logger.error("Failed to list backups: %s", e)
             return []
-    
+
     def delete_old_backups(self, prefix: str, retention_days: int) -> int:
         """Delete backups older than retention period."""
         try:
-            cutoff_date = datetime.now(timezone.utc).timestamp() - (retention_days * 24 * 3600)
+            cutoff_date = datetime.now(timezone.utc).timestamp() - (
+                retention_days * 24 * 3600
+            )
             backups = self.list_backups(prefix)
             deleted_count = 0
-            
+
             for backup in backups:
-                if backup['LastModified'].timestamp() < cutoff_date:
-                    self.s3_client.delete_object(
-                        Bucket=self.bucket,
-                        Key=backup['Key']
-                    )
+                if backup["LastModified"].timestamp() < cutoff_date:
+                    self.s3_client.delete_object(Bucket=self.bucket, Key=backup["Key"])
                     deleted_count += 1
-                    logger.info(f"Deleted old backup: {backup['Key']}")
-            
+                    logger.info("Deleted old backup: %s", backup["Key"])
+
             return deleted_count
         except ClientError as e:
-            logger.error(f"Failed to delete old backups: {e}")
+            logger.error("Failed to delete old backups: %s", e)
             return 0
 
 
 class PostgreSQLBackup:
     """PostgreSQL backup operations."""
-    
+
     def __init__(self, host: str, port: int, database: str, user: str, password: str):
         self.host = host
         self.port = port
         self.database = database
         self.user = user
         self.password = password
-    
+
     def create_backup(self, output_path: str, compress: bool = True) -> bool:
         """Create PostgreSQL backup."""
         try:
             # Set password environment variable
             env = os.environ.copy()
-            env['PGPASSWORD'] = self.password
-            
+            env["PGPASSWORD"] = self.password
+
             # Build pg_dump command
             cmd = [
-                'pg_dump',
-                '-h', self.host,
-                '-p', str(self.port),
-                '-U', self.user,
-                '-d', self.database,
-                '--verbose',
-                '--no-password',
-                '--format=custom'
+                "pg_dump",
+                "-h",
+                self.host,
+                "-p",
+                str(self.port),
+                "-U",
+                self.user,
+                "-d",
+                self.database,
+                "--verbose",
+                "--no-password",
+                "--format=custom",
             ]
-            
+
             if compress:
-                cmd.extend(['--compress=9'])
-            
+                cmd.extend(["--compress=9"])
+
             # Execute backup
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 result = subprocess.run(
-                    cmd,
-                    stdout=f,
-                    stderr=subprocess.PIPE,
-                    env=env,
-                    check=True
+                    cmd, stdout=f, stderr=subprocess.PIPE, env=env, check=True
                 )
-            
-            logger.info(f"PostgreSQL backup created: {output_path}")
+
+            logger.info("PostgreSQL backup created: %s", output_path)
             return True
-            
+
         except subprocess.CalledProcessError as e:
-            logger.error(f"PostgreSQL backup failed: {e.stderr.decode()}")
+            logger.error("PostgreSQL backup failed: %s", e.stderr.decode())
             return False
-        except Exception as e:
-            logger.error(f"PostgreSQL backup error: {e}")
+        except (subprocess.CalledProcessError, OSError, ConnectionError) as e:
+            logger.error("PostgreSQL backup error: %s", e)
             return False
-    
+
     def verify_backup(self, backup_path: str) -> bool:
         """Verify PostgreSQL backup integrity."""
         try:
             env = os.environ.copy()
-            env['PGPASSWORD'] = self.password
-            
+            env["PGPASSWORD"] = self.password
+
             # Use pg_restore to verify backup
-            cmd = [
-                'pg_restore',
-                '--list',
-                '--verbose',
-                backup_path
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                env=env,
-                check=True
+            cmd = ["pg_restore", "--list", "--verbose", backup_path]
+
+            # Verify backup by listing contents
+            verification_result = subprocess.run(
+                cmd, capture_output=True, text=True, env=env, check=True
             )
-            
+
             logger.info("PostgreSQL backup verification successful")
             return True
-            
+
         except subprocess.CalledProcessError as e:
-            logger.error(f"PostgreSQL backup verification failed: {e.stderr}")
+            logger.error("PostgreSQL backup verification failed: %s", e.stderr)
             return False
-        except Exception as e:
-            logger.error(f"PostgreSQL backup verification error: {e}")
+        except (subprocess.CalledProcessError, OSError, ConnectionError) as e:
+            logger.error("PostgreSQL backup verification error: %s", e)
             return False
 
 
 class ClickHouseBackup:
     """ClickHouse backup operations."""
-    
+
     def __init__(self, host: str, port: int, database: str, user: str, password: str):
         self.host = host
         self.port = port
@@ -212,271 +205,300 @@ class ClickHouseBackup:
         self.user = user
         self.password = password
         self.client = ClickHouseClient(
-            host=host,
-            port=port,
-            database=database,
-            user=user,
-            password=password
+            host=host, port=port, database=database, user=user, password=password
         )
-    
+
     def create_backup(self, output_path: str) -> bool:
         """Create ClickHouse backup."""
         try:
             # Create backup directory
             backup_dir = Path(output_path)
             backup_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # Get all tables
             tables = self.client.execute("SHOW TABLES")
-            
+
             backup_info = {
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'database': self.database,
-                'tables': []
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "database": self.database,
+                "tables": [],
             }
-            
+
+            if not tables:
+                logger.warning("No tables found in database %s", self.database)
+                tables = []
+
             for table in tables:
+                if not table or len(table) == 0:
+                    continue
                 table_name = table[0]
-                logger.info(f"Backing up table: {table_name}")
-                
+                logger.info("Backing up table: %s", table_name)
+
                 # Get table schema
                 schema = self.client.execute(f"SHOW CREATE TABLE {table_name}")
                 schema_file = backup_dir / f"{table_name}.sql"
-                with open(schema_file, 'w') as f:
-                    f.write(schema[0][0])
-                
+                with open(schema_file, "w", encoding="utf-8") as f:
+                    if schema and len(schema) > 0 and len(schema[0]) > 0:
+                        f.write(schema[0][0])
+                    else:
+                        f.write(f"-- Schema for {table_name} could not be retrieved")
+
                 # Export table data
                 data_file = backup_dir / f"{table_name}.csv"
                 result = self.client.execute(f"SELECT * FROM {table_name}")
-                
+                row_count = 0
+
                 if result:
                     # Get column names
                     columns = self.client.execute(f"DESCRIBE {table_name}")
-                    column_names = [col[0] for col in columns]
-                    
+                    column_names = [col[0] for col in columns] if columns else []
+
                     # Write CSV data
-                    with open(data_file, 'w') as f:
-                        # Write header
-                        f.write(','.join(column_names) + '\n')
-                        # Write data
-                        for row in result:
-                            f.write(','.join(str(cell) for cell in row) + '\n')
-                
-                backup_info['tables'].append({
-                    'name': table_name,
-                    'row_count': len(result) if result else 0,
-                    'schema_file': f"{table_name}.sql",
-                    'data_file': f"{table_name}.csv"
-                })
-            
+                    with open(data_file, "w", encoding="utf-8") as f:
+                        if column_names:
+                            # Write header
+                            f.write(",".join(column_names) + "\n")
+                            # Write data
+                            for row in result:
+                                f.write(",".join(str(cell) for cell in row) + "\n")
+                                row_count += 1
+                        else:
+                            f.write("# No data or columns retrieved\n")
+                else:
+                    # Create empty file if no data
+                    with open(data_file, "w", encoding="utf-8") as f:
+                        f.write("# No data retrieved\n")
+
+                backup_info["tables"].append(
+                    {
+                        "name": table_name,
+                        "row_count": row_count,
+                        "schema_file": f"{table_name}.sql",
+                        "data_file": f"{table_name}.csv",
+                    }
+                )
+
             # Save backup metadata
-            metadata_file = backup_dir / 'backup_metadata.json'
-            with open(metadata_file, 'w') as f:
+            metadata_file = backup_dir / "backup_metadata.json"
+            with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(backup_info, f, indent=2)
-            
-            logger.info(f"ClickHouse backup created: {output_path}")
+
+            logger.info("ClickHouse backup created: %s", output_path)
             return True
-            
-        except Exception as e:
-            logger.error(f"ClickHouse backup error: {e}")
+
+        except (subprocess.CalledProcessError, OSError, ConnectionError) as e:
+            logger.error("ClickHouse backup error: %s", e)
             return False
 
 
 class RedisBackup:
     """Redis backup operations."""
-    
+
     def __init__(self, host: str, port: int, password: Optional[str] = None):
         self.host = host
         self.port = port
         self.password = password
         self.client = redis.Redis(
-            host=host,
-            port=port,
-            password=password,
-            decode_responses=False
+            host=host, port=port, password=password, decode_responses=False
         )
-    
+
     def create_backup(self, output_path: str) -> bool:
         """Create Redis backup."""
         try:
             # Trigger background save
             self.client.bgsave()
-            
+
             # Wait for save to complete
             while self.client.lastsave() == self.client.lastsave():
                 import time
+
                 time.sleep(1)
-            
+
             # Get dump file path
-            info = self.client.info('persistence')
-            dump_file = info.get('rdb_last_save_path', '/var/lib/redis/dump.rdb')
-            
+            info = self.client.info("persistence")
+            dump_file = info.get("rdb_last_save_path", "/var/lib/redis/dump.rdb")
+
             # Copy dump file to output path
             import shutil
+
             shutil.copy2(dump_file, output_path)
-            
-            logger.info(f"Redis backup created: {output_path}")
+
+            logger.info("Redis backup created: %s", output_path)
             return True
-            
-        except Exception as e:
-            logger.error(f"Redis backup error: {e}")
+
+        except (subprocess.CalledProcessError, OSError, ConnectionError) as e:
+            logger.error("Redis backup error: %s", e)
             return False
 
 
 class DatabaseBackupManager:
     """Main backup manager for all databases."""
-    
+
     def __init__(self, config: Dict):
         self.config = config
         self.s3_manager = S3BackupManager(
-            bucket=config['s3']['bucket'],
-            region=config['s3']['region'],
-            endpoint_url=config['s3'].get('endpoint_url')  # For Azure Blob Storage
+            bucket=config["s3"]["bucket"],
+            region=config["s3"]["region"],
+            endpoint_url=config["s3"].get("endpoint_url"),  # For Azure Blob Storage
         )
-        
+
         # Initialize database connections
         self.postgres = PostgreSQLBackup(
-            host=config['postgresql']['host'],
-            port=config['postgresql']['port'],
-            database=config['postgresql']['database'],
-            user=config['postgresql']['user'],
-            password=config['postgresql']['password']
+            host=config["postgresql"]["host"],
+            port=config["postgresql"]["port"],
+            database=config["postgresql"]["database"],
+            user=config["postgresql"]["user"],
+            password=config["postgresql"]["password"],
         )
-        
+
         self.clickhouse = ClickHouseBackup(
-            host=config['clickhouse']['host'],
-            port=config['clickhouse']['port'],
-            database=config['clickhouse']['database'],
-            user=config['clickhouse']['user'],
-            password=config['clickhouse']['password']
+            host=config["clickhouse"]["host"],
+            port=config["clickhouse"]["port"],
+            database=config["clickhouse"]["database"],
+            user=config["clickhouse"]["user"],
+            password=config["clickhouse"]["password"],
         )
-        
+
         self.redis = RedisBackup(
-            host=config['redis']['host'],
-            port=config['redis']['port'],
-            password=config['redis'].get('password')
+            host=config["redis"]["host"],
+            port=config["redis"]["port"],
+            password=config["redis"].get("password"),
         )
-    
+
     def create_backup(self, database_type: str, timestamp: str) -> Tuple[bool, str]:
         """Create backup for specified database type."""
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
-                
-                if database_type == 'postgresql':
+
+                if database_type == "postgresql":
                     backup_file = temp_path / f"postgresql-{timestamp}.dump"
                     success = self.postgres.create_backup(str(backup_file))
                     s3_key = f"backups/llama-mapper/postgresql/{timestamp}.dump"
-                    
-                elif database_type == 'clickhouse':
+
+                elif database_type == "clickhouse":
                     backup_dir = temp_path / f"clickhouse-{timestamp}"
                     success = self.clickhouse.create_backup(str(backup_dir))
                     s3_key = f"backups/llama-mapper/clickhouse/{timestamp}/"
-                    
-                elif database_type == 'redis':
+
+                elif database_type == "redis":
                     backup_file = temp_path / f"redis-{timestamp}.rdb"
                     success = self.redis.create_backup(str(backup_file))
                     s3_key = f"backups/llama-mapper/redis/{timestamp}.rdb"
-                    
+
                 else:
                     raise ValueError(f"Unknown database type: {database_type}")
-                
+
                 if not success:
                     return False, f"Failed to create {database_type} backup"
-                
+
                 # Upload to S3 (AWS or Azure Blob Storage)
-                if database_type == 'clickhouse':
+                if database_type == "clickhouse":
                     # Upload directory
-                    for file_path in backup_dir.rglob('*'):
+                    for file_path in backup_dir.rglob("*"):
                         if file_path.is_file():
                             relative_path = file_path.relative_to(backup_dir)
                             file_s3_key = f"{s3_key}{relative_path}"
-                            self.s3_manager.upload_backup(
-                                str(file_path),
-                                file_s3_key
-                            )
-                else:
+                            self.s3_manager.upload_backup(str(file_path), file_s3_key)
+                elif database_type in ["postgresql", "redis"]:
                     # Upload single file
-                    self.s3_manager.upload_backup(
-                        str(backup_file),
-                        s3_key
-                    )
-                
+                    self.s3_manager.upload_backup(str(backup_file), s3_key)
+                else:
+                    return False, f"Unknown database type for upload: {database_type}"
+
                 return True, s3_key
-                
-        except Exception as e:
-            logger.error(f"Backup creation failed for {database_type}: {e}")
+
+        except (subprocess.CalledProcessError, OSError, ConnectionError) as e:
+            logger.error("Backup creation failed for %s: %s", database_type, e)
             return False, str(e)
 
 
 def load_config(config_path: str) -> Dict:
     """Load configuration from file."""
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             return json.load(f)
     except Exception as e:
-        logger.error(f"Failed to load config from {config_path}: {e}")
+        logger.error("Failed to load config from %s: %s", config_path, e)
         sys.exit(1)
 
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='Database Backup Script')
-    parser.add_argument('--config', required=True, help='Configuration file path')
-    parser.add_argument('--database', choices=['postgresql', 'clickhouse', 'redis', 'all'], 
-                       default='all', help='Database to backup')
-    parser.add_argument('--verify', action='store_true', help='Verify backup integrity')
-    parser.add_argument('--cleanup', type=int, help='Clean up backups older than N days')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without executing')
-    
+    parser = argparse.ArgumentParser(description="Database Backup Script")
+    parser.add_argument("--config", required=True, help="Configuration file path")
+    parser.add_argument(
+        "--database",
+        choices=["postgresql", "clickhouse", "redis", "all"],
+        default="all",
+        help="Database to backup",
+    )
+    parser.add_argument("--verify", action="store_true", help="Verify backup integrity")
+    parser.add_argument(
+        "--cleanup", type=int, help="Clean up backups older than N days"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without executing",
+    )
+
     args = parser.parse_args()
-    
+
     # Load configuration
     config = load_config(args.config)
-    
+
     # Create backup manager
     backup_manager = DatabaseBackupManager(config)
-    
-    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d-%H-%M-%S')
-    
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H-%M-%S")
+
     if args.cleanup:
         if args.dry_run:
-            logger.info(f"DRY RUN: Would clean up backups older than {args.cleanup} days")
+            logger.info(
+                "DRY RUN: Would clean up backups older than %s days", args.cleanup
+            )
         else:
             results = {}
-            for db_type in ['postgresql', 'clickhouse', 'redis']:
+            for db_type in ["postgresql", "clickhouse", "redis"]:
                 prefix = f"backups/llama-mapper/{db_type}/"
-                deleted_count = backup_manager.s3_manager.delete_old_backups(prefix, args.cleanup)
+                deleted_count = backup_manager.s3_manager.delete_old_backups(
+                    prefix, args.cleanup
+                )
                 results[db_type] = deleted_count
-                logger.info(f"Deleted {deleted_count} old {db_type} backups")
-            logger.info(f"Cleanup results: {results}")
+                logger.info("Deleted %s old %s backups", deleted_count, db_type)
+            logger.info("Cleanup results: %s", results)
         return
-    
+
     # Determine databases to backup
-    databases = [args.database] if args.database != 'all' else ['postgresql', 'clickhouse', 'redis']
-    
+    databases = (
+        [args.database]
+        if args.database != "all"
+        else ["postgresql", "clickhouse", "redis"]
+    )
+
     # Create backups
     results = {}
     for db_type in databases:
         if args.dry_run:
-            logger.info(f"DRY RUN: Would create {db_type} backup")
+            logger.info("DRY RUN: Would create %s backup", db_type)
             results[db_type] = True
         else:
             success, message = backup_manager.create_backup(db_type, timestamp)
             results[db_type] = success
             if success:
-                logger.info(f"Successfully created {db_type} backup: {message}")
+                logger.info("Successfully created %s backup: %s", db_type, message)
             else:
-                logger.error(f"Failed to create {db_type} backup: {message}")
-    
+                logger.error("Failed to create %s backup: %s", db_type, message)
+
     # Summary
     successful = sum(1 for success in results.values() if success)
     total = len(results)
-    logger.info(f"Backup summary: {successful}/{total} successful")
-    
+    logger.info("Backup summary: %s/%s successful", successful, total)
+
     if successful < total:
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional, cast
 import structlog
 from structlog.stdlib import LoggerFactory
 
+from .correlation import get_correlation_id
+
 
 class PrivacyFilter(logging.Filter):
     """
@@ -87,6 +89,9 @@ class MetadataProcessor:
         # Add standard metadata
         event_dict["timestamp"] = datetime.now(timezone.utc).isoformat()
         event_dict["level"] = method_name.upper()
+        
+        # Add correlation ID to all log entries
+        event_dict["correlation_id"] = get_correlation_id()
 
         # Remove any fields that might contain raw data
         sensitive_keys = [

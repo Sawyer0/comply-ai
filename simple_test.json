@@ -1,0 +1,14 @@
+{
+  "period": "2024-01-01T00:00:00Z/2024-01-02T00:00:00Z",
+  "tenant": "test-tenant",
+  "app": "test-app",
+  "route": "/test",
+  "required_detectors": ["pii", "jailbreak"],
+  "observed_coverage": {"pii": 0.58, "jailbreak": 0.0},
+  "required_coverage": {"pii": 0.95, "jailbreak": 0.95},
+  "detector_errors": {"jailbreak": {"5xx": 142}},
+  "high_sev_hits": [],
+  "false_positive_bands": [],
+  "policy_bundle": "riskpack-1.4.0",
+  "env": "prod"
+}

@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 from typing import Tuple
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-import httpx
 
 
 def _ensure_orchestrator_on_path() -> None:
@@ -19,15 +19,17 @@ def _ensure_orchestrator_on_path() -> None:
 _ensure_orchestrator_on_path()
 
 from detector_orchestration.api.main import app, settings  # type: ignore  # noqa: E402
+from detector_orchestration.coordinator import (  # type: ignore  # noqa: E402
+    DetectorCoordinator,
+)
 from detector_orchestration.models import (  # type: ignore  # noqa: E402
-    RoutingPlan,
-    RoutingDecision,
     DetectorResult,
     DetectorStatus,
+    RoutingDecision,
+    RoutingPlan,
 )
-from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
-from detector_orchestration.coordinator import DetectorCoordinator  # type: ignore  # noqa: E402
 from detector_orchestration.policy import OPAPolicyEngine  # type: ignore  # noqa: E402
+from detector_orchestration.router import ContentRouter  # type: ignore  # noqa: E402
 
 
 @pytest.mark.integration
@@ -35,7 +37,11 @@ from detector_orchestration.policy import OPAPolicyEngine  # type: ignore  # noq
     "exception_factory",
     [
         lambda: httpx.TimeoutException("timeout"),
-        lambda: httpx.HTTPStatusError("server err", request=httpx.Request("POST", "http://localhost/"), response=httpx.Response(500)),
+        lambda: httpx.HTTPStatusError(
+            "server err",
+            request=httpx.Request("POST", "http://localhost/"),
+            response=httpx.Response(500),
+        ),
         lambda: RuntimeError("opa down"),
     ],
 )
@@ -64,11 +70,30 @@ def test_opa_failure_modes_fall_back_to_default(monkeypatch, exception_factory):
     async def _fake_exec(self, detectors, content, plan, meta):  # type: ignore[override]
         import json
         from pathlib import Path
-        scenarios = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "conflict_scenarios.json").read_text(encoding="utf-8"))
+
+        scenarios = json.loads(
+            (
+                Path(__file__).resolve().parents[1]
+                / "fixtures"
+                / "conflict_scenarios.json"
+            ).read_text(encoding="utf-8")
+        )
         tie = scenarios["tie"]
         return [
-            DetectorResult(detector=detectors[0], status=DetectorStatus.SUCCESS, output=tie["detectors"][0]["output"], confidence=tie["detectors"][0]["confidence"], processing_time_ms=12),
-            DetectorResult(detector=detectors[1], status=DetectorStatus.SUCCESS, output=tie["detectors"][1]["output"], confidence=tie["detectors"][1]["confidence"], processing_time_ms=10),
+            DetectorResult(
+                detector=detectors[0],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][0]["output"],
+                confidence=tie["detectors"][0]["confidence"],
+                processing_time_ms=12,
+            ),
+            DetectorResult(
+                detector=detectors[1],
+                status=DetectorStatus.SUCCESS,
+                output=tie["detectors"][1]["output"],
+                confidence=tie["detectors"][1]["confidence"],
+                processing_time_ms=10,
+            ),
         ]
 
     async def _fake_evaluate_conflict(self, tenant_id: str, bundle: str, input_data: dict):  # type: ignore[override]
@@ -121,8 +146,20 @@ def test_opa_malformed_decision_falls_back_to_default(monkeypatch):
 
     async def _fake_exec(self, detectors, content, plan, meta):  # type: ignore[override]
         return [
-            DetectorResult(detector=detectors[0], status=DetectorStatus.SUCCESS, output="toxic", confidence=0.80, processing_time_ms=12),
-            DetectorResult(detector=detectors[1], status=DetectorStatus.SUCCESS, output="safe", confidence=0.90, processing_time_ms=10),
+            DetectorResult(
+                detector=detectors[0],
+                status=DetectorStatus.SUCCESS,
+                output="toxic",
+                confidence=0.80,
+                processing_time_ms=12,
+            ),
+            DetectorResult(
+                detector=detectors[1],
+                status=DetectorStatus.SUCCESS,
+                output="safe",
+                confidence=0.90,
+                processing_time_ms=10,
+            ),
         ]
 
     async def _fake_evaluate_conflict(self, tenant_id: str, bundle: str, input_data: dict):  # type: ignore[override]

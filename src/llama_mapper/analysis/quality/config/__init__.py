@@ -6,15 +6,19 @@ quality alerting system.
 """
 
 from .quality_config import (
-    QualityAlertingConfig, QualityAlertingSettings,
-    EmailConfig, SlackConfig, WebhookConfig, QualityThresholdConfig
+    EmailConfig,
+    QualityAlertingConfig,
+    QualityAlertingSettings,
+    QualityThresholdConfig,
+    SlackConfig,
+    WebhookConfig,
 )
 
 __all__ = [
     "QualityAlertingConfig",
     "QualityAlertingSettings",
     "EmailConfig",
-    "SlackConfig", 
+    "SlackConfig",
     "WebhookConfig",
-    "QualityThresholdConfig"
+    "QualityThresholdConfig",
 ]

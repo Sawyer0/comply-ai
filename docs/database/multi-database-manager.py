@@ -103,7 +103,7 @@ class MultiDatabaseManager:
             logger.info("All database pools initialized successfully")
             
         except Exception as e:
-            logger.error(f"Failed to initialize database pools: {e}")
+            logger.error("Failed to initialize database pools: %s", e)
             await self.close()
             raise
     
@@ -221,9 +221,9 @@ class MultiDatabaseManager:
         for name, pool in self._pools.items():
             try:
                 await pool.close()
-                logger.info(f"Closed {name} database pool")
+                logger.info("Closed %s database pool", name)
             except Exception as e:
-                logger.error(f"Error closing {name} database pool: {e}")
+                logger.error("Error closing %s database pool: %s", name, e)
         
         self._pools.clear()
         self._initialized = False
@@ -502,7 +502,7 @@ class UnifiedStorageManager:
             })
             
         except Exception as e:
-            logger.error(f"Error tracking API call: {e}")
+            logger.error("Error tracking API call: %s", e)
             raise
     
     async def process_mapping_request(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -529,7 +529,7 @@ class UnifiedStorageManager:
             return {'status': 'success', 'message': 'Mapping request processed successfully'}
             
         except Exception as e:
-            logger.error(f"Error processing mapping request: {e}")
+            logger.error("Error processing mapping request: %s", e)
             raise
 
 # Example usage and configuration

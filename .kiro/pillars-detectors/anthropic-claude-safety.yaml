@@ -1,0 +1,44 @@
+detector: anthropic-claude-safety
+version: "v1"
+notes: "Mapping for Anthropic Claude safety filtering outputs."
+maps:
+  # Harm categories
+  harmful: HARM.SPEECH.Toxicity
+  toxic: HARM.SPEECH.Toxicity
+  hate_speech: HARM.SPEECH.Hate.Other
+  harassment: HARM.SPEECH.Insult
+  threats: HARM.SPEECH.Threat
+  
+  # Violence categories
+  violence: HARM.VIOLENCE.Physical
+  self_harm: HARM.VIOLENCE.SelfHarm
+  graphic_violence: HARM.VIOLENCE.Physical
+  
+  # Sexual content
+  sexual_content: HARM.VIOLENCE.Sexual
+  adult_content: HARM.VIOLENCE.Sexual
+  
+  # Illegal activities
+  illegal_activity: HARM.VIOLENCE.Other
+  criminal_activity: HARM.VIOLENCE.Other
+  
+  # Misinformation
+  misinformation: OTHER.Misinformation
+  false_information: OTHER.Misinformation
+  
+  # Privacy violations
+  privacy_violation: PII.Other
+  personal_information: PII.Other
+  
+  # Prompt manipulation
+  jailbreak_attempt: JAILBREAK.Attempt
+  prompt_injection: PROMPT_INJECTION.Other
+  
+  # Content quality
+  low_quality: OTHER.LowQuality
+  off_topic: OTHER.OffTopic
+  
+  # Safety levels
+  safe: OTHER.Safe
+  unsafe: HARM.SPEECH.Toxicity
+  needs_review: OTHER.NeedsReview

@@ -1,10 +1,31 @@
 detector: deberta-toxicity
-version: "v1"
-notes: "Mapping for DeBERTa/Jigsaw-style toxicity outputs."
+version: "v2"
+notes: "Enhanced mapping for DeBERTa/Jigsaw-style toxicity outputs with comprehensive coverage."
 maps:
+  # Core toxicity categories
   toxic: HARM.SPEECH.Toxicity
   severe_toxic: HARM.SPEECH.Toxicity
   obscene: HARM.SPEECH.Obscenity
   insult: HARM.SPEECH.Insult
   threat: HARM.SPEECH.Threat
   identity_hate: HARM.SPEECH.Hate.Other
+  
+  # Common variations and aliases
+  toxicity: HARM.SPEECH.Toxicity
+  severe_toxicity: HARM.SPEECH.Toxicity
+  profanity: HARM.SPEECH.Obscenity
+  offensive: HARM.SPEECH.Insult
+  threatening: HARM.SPEECH.Threat
+  hate: HARM.SPEECH.Hate.Other
+  harassment: HARM.SPEECH.Insult
+  
+  # Confidence-based variations
+  high_toxic: HARM.SPEECH.Toxicity
+  medium_toxic: HARM.SPEECH.Toxicity
+  low_toxic: HARM.SPEECH.Toxicity
+  
+  # Boolean variations
+  is_toxic: HARM.SPEECH.Toxicity
+  not_toxic: OTHER.Unknown
+  clean: OTHER.Unknown
+  safe: OTHER.Unknown

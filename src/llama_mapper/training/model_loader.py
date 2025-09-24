@@ -263,9 +263,9 @@ class ModelLoader:
 
     def prepare_model_for_lora(
         self,
-        model: PreTrainedModel,
-        lora_config: LoraConfig,
-    ) -> PeftModel:
+        model: Any,
+        lora_config: Any,
+    ) -> Any:
         """
         Prepare model for LoRA fine-tuning by applying PEFT configuration.
 

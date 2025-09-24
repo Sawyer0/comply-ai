@@ -5,16 +5,21 @@ This module provides shared test fixtures and configuration for all
 quality alerting system tests.
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
 from datetime import datetime, timedelta
-from typing import Dict, Any, Generator
-from unittest.mock import Mock, MagicMock
+from typing import Any, Dict, Generator
+from unittest.mock import MagicMock, Mock
 
-from src.llama_mapper.analysis.quality import (
-    QualityAlertingSystem, QualityMetric, QualityMetricType,
-    QualityThreshold, AlertSeverity, QualityAlertingSettings
+import pytest
+
+from ..quality import (
+    AlertSeverity,
+    QualityAlertingSettings,
+    QualityAlertingSystem,
+    QualityMetric,
+    QualityMetricType,
+    QualityThreshold,
 )
 
 
@@ -33,7 +38,7 @@ def sample_quality_metric():
         value=0.95,
         timestamp=datetime.now(),
         labels={"service": "test", "version": "1.0"},
-        metadata={"test": True}
+        metadata={"test": True},
     )
 
 
@@ -46,7 +51,7 @@ def sample_quality_threshold():
         critical_threshold=0.90,
         min_samples=10,
         time_window_minutes=60,
-        enabled=True
+        enabled=True,
     )
 
 
@@ -56,7 +61,7 @@ def quality_alerting_system():
     return QualityAlertingSystem(
         monitoring_interval_seconds=1,  # Fast for tests
         max_metrics_per_type=1000,
-        alert_retention_days=1
+        alert_retention_days=1,
     )
 
 
@@ -109,17 +114,17 @@ def sample_metrics_batch():
     """Create a batch of sample metrics for testing."""
     base_time = datetime.now()
     metrics = []
-    
+
     # Create metrics with different values and timestamps
     for i in range(20):
         metric = QualityMetric(
             metric_type=QualityMetricType.SCHEMA_VALIDATION_RATE,
             value=0.9 + (i % 10) * 0.01,  # Values from 0.9 to 0.99
             timestamp=base_time + timedelta(minutes=i),
-            labels={"service": "test", "iteration": str(i)}
+            labels={"service": "test", "iteration": str(i)},
         )
         metrics.append(metric)
-    
+
     return metrics
 
 
@@ -128,7 +133,7 @@ def declining_metrics_batch():
     """Create a batch of metrics showing a declining trend."""
     base_time = datetime.now()
     metrics = []
-    
+
     # Create metrics with declining values
     for i in range(15):
         value = 0.95 - (i * 0.02)  # Declining from 0.95 to 0.65
@@ -136,10 +141,10 @@ def declining_metrics_batch():
             metric_type=QualityMetricType.SCHEMA_VALIDATION_RATE,
             value=value,
             timestamp=base_time + timedelta(minutes=i),
-            labels={"service": "test", "trend": "declining"}
+            labels={"service": "test", "trend": "declining"},
         )
         metrics.append(metric)
-    
+
     return metrics
 
 
@@ -148,7 +153,7 @@ def anomaly_metrics_batch():
     """Create a batch of metrics with an anomaly."""
     base_time = datetime.now()
     metrics = []
-    
+
     # Create normal metrics
     for i in range(10):
         value = 0.95 + (i % 2) * 0.01  # Normal variation around 0.95-0.96
@@ -156,19 +161,19 @@ def anomaly_metrics_batch():
             metric_type=QualityMetricType.SCHEMA_VALIDATION_RATE,
             value=value,
             timestamp=base_time + timedelta(minutes=i),
-            labels={"service": "test", "type": "normal"}
+            labels={"service": "test", "type": "normal"},
         )
         metrics.append(metric)
-    
+
     # Add an anomaly
     anomaly_metric = QualityMetric(
         metric_type=QualityMetricType.SCHEMA_VALIDATION_RATE,
         value=0.50,  # Clear anomaly
         timestamp=base_time + timedelta(minutes=10),
-        labels={"service": "test", "type": "anomaly"}
+        labels={"service": "test", "type": "anomaly"},
     )
     metrics.append(anomaly_metric)
-    
+
     return metrics
 
 
@@ -180,7 +185,6 @@ def quality_alerting_settings():
         max_metrics_per_type=5000,
         alert_retention_days=7,
         deduplication_window_minutes=15,
-        
         # Email settings
         email_enabled=False,
         email_smtp_server="smtp.test.com",
@@ -189,16 +193,13 @@ def quality_alerting_settings():
         email_password="test_password",
         email_from="test@test.com",
         email_to=["admin@test.com"],
-        
         # Slack settings
         slack_enabled=False,
         slack_webhook_url="https://hooks.slack.com/test",
         slack_channel="#test",
-        
         # Webhook settings
         webhook_enabled=False,
         webhook_url="https://test.com/webhook",
-        
         # Threshold settings
         schema_validation_warning=0.95,
         schema_validation_critical=0.90,
@@ -209,7 +210,7 @@ def quality_alerting_settings():
         response_time_warning=2.0,
         response_time_critical=5.0,
         error_rate_warning=0.05,
-        error_rate_critical=0.10
+        error_rate_critical=0.10,
     )
 
 
@@ -221,7 +222,7 @@ def performance_test_config():
         "num_threads": 10,
         "max_processing_time": 2.0,
         "min_metrics_per_second": 500,
-        "max_memory_increase_mb": 100
+        "max_memory_increase_mb": 100,
     }
 
 
@@ -232,17 +233,17 @@ def test_environment_variables():
         "LLAMA_MAPPER_QUALITY_MONITORING_ENABLED": "true",
         "LLAMA_MAPPER_QUALITY_MAX_METRICS": "10000",
         "LLAMA_MAPPER_QUALITY_RETENTION_HOURS": "24",
-        "LLAMA_MAPPER_QUALITY_CLEANUP_INTERVAL": "60"
+        "LLAMA_MAPPER_QUALITY_CLEANUP_INTERVAL": "60",
     }
-    
+
     # Store original values
     original_values = {}
     for key, value in env_vars.items():
         original_values[key] = os.environ.get(key)
         os.environ[key] = value
-    
+
     yield env_vars
-    
+
     # Restore original values
     for key, original_value in original_values.items():
         if original_value is None:
@@ -254,18 +255,10 @@ def test_environment_variables():
 # Pytest configuration
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers", "performance: mark test as a performance test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "performance: mark test as a performance test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -279,7 +272,7 @@ def pytest_collection_modifyitems(config, items):
         elif "performance" in str(item.fspath):
             item.add_marker(pytest.mark.performance)
             item.add_marker(pytest.mark.slow)
-        
+
         # Add slow marker for tests that might take time
         if "performance" in item.name or "load" in item.name:
             item.add_marker(pytest.mark.slow)
@@ -288,28 +281,31 @@ def pytest_collection_modifyitems(config, items):
 # Test utilities
 class TestDataGenerator:
     """Utility class for generating test data."""
-    
+
     @staticmethod
     def generate_metrics(
         metric_type: QualityMetricType,
         count: int,
         start_time: datetime,
         value_range: tuple = (0.9, 1.0),
-        time_interval_minutes: int = 1
+        time_interval_minutes: int = 1,
     ) -> list:
         """Generate a list of test metrics."""
         metrics = []
         for i in range(count):
-            value = value_range[0] + (i % (int((value_range[1] - value_range[0]) * 100))) * 0.01
+            value = (
+                value_range[0]
+                + (i % (int((value_range[1] - value_range[0]) * 100))) * 0.01
+            )
             metric = QualityMetric(
                 metric_type=metric_type,
                 value=value,
                 timestamp=start_time + timedelta(minutes=i * time_interval_minutes),
-                labels={"service": "test", "generated": "true", "index": str(i)}
+                labels={"service": "test", "generated": "true", "index": str(i)},
             )
             metrics.append(metric)
         return metrics
-    
+
     @staticmethod
     def generate_thresholds() -> list:
         """Generate a list of test thresholds."""
@@ -321,7 +317,7 @@ class TestDataGenerator:
                     warning_threshold=0.95,
                     critical_threshold=0.90,
                     min_samples=10,
-                    time_window_minutes=60
+                    time_window_minutes=60,
                 )
                 thresholds.append(threshold)
         return thresholds
@@ -336,20 +332,20 @@ def test_data_generator():
 # Mock utilities
 class MockAlertHandler:
     """Mock alert handler for testing."""
-    
+
     def __init__(self, name: str = "mock", should_succeed: bool = True):
         self.name = name
         self.should_succeed = should_succeed
         self.sent_count = 0
         self.failed_count = 0
         self.sent_alerts = []
-    
+
     def get_handler_name(self) -> str:
         return self.name
-    
+
     def can_handle_alert(self, alert) -> bool:
         return True
-    
+
     def send_alert(self, alert) -> bool:
         self.sent_alerts.append(alert)
         if self.should_succeed:

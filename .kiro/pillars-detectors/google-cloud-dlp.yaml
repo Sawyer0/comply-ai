@@ -1,0 +1,46 @@
+detector: google-cloud-dlp
+version: "v1"
+notes: "Mapping for Google Cloud Data Loss Prevention (DLP) API outputs."
+maps:
+  # Person information
+  PERSON_NAME: PII.Person.Name
+  FIRST_NAME: PII.Person.Name
+  LAST_NAME: PII.Person.Name
+  
+  # Contact information
+  EMAIL_ADDRESS: PII.Contact.Email
+  PHONE_NUMBER: PII.Contact.Phone
+  URL: PII.Contact.URL
+  
+  # Location information
+  LOCATION: PII.Contact.Address
+  STREET_ADDRESS: PII.Contact.Address
+  
+  # Financial information
+  CREDIT_CARD_NUMBER: PII.Identifier.CreditCard
+  IBAN_CODE: PII.Identifier.BankAccount
+  
+  # Government identifiers
+  US_SOCIAL_SECURITY_NUMBER: PII.Identifier.SSN
+  US_PASSPORT: PII.Identifier.Passport
+  US_DRIVERS_LICENSE_NUMBER: PII.Identifier.Other
+  
+  # International identifiers
+  UK_NATIONAL_INSURANCE_NUMBER: PII.Identifier.Other
+  CANADA_SOCIAL_INSURANCE_NUMBER: PII.Identifier.SSN
+  
+  # Dates and temporal
+  DATE: PII.Person.DateOfBirth
+  DATE_OF_BIRTH: PII.Person.DateOfBirth
+  AGE: PII.Person.Age
+  
+  # Technical identifiers
+  IP_ADDRESS: PII.Identifier.Other
+  MAC_ADDRESS: PII.Identifier.Other
+  
+  # Medical information
+  MEDICAL_RECORD_NUMBER: PII.Health.HIPAA
+  
+  # Generic categories
+  GENERIC_ID: PII.Identifier.Other
+  SENSITIVE_DATA: PII.Other
