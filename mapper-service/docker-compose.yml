@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  mapper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - MAPPER_ENV=development
+      - MAPPER_LOG_LEVEL=INFO
+      - MAPPER_DATABASE_URL=postgresql://mapper:password@postgres:5432/mapper_db
+      - MAPPER_REDIS_URL=redis://redis:6379/2
+      - MAPPER_JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - MAPPER_MODEL_CACHE_DIR=/app/models
+      - MAPPER_STORAGE_BACKEND=minio
+      - MAPPER_MINIO_ENDPOINT=minio:9000
+      - MAPPER_MINIO_ACCESS_KEY=minioadmin
+      - MAPPER_MINIO_SECRET_KEY=minioadmin
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - jaeger
+    volumes:
+      - ./src:/app/src
+      - model_cache:/app/models
+      - storage_data:/app/storage
+    networks:
+      - mapper-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=mapper_db
+      - POSTGRES_USER=mapper
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - mapper-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mapper-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - mapper-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16688:16686"
+      - "14270:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - mapper-network
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9092:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - mapper-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  prometheus_data:
+  model_cache:
+  storage_data:
+
+networks:
+  mapper-network:
+    driver: bridge

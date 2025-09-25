@@ -1,0 +1,31 @@
+framework:
+  name: "HIPAA"
+  version: "2013"
+  description: "Health Insurance Portability and Accountability Act"
+
+mappings:
+  # Identity Information
+  "PII.Identity.Name": "HIPAA.PHI.IndividuallyIdentifiableHealthInformation"
+  "PII.Identity.SSN": "HIPAA.PHI.IndividuallyIdentifiableHealthInformation"
+  "PII.Identity.ID": "HIPAA.PHI.IndividuallyIdentifiableHealthInformation"
+  
+  # Contact Information
+  "PII.Contact.Email": "HIPAA.PHI.ContactInformation"
+  "PII.Contact.Phone": "HIPAA.PHI.ContactInformation"
+  "PII.Contact.Address": "HIPAA.PHI.GeographicInformation"
+  
+  # Health Information
+  "PII.Health.MedicalRecord": "HIPAA.PHI.MedicalInformation"
+  "PII.Health.HealthID": "HIPAA.PHI.MedicalInformation"
+  
+  # Financial Information (health-related)
+  "PII.Financial.CreditCard": "HIPAA.PHI.FinancialInformation"
+  "PII.Financial.BankAccount": "HIPAA.PHI.FinancialInformation"
+
+controls:
+  - id: "164.502"
+    description: "Uses and disclosures of protected health information"
+  - id: "164.506"
+    description: "Permitted uses and disclosures"
+  - id: "164.508"
+    description: "Uses and disclosures for which an authorization is required"

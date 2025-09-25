@@ -1,0 +1,1160 @@
+openapi: 3.0.3
+info:
+  title: Mapper Service API
+  description: |
+    The Mapper Service provides core mapping functionality, model serving, and 
+    response generation within the llama-mapper microservice architecture. It 
+    handles the transformation of analysis results into canonical taxonomy and 
+    compliance framework mappings.
+  version: 1.0.0
+  contact:
+    name: Llama Mapper Team
+    email: team@llamapper.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8002
+    description: Development server
+  - url: https://api.llamapper.com/mapper
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/map:
+    post:
+      summary: Core mapping functionality
+      operationId: mapContent
+      tags:
+        - Mapping
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MappingRequest'
+      responses:
+        '200':
+          description: Mapping completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MappingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/batch-map:
+    post:
+      summary: Batch mapping operations
+      operationId: batchMap
+      tags:
+        - Mapping
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchMappingRequest'
+      responses:
+        '200':
+          description: Batch mapping completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchMappingResponse'
+
+  /api/v1/validate:
+    post:
+      summary: Input/output validation
+      operationId: validateMapping
+      tags:
+        - Validation
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidationRequest'
+      responses:
+        '200':
+          description: Validation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+
+  /api/v1/models:
+    get:
+      summary: List available models
+      operationId: listModels
+      tags:
+        - Models
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: model_type
+          in: query
+          schema:
+            type: string
+            enum: [base, lora, merged, quantized]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, deprecated, archived]
+      responses:
+        '200':
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModelVersion'
+
+  /api/v1/models/{modelId}/deploy:
+    post:
+      summary: Deploy model version
+      operationId: deployModel
+      tags:
+        - Models
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: modelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelDeploymentRequest'
+      responses:
+        '200':
+          description: Model deployment initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelDeploymentResponse'
+
+  /api/v1/training/jobs:
+    post:
+      summary: Submit training job
+      operationId: submitTrainingJob
+      tags:
+        - Training
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingJobRequest'
+      responses:
+        '202':
+          description: Training job submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingJobResponse'
+
+    get:
+      summary: List training jobs
+      operationId: listTrainingJobs
+      tags:
+        - Training
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, running, completed, failed, cancelled]
+      responses:
+        '200':
+          description: List of training jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrainingJob'
+
+  /api/v1/training/jobs/{jobId}:
+    get:
+      summary: Get training job status
+      operationId: getTrainingJobStatus
+      tags:
+        - Training
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: Training job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainingJob'
+
+  /api/v1/experiments:
+    post:
+      summary: Create A/B testing experiment
+      operationId: createExperiment
+      tags:
+        - Experiments
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExperimentRequest'
+      responses:
+        '201':
+          description: Experiment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeploymentExperiment'
+
+    get:
+      summary: List experiments
+      operationId: listExperiments
+      tags:
+        - Experiments
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [running, paused, completed, cancelled]
+      responses:
+        '200':
+          description: List of experiments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeploymentExperiment'
+
+  /api/v1/taxonomies:
+    get:
+      summary: List taxonomies
+      operationId: listTaxonomies
+      tags:
+        - Taxonomies
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of taxonomies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Taxonomy'
+
+    post:
+      summary: Create taxonomy
+      operationId: createTaxonomy
+      tags:
+        - Taxonomies
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxonomyRequest'
+      responses:
+        '201':
+          description: Taxonomy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Taxonomy'
+
+  /api/v1/frameworks:
+    get:
+      summary: List framework configurations
+      operationId: listFrameworks
+      tags:
+        - Frameworks
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of framework configurations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FrameworkConfig'
+
+  /api/v1/cost/metrics:
+    get:
+      summary: Get cost metrics
+      operationId: getCostMetrics
+      tags:
+        - Cost
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Cost metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostMetric'
+
+  /api/v1/feature-flags:
+    get:
+      summary: List feature flags
+      operationId: listFeatureFlags
+      tags:
+        - Features
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: List of feature flags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeatureFlag'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    TenantId:
+      name: X-Tenant-ID
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Tenant identifier for multi-tenancy
+    
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Correlation ID for request tracing
+
+  schemas:
+    MappingRequest:
+      type: object
+      required:
+        - analysis_response
+        - target_frameworks
+      properties:
+        analysis_response:
+          $ref: '#/components/schemas/AnalysisResponse'
+        target_frameworks:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        mapping_mode:
+          type: string
+          enum: [standard, fast, comprehensive]
+          default: standard
+        include_validation:
+          type: boolean
+          default: true
+
+    MappingResponse:
+      type: object
+      required:
+        - request_id
+        - success
+        - mapping_results
+        - overall_confidence
+        - cost_metrics
+        - model_metrics
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        processing_time_ms:
+          type: number
+        mapping_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MappingResult'
+        overall_confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        cost_metrics:
+          $ref: '#/components/schemas/CostMetrics'
+        model_metrics:
+          $ref: '#/components/schemas/ModelMetrics'
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    AnalysisResponse:
+      type: object
+      description: Response from analysis service
+      required:
+        - request_id
+        - canonical_results
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        canonical_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalTaxonomyResult'
+        pattern_analysis:
+          type: object
+        risk_scores:
+          type: object
+        compliance_mappings:
+          type: array
+          items:
+            type: object
+        rag_insights:
+          type: object
+        quality_metrics:
+          type: object
+
+    CanonicalTaxonomyResult:
+      type: object
+      required:
+        - category
+        - subcategory
+        - confidence
+        - risk_level
+        - tags
+      properties:
+        category:
+          type: string
+        subcategory:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_level:
+          type: string
+          enum: [low, medium, high, critical]
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    MappingResult:
+      type: object
+      required:
+        - canonical_result
+        - framework_mappings
+        - confidence
+        - validation_result
+        - fallback_used
+      properties:
+        canonical_result:
+          $ref: '#/components/schemas/CanonicalTaxonomyResult'
+        framework_mappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComplianceMapping'
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        validation_result:
+          $ref: '#/components/schemas/ValidationResult'
+        fallback_used:
+          type: boolean
+
+    ComplianceMapping:
+      type: object
+      required:
+        - framework
+        - control_id
+        - control_name
+        - requirement
+        - evidence_type
+        - compliance_status
+        - confidence
+      properties:
+        framework:
+          type: string
+        control_id:
+          type: string
+        control_name:
+          type: string
+        requirement:
+          type: string
+        evidence_type:
+          type: string
+        compliance_status:
+          type: string
+          enum: [compliant, non_compliant, not_applicable]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        metadata:
+          type: object
+
+    ValidationRequest:
+      type: object
+      required:
+        - data
+        - validation_type
+      properties:
+        data:
+          type: object
+        validation_type:
+          type: string
+          enum: [input, output, framework, taxonomy]
+        schema_name:
+          type: string
+
+    ValidationResult:
+      type: object
+      required:
+        - is_valid
+        - schema_compliance
+        - confidence_threshold_met
+        - validation_errors
+        - validation_warnings
+      properties:
+        is_valid:
+          type: boolean
+        schema_compliance:
+          type: boolean
+        confidence_threshold_met:
+          type: boolean
+        validation_errors:
+          type: array
+          items:
+            type: string
+        validation_warnings:
+          type: array
+          items:
+            type: string
+
+    BatchMappingRequest:
+      type: object
+      required:
+        - requests
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/MappingRequest'
+          maxItems: 100
+
+    BatchMappingResponse:
+      type: object
+      required:
+        - batch_id
+        - total_requests
+        - successful_requests
+        - failed_requests
+        - results
+      properties:
+        batch_id:
+          type: string
+          format: uuid
+        total_requests:
+          type: integer
+        successful_requests:
+          type: integer
+        failed_requests:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MappingResponse'
+        processing_time_ms:
+          type: number
+        total_cost:
+          type: number
+
+    ModelVersion:
+      type: object
+      required:
+        - model_name
+        - version
+        - model_type
+        - status
+        - deployment_status
+      properties:
+        id:
+          type: string
+          format: uuid
+        model_name:
+          type: string
+        version:
+          type: string
+        model_type:
+          type: string
+          enum: [base, lora, merged, quantized]
+        model_path:
+          type: string
+        parent_model_id:
+          type: string
+          format: uuid
+        training_job_id:
+          type: string
+          format: uuid
+        configuration:
+          type: object
+        performance_metrics:
+          type: object
+        validation_metrics:
+          type: object
+        status:
+          type: string
+          enum: [active, inactive, deprecated, archived]
+        deployment_status:
+          type: string
+          enum: [not_deployed, staging, canary, production, rollback]
+        created_at:
+          type: string
+          format: date-time
+        deployed_at:
+          type: string
+          format: date-time
+
+    ModelDeploymentRequest:
+      type: object
+      required:
+        - deployment_type
+      properties:
+        deployment_type:
+          type: string
+          enum: [staging, canary, production, rollback]
+        traffic_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        rollback_model_id:
+          type: string
+          format: uuid
+
+    ModelDeploymentResponse:
+      type: object
+      required:
+        - deployment_id
+        - status
+      properties:
+        deployment_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [initiated, in_progress, completed, failed]
+        estimated_completion_time:
+          type: string
+          format: date-time
+
+    TrainingJobRequest:
+      type: object
+      required:
+        - job_name
+        - base_model
+        - training_type
+        - training_data_path
+        - configuration
+      properties:
+        job_name:
+          type: string
+        base_model:
+          type: string
+        training_type:
+          type: string
+          enum: [lora, full_finetune, qlora]
+        training_data_path:
+          type: string
+        validation_data_path:
+          type: string
+        configuration:
+          type: object
+
+    TrainingJobResponse:
+      type: object
+      required:
+        - job_id
+        - status
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        estimated_completion_time:
+          type: string
+          format: date-time
+
+    TrainingJob:
+      type: object
+      required:
+        - job_name
+        - base_model
+        - training_type
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_name:
+          type: string
+        base_model:
+          type: string
+        training_type:
+          type: string
+          enum: [lora, full_finetune, qlora]
+        training_data_path:
+          type: string
+        validation_data_path:
+          type: string
+        output_model_path:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        configuration:
+          type: object
+        metrics:
+          type: object
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        training_time_minutes:
+          type: integer
+        error_message:
+          type: string
+
+    ExperimentRequest:
+      type: object
+      required:
+        - experiment_name
+        - model_a_id
+        - model_b_id
+      properties:
+        experiment_name:
+          type: string
+        model_a_id:
+          type: string
+          format: uuid
+        model_b_id:
+          type: string
+          format: uuid
+        traffic_split_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+          default: 50
+        success_metrics:
+          type: object
+
+    DeploymentExperiment:
+      type: object
+      required:
+        - experiment_name
+        - model_a_id
+        - model_b_id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        experiment_name:
+          type: string
+        model_a_id:
+          type: string
+          format: uuid
+        model_b_id:
+          type: string
+          format: uuid
+        traffic_split_percentage:
+          type: integer
+        status:
+          type: string
+          enum: [running, paused, completed, cancelled]
+        success_metrics:
+          type: object
+        current_metrics:
+          type: object
+        statistical_significance:
+          type: number
+          minimum: 0
+          maximum: 1
+        winner_model_id:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+
+    Taxonomy:
+      type: object
+      required:
+        - taxonomy_name
+        - version
+        - taxonomy_data
+        - schema_version
+      properties:
+        id:
+          type: string
+          format: uuid
+        taxonomy_name:
+          type: string
+        version:
+          type: string
+        taxonomy_data:
+          type: object
+        schema_version:
+          type: string
+        is_active:
+          type: boolean
+        backward_compatible:
+          type: boolean
+        migration_notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        activated_at:
+          type: string
+          format: date-time
+
+    TaxonomyRequest:
+      type: object
+      required:
+        - taxonomy_name
+        - version
+        - taxonomy_data
+        - schema_version
+      properties:
+        taxonomy_name:
+          type: string
+        version:
+          type: string
+        taxonomy_data:
+          type: object
+        schema_version:
+          type: string
+        backward_compatible:
+          type: boolean
+          default: true
+        migration_notes:
+          type: string
+
+    FrameworkConfig:
+      type: object
+      required:
+        - framework_name
+        - framework_version
+        - mapping_rules
+      properties:
+        id:
+          type: string
+          format: uuid
+        framework_name:
+          type: string
+        framework_version:
+          type: string
+        mapping_rules:
+          type: object
+        validation_schema:
+          type: object
+        is_active:
+          type: boolean
+        priority:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CostMetrics:
+      type: object
+      required:
+        - tokens_processed
+        - inference_cost
+        - storage_cost
+        - total_cost
+        - cost_per_request
+      properties:
+        tokens_processed:
+          type: integer
+        inference_cost:
+          type: number
+        storage_cost:
+          type: number
+        total_cost:
+          type: number
+        cost_per_request:
+          type: number
+
+    CostMetric:
+      type: object
+      required:
+        - tokens_processed
+        - inference_cost
+        - total_cost
+        - billing_period
+      properties:
+        tokens_processed:
+          type: integer
+        inference_cost:
+          type: number
+        storage_cost:
+          type: number
+        total_cost:
+          type: number
+        cost_per_request:
+          type: number
+        billing_period:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    ModelMetrics:
+      type: object
+      required:
+        - model_name
+        - model_version
+        - inference_time_ms
+        - gpu_utilization
+        - memory_usage_mb
+        - batch_size
+      properties:
+        model_name:
+          type: string
+        model_version:
+          type: string
+        inference_time_ms:
+          type: number
+        gpu_utilization:
+          type: number
+          minimum: 0
+          maximum: 1
+        memory_usage_mb:
+          type: integer
+        batch_size:
+          type: integer
+
+    FeatureFlag:
+      type: object
+      required:
+        - flag_name
+        - is_enabled
+        - rollout_percentage
+      properties:
+        id:
+          type: string
+          format: uuid
+        flag_name:
+          type: string
+        is_enabled:
+          type: boolean
+        rollout_percentage:
+          type: integer
+          minimum: 0
+          maximum: 100
+        conditions:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        database_status:
+          type: string
+          enum: [connected, disconnected, error]
+        redis_status:
+          type: string
+          enum: [connected, disconnected, error]
+        storage_status:
+          type: string
+          enum: [connected, disconnected, error]
+        model_status:
+          type: string
+          enum: [loaded, loading, error]
+        active_models:
+          type: integer
+        pending_mappings:
+          type: integer
+        cost_budget_status:
+          type: string
+          enum: [ok, warning, exceeded]
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        correlation_id:
+          type: string
+          format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

@@ -1,0 +1,49 @@
+taxonomy:
+  PII:
+    description: "Personally Identifiable Information"
+    subcategories:
+      Contact:
+        description: "Contact information"
+        types: ["Email", "Phone", "Address"]
+      Identity:
+        description: "Identity information"
+        types: ["Name", "SSN", "ID"]
+      Financial:
+        description: "Financial information"
+        types: ["CreditCard", "BankAccount"]
+      Health:
+        description: "Health information"
+        types: ["MedicalRecord", "HealthID"]
+  
+  SECURITY:
+    description: "Security-related content"
+    subcategories:
+      Credentials:
+        description: "Authentication credentials"
+        types: ["Password", "APIKey", "Token"]
+      Access:
+        description: "Access control violations"
+        types: ["Unauthorized", "Privilege"]
+      Data:
+        description: "Data security issues"
+        types: ["Encryption", "Breach"]
+  
+  CONTENT:
+    description: "Content moderation"
+    subcategories:
+      Harmful:
+        description: "Harmful content"
+        types: ["Toxic", "Hate", "Violence"]
+      Inappropriate:
+        description: "Inappropriate content"
+        types: ["Adult", "Spam"]
+  
+  OTHER:
+    description: "Other categories"
+    subcategories:
+      Unknown:
+        description: "Unknown or unclassified"
+        types: ["Unknown"]
+      Error:
+        description: "Error conditions"
+        types: ["Error"]

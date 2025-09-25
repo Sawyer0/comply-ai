@@ -1,0 +1,31 @@
+framework:
+  name: "SOC2"
+  version: "2017"
+  description: "Service Organization Control 2"
+
+mappings:
+  # Security Controls
+  "SECURITY.Access.Unauthorized": "SOC2.CC6.LogicalAccess"
+  "SECURITY.Access.Privilege": "SOC2.CC6.LogicalAccess"
+  "SECURITY.Credentials.Password": "SOC2.CC6.LogicalAccess"
+  "SECURITY.Credentials.APIKey": "SOC2.CC6.LogicalAccess"
+  "SECURITY.Credentials.Token": "SOC2.CC6.LogicalAccess"
+  
+  # Data Protection
+  "PII.Contact.Email": "SOC2.CC6.DataProtection"
+  "PII.Identity.Name": "SOC2.CC6.DataProtection"
+  "PII.Financial.CreditCard": "SOC2.CC6.DataProtection"
+  "SECURITY.Data.Encryption": "SOC2.CC6.DataProtection"
+  
+  # System Boundaries
+  "SECURITY.Data.Breach": "SOC2.CC7.SystemBoundaries"
+
+controls:
+  - id: "CC6.1"
+    description: "Logical and physical access controls"
+  - id: "CC6.2"
+    description: "Prior to issuing system credentials"
+  - id: "CC6.7"
+    description: "Data transmission and disposal"
+  - id: "CC7.1"
+    description: "System boundaries and data classification"

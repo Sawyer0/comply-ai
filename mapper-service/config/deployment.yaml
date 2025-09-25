@@ -1,0 +1,138 @@
+# Deployment configuration for mapper service
+
+# Plugin system configuration
+plugins:
+  plugin_directories:
+    - "plugins"
+    - "/opt/mapper-service/plugins"
+  
+  plugin_config_dir: "config/plugins"
+  
+  max_workers: 4
+  
+  # Auto-load built-in plugins
+  auto_load_builtin: true
+
+# Canary deployment configuration
+canary:
+  default_config:
+    initial_traffic_percent: 5.0
+    max_traffic_percent: 100.0
+    traffic_increment: 25.0
+    promotion_interval_minutes: 10
+    
+    # Health thresholds
+    max_error_rate: 0.05  # 5%
+    max_latency_ms: 1000.0
+    min_success_rate: 0.95  # 95%
+    
+    # Rollback configuration
+    auto_rollback: true
+    rollback_threshold_failures: 3
+    health_check_interval_seconds: 30
+    
+    # Validation
+    validation_duration_minutes: 5
+    required_request_count: 100
+
+# Blue-green deployment configuration
+blue_green:
+  default_config:
+    validation_tests:
+      - "health_check"
+      - "smoke_test"
+    
+    validation_timeout_minutes: 30
+    required_success_rate: 1.0  # 100%
+    
+    # Traffic switching
+    dns_switch_timeout_seconds: 300
+    health_check_retries: 5
+    health_check_interval_seconds: 10
+    
+    # Rollback
+    auto_rollback_on_failure: true
+    rollback_timeout_minutes: 15
+
+# Feature flags configuration
+feature_flags:
+  cache_ttl_seconds: 300  # 5 minutes
+  
+  # Default flags
+  flags:
+    enable_new_mapping_engine:
+      name: "New Mapping Engine"
+      description: "Enable the new ML-based mapping engine"
+      type: "boolean"
+      default_value: false
+      enabled: false
+      current_value: false
+    
+    batch_processing_size:
+      name: "Batch Processing Size"
+      description: "Number of requests to process in a batch"
+      type: "integer"
+      default_value: 10
+      enabled: true
+      current_value: 10
+    
+    enable_advanced_validation:
+      name: "Advanced Validation"
+      description: "Enable advanced input/output validation"
+      type: "boolean"
+      default_value: true
+      enabled: true
+      current_value: true
+
+# Pipeline configuration
+pipelines:
+  deployment:
+    global_timeout_minutes: 480  # 8 hours
+    auto_rollback_on_failure: true
+    parallel_execution: false
+    
+    notification_channels:
+      - "slack"
+      - "email"
+    
+    notify_on_success: true
+    notify_on_failure: true
+  
+  optimization:
+    default_config:
+      max_iterations: 100
+      convergence_threshold: 0.01
+      timeout_minutes: 120
+      
+      search_strategy: "bayesian"
+      
+      validation_samples: 1000
+      validation_timeout_minutes: 30
+      
+      auto_rollback_on_regression: true
+      regression_threshold: 0.05  # 5%
+
+# Environment configuration
+environments:
+  development:
+    canary_enabled: true
+    blue_green_enabled: true
+    feature_flags_enabled: true
+    
+  staging:
+    canary_enabled: true
+    blue_green_enabled: true
+    feature_flags_enabled: true
+    
+  production:
+    canary_enabled: true
+    blue_green_enabled: true
+    feature_flags_enabled: true
+    
+    # Production-specific overrides
+    canary:
+      initial_traffic_percent: 1.0  # More conservative in production
+      promotion_interval_minutes: 30  # Slower rollout
+    
+    feature_flags:
+      cache_ttl_seconds: 600  # Longer cache in production

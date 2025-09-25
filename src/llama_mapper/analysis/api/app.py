@@ -55,7 +55,14 @@ def create_analysis_app(
         allow_origins=config.get_cors_origins(),
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["*"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization", 
+            "X-API-Key",
+            "X-Tenant-ID",
+            "X-Correlation-ID",
+            "X-Request-ID"
+        ],
     )
 
     # Add custom middleware

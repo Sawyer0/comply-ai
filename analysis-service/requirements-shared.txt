@@ -1,0 +1,14 @@
+# Shared dependencies for analysis service
+# These should be installed from the shared directory
+
+# Add the shared directory to Python path
+-e ../shared
+
+# Core dependencies that shared components require
+pydantic>=2.0.0
+structlog>=23.0.0
+prometheus-client>=0.17.0
+fastapi>=0.100.0
+asyncio-mqtt>=0.13.0
+asyncpg>=0.28.0
+redis>=4.5.0

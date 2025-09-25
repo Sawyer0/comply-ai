@@ -4,13 +4,15 @@
 
 ```
 llama-mapper/
-├── src/llama_mapper/          # Main source code
-├── detector-orchestration/    # Detector orchestration service
-├── tests/                     # Test suite
+├── detector-orchestration/    # SERVICE 1: Detector Orchestration Service
+├── analysis-service/          # SERVICE 2: Analysis Service  
+├── mapper-service/            # SERVICE 3: Mapper Service
+├── shared/                    # Shared libraries and utilities
+├── tests/                     # Cross-service integration tests
 ├── docs/                      # Documentation
 ├── examples/                  # Usage examples and demos
 ├── scripts/                   # Utility and automation scripts
-├── config/                    # Configuration files
+├── config/                    # Global configuration files
 ├── notebooks/                 # Jupyter notebooks for training
 ├── infra/                     # Infrastructure as code
 ├── perf/                      # Performance testing
@@ -21,35 +23,77 @@ llama-mapper/
 └── .kiro/                     # Kiro IDE configuration
 ```
 
-## Source Code Organization (`src/llama_mapper/`)
+## Microservice Organization
 
+### Detector Orchestration Service (`detector-orchestration/`)
 ```
-src/llama_mapper/
-├── api/                       # FastAPI endpoints and routing
-├── cli/                       # Command-line interface
-├── config/                    # Configuration management
-├── models/                    # Model definitions and utilities
-├── training/                  # Model training components (LoRA, Phi-3)
-├── serving/                   # Model serving and inference
-├── data/                      # Data processing and validation
-├── storage/                   # Database and S3 integrations
-├── security/                  # Authentication and encryption
-├── monitoring/                # Metrics and observability
-├── compliance/                # Compliance framework mappings
-├── analysis/                  # Analysis and reporting (containerized service)
-├── rag/                       # RAG implementation
-├── cost_monitoring/           # Cost tracking and optimization
-├── pipeline/                  # Processing pipeline orchestration
-├── reporting/                 # Audit trail and report generation
-├── versioning/                # Model and taxonomy versioning
-├── context/                   # Context management
-├── evaluation/                # Model evaluation
-├── generation/                # Content generation
-├── mining/                    # Data mining utilities
-├── optimization/              # Performance optimization
-├── production/                # Production deployment utilities
-├── utils/                     # Shared utilities
-└── validation/                # Input/output validation
+detector-orchestration/
+├── src/orchestration/
+│   ├── api/                   # HTTP API endpoints
+│   ├── core/                  # Core orchestration logic
+│   ├── policy/                # Policy management
+│   ├── discovery/             # Service discovery
+│   ├── resilience/            # Circuit breakers, retry logic
+│   ├── cache/                 # Caching layer
+│   ├── security/              # Authentication, WAF, RBAC
+│   ├── monitoring/            # Metrics and observability
+│   ├── tenancy/               # Multi-tenancy support
+│   ├── plugins/               # Plugin system
+│   ├── pipelines/             # Pipeline management
+│   ├── cli/                   # CLI commands
+│   └── config/                # Configuration
+├── tests/                     # Service-specific tests
+└── docker/                    # Docker configurations
+```
+
+### Analysis Service (`analysis-service/`)
+```
+analysis-service/
+├── src/analysis/
+│   ├── api/                   # HTTP API endpoints
+│   ├── engines/               # Analysis engines
+│   │   ├── core/              # Primary engines
+│   │   ├── statistical/       # Statistical components
+│   │   └── optimization/      # Optimization engines
+│   ├── ml/                    # ML components
+│   ├── rag/                   # RAG system
+│   ├── quality/               # Quality system
+│   ├── privacy/               # Privacy controls
+│   ├── security/              # Security components
+│   ├── infrastructure/        # Infrastructure components
+│   ├── resilience/            # Resilience patterns
+│   ├── tenancy/               # Multi-tenancy support
+│   ├── plugins/               # Plugin system
+│   ├── pipelines/             # Pipeline management
+│   ├── taxonomy/              # Taxonomy management
+│   ├── schemas/               # Schema management
+│   ├── cli/                   # CLI commands
+│   └── config/                # Configuration
+├── tests/                     # Service-specific tests
+└── docker/                    # Docker configurations
+```
+
+### Mapper Service (`mapper-service/`)
+```
+mapper-service/
+├── src/mapper/
+│   ├── api/                   # HTTP API endpoints
+│   ├── core/                  # Core mapping logic
+│   ├── ml/                    # ML components
+│   ├── serving/               # Model serving infrastructure
+│   ├── taxonomy/              # Taxonomy management
+│   ├── schemas/               # Schema management
+│   ├── validation/            # Validation components
+│   ├── fallback/              # Fallback mechanisms
+│   ├── monitoring/            # Monitoring & observability
+│   ├── deployment/            # Deployment management
+│   ├── tenancy/               # Multi-tenancy support
+│   ├── plugins/               # Plugin system
+│   ├── pipelines/             # Pipeline management
+│   ├── cli/                   # CLI commands
+│   └── config/                # Configuration
+├── tests/                     # Service-specific tests
+└── docker/                    # Docker configurations
 ```
 
 ## Key Directories

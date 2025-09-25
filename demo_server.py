@@ -25,13 +25,25 @@ def create_demo_app() -> FastAPI:
         redoc_url="/redoc"
     )
     
-    # Add CORS for web demos
+    # Add CORS for web demos - SECURE CONFIGURATION
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "http://localhost:3000",  # Development frontend
+            "http://localhost:8080",  # Development dashboard
+            "https://app.comply-ai.com",  # Production frontend
+            "https://dashboard.comply-ai.com",  # Production dashboard
+        ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization", 
+            "X-API-Key",
+            "X-Tenant-ID",
+            "X-Correlation-ID",
+            "X-Request-ID"
+        ],
     )
     
     # Add demo endpoints

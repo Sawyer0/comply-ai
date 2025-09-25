@@ -3,6 +3,24 @@ inclusion: fileMatch
 fileMatchPattern: '**/api/**'
 ---
 
+# Microservice API Design Guidelines
+
+## Service API Architecture
+
+The system uses **3 independent microservices** with well-defined HTTP APIs:
+
+### Service Endpoints
+- **Detector Orchestration**: `/orchestration/api/v1/`
+- **Analysis Service**: `/analysis/api/v1/`  
+- **Mapper Service**: `/mapper/api/v1/`
+
+### Inter-Service Communication
+Services communicate via HTTP APIs with:
+- OpenAPI 3.0 specifications for all endpoints
+- Consistent authentication (API keys)
+- Structured error responses
+- Request/response validation
+
 # API Design Guidelines
 
 ## RESTful API Principles

@@ -1,0 +1,46 @@
+# Content scrubber plugin configuration
+
+scrubbing_rules:
+  # PII patterns to detect and scrub
+  patterns:
+    email:
+      regex: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+      replacement: '[EMAIL_REDACTED]'
+      enabled: true
+    
+    phone:
+      regex: '\b\d{3}-\d{3}-\d{4}\b|\b\(\d{3}\)\s*\d{3}-\d{4}\b'
+      replacement: '[PHONE_REDACTED]'
+      enabled: true
+    
+    ssn:
+      regex: '\b\d{3}-\d{2}-\d{4}\b'
+      replacement: '[SSN_REDACTED]'
+      enabled: true
+    
+    credit_card:
+      regex: '\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b'
+      replacement: '[CREDIT_CARD_REDACTED]'
+      enabled: true
+    
+    ip_address:
+      regex: '\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+      replacement: '[IP_ADDRESS_REDACTED]'
+      enabled: true
+  
+  # Fields to always scrub in JSON objects
+  sensitive_fields:
+    - "password"
+    - "secret"
+    - "token"
+    - "api_key"
+    - "private_key"
+    - "ssn"
+    - "social_security_number"
+    - "credit_card"
+    - "card_number"
+  
+  # Scrubbing options
+  preserve_structure: true  # Keep JSON/dict structure intact
+  log_scrubbing_actions: false  # Don't log what was scrubbed (privacy)
+  case_sensitive: false

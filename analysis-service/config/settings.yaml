@@ -1,0 +1,84 @@
+# Analysis Service Configuration
+
+service:
+  name: "analysis"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 8002
+  debug: false
+
+# CORS Configuration - CRITICAL SECURITY SETTINGS
+cors:
+  # NEVER use ["*"] in production - this allows any origin to make requests
+  allowed_origins:
+    - "http://localhost:3000"  # Development frontend
+    - "http://localhost:8080"  # Development dashboard
+    - "https://app.comply-ai.com"  # Production frontend
+    - "https://dashboard.comply-ai.com"  # Production dashboard
+  allow_credentials: true
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allowed_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-API-Key"
+    - "X-Tenant-ID"
+    - "X-Correlation-ID"
+    - "X-Request-ID"
+  max_age: 3600  # 1 hour
+
+database:
+  url: "${ANALYSIS_DATABASE_URL:postgresql://localhost:5432/analysis}"
+  pool_size: 15
+  max_overflow: 25
+  echo: false
+
+clickhouse:
+  url: "${ANALYSIS_CLICKHOUSE_URL:http://localhost:8123}"
+  database: "analysis"
+  username: "${CLICKHOUSE_USER:default}"
+  password: "${CLICKHOUSE_PASSWORD:}"
+
+redis:
+  url: "${ANALYSIS_REDIS_URL:redis://localhost:6379/1}"
+  max_connections: 15
+
+ml:
+  phi3_model: "microsoft/Phi-3-mini-4k-instruct"
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  model_cache_dir: "/tmp/models"
+  vllm_enabled: true
+  tgi_enabled: true
+  cpu_fallback: true
+
+rag:
+  knowledge_base_path: "/data/knowledge_base"
+  chunk_size: 512
+  chunk_overlap: 50
+  retrieval_top_k: 5
+
+quality:
+  evaluation_schedule: "0 2 * * 1"  # Weekly on Monday 2 AM
+  alert_thresholds:
+    confidence_drop: 0.1
+    error_rate: 0.05
+    latency_p95: 1000  # ms
+
+privacy:
+  metadata_only_logging: true
+  content_scrubbing: true
+  retention_days: 90
+
+monitoring:
+  metrics_enabled: true
+  tracing_enabled: true
+  jaeger_endpoint: "${JAEGER_ENDPOINT:http://localhost:14268/api/traces}"
+
+logging:
+  level: "INFO"
+  format: "json"
+  correlation_id_header: "X-Correlation-ID"

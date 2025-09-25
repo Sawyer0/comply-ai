@@ -1,0 +1,42 @@
+[
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: EMAIL_ADDRESS\nMetadata: {\"confidence\": 0.95, \"location\": \"field_email\"}",
+        "response": "{\"taxonomy\": [\"PII.Contact.Email\"], \"scores\": {\"PII.Contact.Email\": 0.95}, \"confidence\": 0.95, \"notes\": \"Email address detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: PERSON\nMetadata: {\"confidence\": 0.89, \"location\": \"field_name\"}",
+        "response": "{\"taxonomy\": [\"PII.Identity.Name\"], \"scores\": {\"PII.Identity.Name\": 0.89}, \"confidence\": 0.89, \"notes\": \"Person name detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: US_SSN\nMetadata: {\"confidence\": 0.98, \"location\": \"field_ssn\"}",
+        "response": "{\"taxonomy\": [\"PII.Identity.SSN\"], \"scores\": {\"PII.Identity.SSN\": 0.98}, \"confidence\": 0.98, \"notes\": \"US Social Security Number detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: CREDIT_CARD\nMetadata: {\"confidence\": 0.92, \"location\": \"field_payment\"}",
+        "response": "{\"taxonomy\": [\"PII.Financial.CreditCard\"], \"scores\": {\"PII.Financial.CreditCard\": 0.92}, \"confidence\": 0.92, \"notes\": \"Credit card number detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: deberta\nOutput: toxic\nMetadata: {\"confidence\": 0.87, \"toxicity_score\": 0.87}",
+        "response": "{\"taxonomy\": [\"CONTENT.Harmful.Toxic\"], \"scores\": {\"CONTENT.Harmful.Toxic\": 0.87}, \"confidence\": 0.87, \"notes\": \"Toxic content detected by DeBERTa\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: custom_detector\nOutput: api_key_pattern\nMetadata: {\"confidence\": 0.94, \"pattern_type\": \"bearer_token\"}",
+        "response": "{\"taxonomy\": [\"SECURITY.Credentials.APIKey\"], \"scores\": {\"SECURITY.Credentials.APIKey\": 0.94}, \"confidence\": 0.94, \"notes\": \"API key pattern detected by custom detector\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: PHONE_NUMBER\nMetadata: {\"confidence\": 0.91, \"location\": \"field_contact\"}",
+        "response": "{\"taxonomy\": [\"PII.Contact.Phone\"], \"scores\": {\"PII.Contact.Phone\": 0.91}, \"confidence\": 0.91, \"notes\": \"Phone number detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: presidio\nOutput: LOCATION\nMetadata: {\"confidence\": 0.85, \"location\": \"field_address\"}",
+        "response": "{\"taxonomy\": [\"PII.Contact.Address\"], \"scores\": {\"PII.Contact.Address\": 0.85}, \"confidence\": 0.85, \"notes\": \"Location/address detected by Presidio\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: unknown_detector\nOutput: unknown_pattern\nMetadata: {\"confidence\": 0.45}",
+        "response": "{\"taxonomy\": [\"OTHER.Unknown\"], \"scores\": {\"OTHER.Unknown\": 0.45}, \"confidence\": 0.45, \"notes\": \"Unknown pattern from unknown detector - low confidence\"}"
+    },
+    {
+        "instruction": "Map the following detector output to canonical taxonomy:\n\nDetector: security_scanner\nOutput: password_in_code\nMetadata: {\"confidence\": 0.96, \"file_type\": \"source_code\"}",
+        "response": "{\"taxonomy\": [\"SECURITY.Credentials.Password\"], \"scores\": {\"SECURITY.Credentials.Password\": 0.96}, \"confidence\": 0.96, \"notes\": \"Password found in source code by security scanner\"}"
+    }
+]

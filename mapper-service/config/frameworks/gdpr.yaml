@@ -1,0 +1,31 @@
+framework:
+  name: "GDPR"
+  version: "2016/679"
+  description: "General Data Protection Regulation"
+
+mappings:
+  # Contact Information
+  "PII.Contact.Email": "GDPR.PersonalData.ContactDetails"
+  "PII.Contact.Phone": "GDPR.PersonalData.ContactDetails"
+  "PII.Contact.Address": "GDPR.PersonalData.ContactDetails"
+  
+  # Identity Information
+  "PII.Identity.Name": "GDPR.PersonalData.IdentifyingInformation"
+  "PII.Identity.SSN": "GDPR.PersonalData.IdentifyingInformation"
+  "PII.Identity.ID": "GDPR.PersonalData.IdentifyingInformation"
+  
+  # Financial Information
+  "PII.Financial.CreditCard": "GDPR.SpecialCategory.FinancialData"
+  "PII.Financial.BankAccount": "GDPR.SpecialCategory.FinancialData"
+  
+  # Health Information
+  "PII.Health.MedicalRecord": "GDPR.SpecialCategory.HealthData"
+  "PII.Health.HealthID": "GDPR.SpecialCategory.HealthData"
+
+controls:
+  - id: "Art.5"
+    description: "Principles relating to processing of personal data"
+  - id: "Art.6"
+    description: "Lawfulness of processing"
+  - id: "Art.9"
+    description: "Processing of special categories of personal data"

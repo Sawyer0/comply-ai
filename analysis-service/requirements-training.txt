@@ -1,0 +1,21 @@
+# Training dependencies for Analysis Service
+# These are optional dependencies for model training
+
+# Core ML libraries
+torch>=2.0.0
+transformers>=4.30.0
+peft>=0.4.0
+accelerate>=0.20.0
+
+# Training utilities
+datasets>=2.12.0
+evaluate>=0.4.0
+scikit-learn>=1.3.0
+
+# Optional: for advanced training features
+wandb>=0.15.0
+tensorboard>=2.13.0
+
+# GPU support (optional)
+# torch-audio>=2.0.0  # Uncomment if needed
+# torchaudio>=2.0.0   # Uncomment if needed
