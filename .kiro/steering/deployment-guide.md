@@ -2,10 +2,25 @@
 inclusion: manual
 ---
 
-# Deployment Guide & Infrastructure
+# Microservice Deployment Guide & Infrastructure
+
+## Overview
+
+This guide covers deployment strategies for the 3-microservice llama-mapper system:
+1. **Detector Orchestration Service**: Detector coordination, policy enforcement
+2. **Analysis Service**: Advanced analysis, risk scoring, compliance intelligence  
+3. **Mapper Service**: Core mapping, model serving, response generation
 
 Reference the OpenAPI specification for detailed API contracts:
 #[[file:docs/openapi.yaml]]
+
+## Service Architecture
+
+Each service is independently deployable with:
+- Own database schema and connection pools
+- Independent configuration management
+- Service-specific monitoring and health checks
+- Isolated scaling and resource management
 
 ## Environment Configuration
 
@@ -16,8 +31,18 @@ environment: development
 debug: true
 log_level: DEBUG
 
-database:
+# Service-specific database configurations
+orchestration_database:
   host: localhost
+  database: orchestration_dev
+  
+analysis_database:
+  host: localhost
+  database: analysis_dev
+  
+mapper_database:
+  host: localhost
+  database: mapper_dev
   port: 5432
   name: llama_mapper_dev
   

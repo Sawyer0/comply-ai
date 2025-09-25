@@ -1,0 +1,46 @@
+# Default mapping engine plugin configuration
+
+taxonomy_file: "config/taxonomy.yaml"
+
+framework_mappings:
+  soc2:
+    categories:
+      pii.personal_identifiers:
+        control_id: "CC6.1"
+        description: "Logical and Physical Access Controls"
+      pii.financial_data:
+        control_id: "CC6.7"
+        description: "Data Transmission and Disposal"
+      security.credentials:
+        control_id: "CC6.1"
+        description: "Logical and Physical Access Controls"
+      content.toxic_language:
+        control_id: "CC7.1"
+        description: "System Boundaries and Configurations"
+  
+  iso27001:
+    categories:
+      pii.personal_identifiers:
+        control_id: "A.8.2.1"
+        description: "Classification of Information"
+      pii.financial_data:
+        control_id: "A.8.2.2"
+        description: "Labelling of Information"
+      security.credentials:
+        control_id: "A.13.2.1"
+        description: "Information Transfer Policies"
+      content.toxic_language:
+        control_id: "A.8.2.1"
+        description: "Classification of Information"
+  
+  hipaa:
+    categories:
+      pii.health_records:
+        control_id: "164.502"
+        description: "Uses and Disclosures of PHI"
+      pii.personal_identifiers:
+        control_id: "164.514"
+        description: "De-identification of PHI"
+      security.credentials:
+        control_id: "164.312"
+        description: "Technical Safeguards"

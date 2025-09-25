@@ -1,0 +1,31 @@
+detector: "presidio"
+description: "Microsoft Presidio PII detector"
+version: "2.0"
+
+maps:
+  # Email detection
+  "EMAIL_ADDRESS": "PII.Contact.Email"
+  "email": "PII.Contact.Email"
+  
+  # Phone detection
+  "PHONE_NUMBER": "PII.Contact.Phone"
+  "phone": "PII.Contact.Phone"
+  
+  # Name detection
+  "PERSON": "PII.Identity.Name"
+  "person_name": "PII.Identity.Name"
+  
+  # SSN detection
+  "US_SSN": "PII.Identity.SSN"
+  "ssn": "PII.Identity.SSN"
+  
+  # Credit card detection
+  "CREDIT_CARD": "PII.Financial.CreditCard"
+  "credit_card": "PII.Financial.CreditCard"
+  
+  # Address detection
+  "LOCATION": "PII.Contact.Address"
+  "address": "PII.Contact.Address"
+  
+  # Generic PII
+  "PII": "PII.Identity.Name"

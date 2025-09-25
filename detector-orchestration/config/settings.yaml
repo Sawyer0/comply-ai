@@ -1,0 +1,62 @@
+# Detector Orchestration Service Configuration
+
+service:
+  name: "detector-orchestration"
+  version: "1.0.0"
+  host: "0.0.0.0"
+  port: 8001
+  debug: false
+
+# CORS Configuration - CRITICAL SECURITY SETTINGS
+cors:
+  # NEVER use ["*"] in production - this allows any origin to make requests
+  allowed_origins:
+    - "http://localhost:3000"  # Development frontend
+    - "http://localhost:8080"  # Development dashboard
+    - "https://app.comply-ai.com"  # Production frontend
+    - "https://dashboard.comply-ai.com"  # Production dashboard
+  allow_credentials: true
+  allowed_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "OPTIONS"
+  allowed_headers:
+    - "Content-Type"
+    - "Authorization"
+    - "X-API-Key"
+    - "X-Tenant-ID"
+    - "X-Correlation-ID"
+    - "X-Request-ID"
+  max_age: 3600  # 1 hour
+
+database:
+  url: "${ORCHESTRATION_DATABASE_URL:postgresql://localhost:5432/orchestration}"
+  pool_size: 10
+  max_overflow: 20
+  echo: false
+
+redis:
+  url: "${ORCHESTRATION_REDIS_URL:redis://localhost:6379/0}"
+  max_connections: 10
+
+security:
+  api_key_header: "X-API-Key"
+  rate_limit:
+    requests_per_minute: 1000
+    burst_size: 100
+
+policy:
+  opa_url: "${OPA_URL:http://localhost:8181}"
+  policy_bundle: "orchestration"
+
+monitoring:
+  metrics_enabled: true
+  tracing_enabled: true
+  jaeger_endpoint: "${JAEGER_ENDPOINT:http://localhost:14268/api/traces}"
+
+logging:
+  level: "INFO"
+  format: "json"
+  correlation_id_header: "X-Correlation-ID"

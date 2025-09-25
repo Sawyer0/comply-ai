@@ -1,0 +1,872 @@
+openapi: 3.0.3
+info:
+  title: Analysis Service API
+  description: |
+    The Analysis Service provides advanced analysis capabilities including pattern 
+    recognition, risk scoring, compliance intelligence, and RAG-enhanced insights 
+    within the llama-mapper microservice architecture.
+  version: 1.0.0
+  contact:
+    name: Llama Mapper Team
+    email: team@llamapper.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8001
+    description: Development server
+  - url: https://api.llamapper.com/analysis
+    description: Production server
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/analyze:
+    post:
+      summary: Perform comprehensive analysis
+      operationId: analyzeContent
+      tags:
+        - Analysis
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalysisRequest'
+      responses:
+        '200':
+          description: Analysis completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/patterns:
+    post:
+      summary: Pattern recognition analysis
+      operationId: analyzePatterns
+      tags:
+        - Analysis
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatternAnalysisRequest'
+      responses:
+        '200':
+          description: Pattern analysis completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternAnalysisResult'
+
+  /api/v1/risk-score:
+    post:
+      summary: Risk scoring analysis
+      operationId: calculateRiskScore
+      tags:
+        - Analysis
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RiskScoringRequest'
+      responses:
+        '200':
+          description: Risk scoring completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskScoringResult'
+
+  /api/v1/compliance:
+    post:
+      summary: Compliance framework mapping
+      operationId: mapCompliance
+      tags:
+        - Compliance
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComplianceMappingRequest'
+      responses:
+        '200':
+          description: Compliance mapping completed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComplianceMappingResult'
+
+  /api/v1/rag/query:
+    post:
+      summary: RAG-enhanced query
+      operationId: ragQuery
+      tags:
+        - RAG
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RAGQueryRequest'
+      responses:
+        '200':
+          description: RAG query completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RAGInsights'
+
+  /api/v1/quality/metrics:
+    get:
+      summary: Get quality metrics
+      operationId: getQualityMetrics
+      tags:
+        - Quality
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: metric_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Quality metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QualityMetric'
+
+  /api/v1/quality/alerts:
+    get:
+      summary: Get quality alerts
+      operationId: getQualityAlerts
+      tags:
+        - Quality
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, acknowledged, resolved]
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+      responses:
+        '200':
+          description: Quality alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/QualityAlert'
+
+  /api/v1/models:
+    get:
+      summary: List ML models
+      operationId: listModels
+      tags:
+        - Models
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: model_type
+          in: query
+          schema:
+            type: string
+            enum: [phi3, embedding, custom]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, training, deprecated]
+      responses:
+        '200':
+          description: List of ML models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MLModel'
+
+  /api/v1/evaluations/weekly:
+    get:
+      summary: Get weekly evaluations
+      operationId: getWeeklyEvaluations
+      tags:
+        - Evaluations
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: week
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: model_version
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Weekly evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeeklyEvaluation'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  parameters:
+    TenantId:
+      name: X-Tenant-ID
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Tenant identifier for multi-tenancy
+    
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Correlation ID for request tracing
+
+  schemas:
+    AnalysisRequest:
+      type: object
+      required:
+        - orchestration_response
+        - analysis_types
+      properties:
+        orchestration_response:
+          $ref: '#/components/schemas/OrchestrationResponse'
+        analysis_types:
+          type: array
+          items:
+            type: string
+            enum: [pattern, risk, compliance, rag]
+          minItems: 1
+        frameworks:
+          type: array
+          items:
+            type: string
+        include_recommendations:
+          type: boolean
+          default: true
+
+    AnalysisResponse:
+      type: object
+      required:
+        - request_id
+        - success
+        - canonical_results
+        - quality_metrics
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        success:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+        processing_time_ms:
+          type: number
+        canonical_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalTaxonomyResult'
+        pattern_analysis:
+          $ref: '#/components/schemas/PatternAnalysisResult'
+        risk_scores:
+          $ref: '#/components/schemas/RiskScoringResult'
+        compliance_mappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComplianceMappingResult'
+        rag_insights:
+          $ref: '#/components/schemas/RAGInsights'
+        quality_metrics:
+          $ref: '#/components/schemas/QualityMetrics'
+
+    OrchestrationResponse:
+      type: object
+      description: Response from orchestration service
+      required:
+        - request_id
+        - detector_results
+      properties:
+        request_id:
+          type: string
+          format: uuid
+        detector_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectorResult'
+        aggregation_summary:
+          type: object
+        coverage_achieved:
+          type: number
+        policy_violations:
+          type: array
+          items:
+            type: object
+
+    DetectorResult:
+      type: object
+      required:
+        - detector_id
+        - detector_type
+        - confidence
+        - category
+        - severity
+        - findings
+      properties:
+        detector_id:
+          type: string
+          format: uuid
+        detector_type:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        category:
+          type: string
+        subcategory:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        findings:
+          type: array
+          items:
+            type: object
+        metadata:
+          type: object
+
+    CanonicalTaxonomyResult:
+      type: object
+      required:
+        - category
+        - subcategory
+        - confidence
+        - risk_level
+        - tags
+      properties:
+        category:
+          type: string
+        subcategory:
+          type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_level:
+          type: string
+          enum: [low, medium, high, critical]
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+
+    PatternAnalysisRequest:
+      type: object
+      required:
+        - detector_results
+      properties:
+        detector_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/DetectorResult'
+        time_window_hours:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 24
+
+    PatternAnalysisResult:
+      type: object
+      required:
+        - temporal_patterns
+        - frequency_patterns
+        - correlation_patterns
+        - anomaly_patterns
+        - confidence
+      properties:
+        temporal_patterns:
+          type: array
+          items:
+            type: object
+        frequency_patterns:
+          type: array
+          items:
+            type: object
+        correlation_patterns:
+          type: array
+          items:
+            type: object
+        anomaly_patterns:
+          type: array
+          items:
+            type: object
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    RiskScoringRequest:
+      type: object
+      required:
+        - canonical_results
+      properties:
+        canonical_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalTaxonomyResult'
+        context:
+          type: object
+
+    RiskScoringResult:
+      type: object
+      required:
+        - overall_risk_score
+        - technical_risk
+        - business_risk
+        - regulatory_risk
+        - temporal_risk
+        - risk_factors
+      properties:
+        overall_risk_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        technical_risk:
+          type: number
+          minimum: 0
+          maximum: 1
+        business_risk:
+          type: number
+          minimum: 0
+          maximum: 1
+        regulatory_risk:
+          type: number
+          minimum: 0
+          maximum: 1
+        temporal_risk:
+          type: number
+          minimum: 0
+          maximum: 1
+        risk_factors:
+          type: array
+          items:
+            type: object
+        mitigation_recommendations:
+          type: array
+          items:
+            type: string
+
+    ComplianceMappingRequest:
+      type: object
+      required:
+        - canonical_results
+        - frameworks
+      properties:
+        canonical_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CanonicalTaxonomyResult'
+        frameworks:
+          type: array
+          items:
+            type: string
+
+    ComplianceMappingResult:
+      type: object
+      required:
+        - framework
+        - mappings
+        - compliance_score
+        - gaps
+      properties:
+        framework:
+          type: string
+        mappings:
+          type: array
+          items:
+            type: object
+        compliance_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        gaps:
+          type: array
+          items:
+            type: object
+        recommendations:
+          type: array
+          items:
+            type: string
+
+    RAGQueryRequest:
+      type: object
+      required:
+        - query_text
+      properties:
+        query_text:
+          type: string
+          maxLength: 1000
+        context:
+          type: object
+        max_results:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+
+    RAGInsights:
+      type: object
+      required:
+        - relevant_regulations
+        - compliance_guidance
+        - risk_context
+        - remediation_steps
+        - confidence
+      properties:
+        relevant_regulations:
+          type: array
+          items:
+            type: object
+        compliance_guidance:
+          type: array
+          items:
+            type: string
+        risk_context:
+          type: array
+          items:
+            type: string
+        remediation_steps:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        retrieved_documents:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    QualityMetrics:
+      type: object
+      required:
+        - accuracy_score
+        - confidence_distribution
+        - processing_time_ms
+        - model_version
+        - fallback_used
+      properties:
+        accuracy_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence_distribution:
+          type: object
+        processing_time_ms:
+          type: number
+        model_version:
+          type: string
+        fallback_used:
+          type: boolean
+
+    QualityMetric:
+      type: object
+      required:
+        - metric_type
+        - metric_name
+        - metric_value
+        - evaluation_date
+      properties:
+        metric_type:
+          type: string
+        metric_name:
+          type: string
+        metric_value:
+          type: number
+        model_version:
+          type: string
+        evaluation_date:
+          type: string
+          format: date
+        metadata:
+          type: object
+
+    QualityAlert:
+      type: object
+      required:
+        - alert_type
+        - severity
+        - message
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        alert_type:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high, critical]
+        message:
+          type: string
+        metric_name:
+          type: string
+        current_value:
+          type: number
+        threshold_value:
+          type: number
+        status:
+          type: string
+          enum: [active, acknowledged, resolved]
+        created_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+
+    MLModel:
+      type: object
+      required:
+        - model_name
+        - model_version
+        - model_type
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        model_name:
+          type: string
+        model_version:
+          type: string
+        model_type:
+          type: string
+          enum: [phi3, embedding, custom]
+        model_path:
+          type: string
+        configuration:
+          type: object
+        performance_metrics:
+          type: object
+        status:
+          type: string
+          enum: [active, inactive, training, deprecated]
+        created_at:
+          type: string
+          format: date-time
+
+    WeeklyEvaluation:
+      type: object
+      required:
+        - evaluation_week
+        - model_version
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        evaluation_week:
+          type: string
+          format: date
+        model_version:
+          type: string
+        accuracy_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        precision_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        recall_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        f1_score:
+          type: number
+          minimum: 0
+          maximum: 1
+        confidence_distribution:
+          type: object
+        performance_trends:
+          type: object
+        recommendations:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [running, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime_seconds:
+          type: integer
+        database_status:
+          type: string
+          enum: [connected, disconnected, error]
+        clickhouse_status:
+          type: string
+          enum: [connected, disconnected, error]
+        redis_status:
+          type: string
+          enum: [connected, disconnected, error]
+        model_status:
+          type: string
+          enum: [loaded, loading, error]
+        active_models:
+          type: integer
+        pending_analyses:
+          type: integer
+
+    Error:
+      type: object
+      required:
+        - error_code
+        - message
+      properties:
+        error_code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        correlation_id:
+          type: string
+          format: uuid
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

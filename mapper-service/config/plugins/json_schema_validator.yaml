@@ -1,0 +1,66 @@
+# JSON Schema validator plugin configuration
+
+schemas:
+  detector_output:
+    type: "object"
+    properties:
+      detector_type:
+        type: "string"
+        enum: ["presidio", "deberta", "custom"]
+      findings:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            type:
+              type: "string"
+            confidence:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+            location:
+              type: "object"
+              properties:
+                start:
+                  type: "integer"
+                end:
+                  type: "integer"
+          required: ["type", "confidence"]
+      metadata:
+        type: "object"
+    required: ["detector_type", "findings"]
+  
+  mapping_response:
+    type: "object"
+    properties:
+      canonical_results:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            canonical_category:
+              type: "string"
+            canonical_subcategory:
+              type: "string"
+            risk_level:
+              type: "string"
+              enum: ["critical", "high", "medium", "low", "info"]
+            confidence:
+              type: "number"
+              minimum: 0.0
+              maximum: 1.0
+          required: ["canonical_category", "risk_level", "confidence"]
+      framework_mappings:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            framework:
+              type: "string"
+            control_id:
+              type: "string"
+            compliance_status:
+              type: "string"
+              enum: ["compliant", "non_compliant", "requires_review"]
+          required: ["framework", "control_id", "compliance_status"]
+    required: ["canonical_results"]
