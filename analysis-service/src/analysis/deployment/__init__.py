@@ -8,4 +8,10 @@ This module handles:
 - Model deployment strategies
 """
 
-__all__ = []
+from .manager import DeploymentManager, DeploymentRecord, DeploymentStatus
+
+__all__ = [
+    "DeploymentManager",
+    "DeploymentRecord",
+    "DeploymentStatus",
+]

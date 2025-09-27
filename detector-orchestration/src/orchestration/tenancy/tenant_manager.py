@@ -5,6 +5,7 @@ Single Responsibility: Manage tenant lifecycle and basic tenant operations.
 """
 
 import logging
+import re
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 from enum import Enum
@@ -499,11 +500,62 @@ class TenantManager:
 
     def _validate_email(self, email: str):
         """Validate email format."""
-        import re
-
         email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         if not re.match(email_pattern, email):
             raise ValidationError("Invalid email format")
+
+    def authenticate_tenant_access(
+        self, tenant_id: str, api_key: Optional[str] = None, user_id: Optional[str] = None
+    ) -> bool:
+        """Authenticate access to a tenant.
+
+        Args:
+            tenant_id: Tenant identifier
+            api_key: API key for authentication (optional)
+            user_id: User ID for authentication (optional)
+
+        Returns:
+            True if access is authenticated
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        correlation_id = get_correlation_id()
+
+        if not tenant_id:
+            raise AuthenticationError("Tenant ID is required", correlation_id=correlation_id)
+
+        # Check if tenant exists
+        tenant = self._tenants.get(tenant_id)
+        if not tenant:
+            raise AuthenticationError(
+                f"Tenant {tenant_id} does not exist", correlation_id=correlation_id
+            )
+
+        # Check tenant status
+        if tenant.status != TenantStatus.ACTIVE:
+            raise AuthenticationError(
+                f"Tenant {tenant_id} is not active (status: {tenant.status})",
+                correlation_id=correlation_id
+            )
+
+        # In a real implementation, this would verify API keys, JWT tokens, etc.
+        # For now, we'll do basic validation
+        if api_key and len(api_key) < 10:
+            raise AuthenticationError("Invalid API key format", correlation_id=correlation_id)
+
+        logger.info(
+            "Authenticated access to tenant %s",
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "tenant_id": tenant_id,
+                "user_id": user_id,
+                "has_api_key": bool(api_key)
+            }
+        )
+
+        return True
 
     def get_tenant_stats(self) -> Dict[str, Any]:
         """Get statistics about tenants.

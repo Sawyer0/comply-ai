@@ -1,0 +1,101 @@
+{
+  "categories": {
+    "PII": {
+      "description": "Personally Identifiable Information",
+      "subcategories": {
+        "Contact": {
+          "description": "Contact information",
+          "types": [
+            "Email",
+            "Phone",
+            "Address"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        },
+        "Identity": {
+          "description": "Identity information",
+          "types": [
+            "Name",
+            "SSN",
+            "ID"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        },
+        "Financial": {
+          "description": "Financial information",
+          "types": [
+            "CreditCard",
+            "BankAccount"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        }
+      },
+      "metadata": {},
+      "deprecated": false,
+      "deprecated_since": null,
+      "replacement": null
+    },
+    "SECURITY": {
+      "description": "Security-related content",
+      "subcategories": {
+        "Credentials": {
+          "description": "Authentication credentials",
+          "types": [
+            "Password",
+            "APIKey",
+            "Token"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        },
+        "Access": {
+          "description": "Access control violations",
+          "types": [
+            "Unauthorized",
+            "Privilege"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        }
+      },
+      "metadata": {},
+      "deprecated": false,
+      "deprecated_since": null,
+      "replacement": null
+    },
+    "CONTENT": {
+      "description": "Content moderation",
+      "subcategories": {
+        "Harmful": {
+          "description": "Harmful content",
+          "types": [
+            "Toxic",
+            "Hate",
+            "Violence"
+          ],
+          "metadata": {},
+          "deprecated": false,
+          "deprecated_since": null,
+          "replacement": null
+        }
+      },
+      "metadata": {},
+      "deprecated": false,
+      "deprecated_since": null,
+      "replacement": null
+    }
+  }
+}

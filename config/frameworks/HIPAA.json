@@ -1,0 +1,10 @@
+{
+  "framework_name": "HIPAA",
+  "current_mappings": {
+    "PII.Identity.Name": "HIPAA.PHI.IndividuallyIdentifiableHealthInformation",
+    "PII.Identity.SSN": "HIPAA.PHI.IndividuallyIdentifiableHealthInformation",
+    "PII.Contact.Email": "HIPAA.PHI.ContactInformation",
+    "PII.Contact.Phone": "HIPAA.PHI.ContactInformation",
+    "PII.Contact.Address": "HIPAA.PHI.GeographicInformation"
+  }
+}

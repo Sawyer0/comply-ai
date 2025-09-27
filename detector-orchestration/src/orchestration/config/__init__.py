@@ -1,12 +1,5 @@
-"""Configuration management for orchestration service.
+"""Configuration module for the Detector Orchestration Service."""
 
-This module provides configuration capabilities following SRP:
-- Settings: Service configuration management
-- DetectorConfig: Detector-specific configuration
-- PolicyConfig: Policy configuration management
-"""
+from .settings import OrchestrationSettings, ProcessingMode, LogLevel, settings
 
-# Configuration components will be implemented in separate task
-# For now, this module is a placeholder
-
-__all__ = []
+__all__ = ["OrchestrationSettings", "ProcessingMode", "LogLevel", "settings"]

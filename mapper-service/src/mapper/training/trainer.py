@@ -8,7 +8,10 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .model_loader import ModelLoader
 
 logger = logging.getLogger(__name__)
 

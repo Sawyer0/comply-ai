@@ -26,7 +26,19 @@ class DatabaseSettings(BaseSettings):
     pool_max_size: int = Field(default=20, env="ANALYSIS_DB_POOL_MAX")
 
     class Config:
+        """Pydantic configuration for DatabaseSettings."""
+
         env_prefix = "ANALYSIS_DB_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_DB_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class RedisSettings(BaseSettings):
@@ -36,7 +48,19 @@ class RedisSettings(BaseSettings):
     password: Optional[str] = Field(default=None, env="ANALYSIS_REDIS_PASSWORD")
 
     class Config:
+        """Pydantic configuration for RedisSettings."""
+
         env_prefix = "ANALYSIS_REDIS_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_REDIS_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class PluginSettings(BaseSettings):
@@ -52,7 +76,19 @@ class PluginSettings(BaseSettings):
     )
 
     class Config:
+        """Pydantic configuration for PluginSettings."""
+
         env_prefix = "ANALYSIS_PLUGIN_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_PLUGIN_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class TenancySettings(BaseSettings):
@@ -75,7 +111,19 @@ class TenancySettings(BaseSettings):
     )
 
     class Config:
+        """Pydantic configuration for TenancySettings."""
+
         env_prefix = "ANALYSIS_TENANCY_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_TENANCY_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class AnalyticsSettings(BaseSettings):
@@ -90,7 +138,19 @@ class AnalyticsSettings(BaseSettings):
     )  # 0 = Monday
 
     class Config:
+        """Pydantic configuration for AnalyticsSettings."""
+
         env_prefix = "ANALYSIS_ANALYTICS_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_ANALYTICS_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class ModelSettings(BaseSettings):
@@ -98,19 +158,32 @@ class ModelSettings(BaseSettings):
 
     model_backend: str = Field(default="cpu", env="ANALYSIS_MODEL_BACKEND")
     model_path: str = Field(
-        default="microsoft/Phi-3-mini-4k-instruct", 
-        env="ANALYSIS_MODEL_PATH"
+        default="microsoft/Phi-3-mini-4k-instruct", env="ANALYSIS_MODEL_PATH"
     )
-    confidence_threshold: float = Field(default=0.7, env="ANALYSIS_CONFIDENCE_THRESHOLD")
+    confidence_threshold: float = Field(
+        default=0.7, env="ANALYSIS_CONFIDENCE_THRESHOLD"
+    )
     enable_metrics: bool = Field(default=True, env="ANALYSIS_ENABLE_METRICS")
-    
+
     # Generation configuration
     temperature: float = Field(default=0.1, env="ANALYSIS_MODEL_TEMPERATURE")
     top_p: float = Field(default=0.9, env="ANALYSIS_MODEL_TOP_P")
     max_new_tokens: int = Field(default=200, env="ANALYSIS_MODEL_MAX_TOKENS")
-    
+
     class Config:
+        """Pydantic configuration for ModelSettings."""
+
         env_prefix = "ANALYSIS_MODEL_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_MODEL_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class CORSSettings(BaseSettings):
@@ -124,28 +197,40 @@ class CORSSettings(BaseSettings):
             "https://app.comply-ai.com",  # Production frontend
             "https://dashboard.comply-ai.com",  # Production dashboard
         ],
-        env="ANALYSIS_CORS_ORIGINS"
+        env="ANALYSIS_CORS_ORIGINS",
     )
     allow_credentials: bool = Field(default=True, env="ANALYSIS_CORS_ALLOW_CREDENTIALS")
     methods: List[str] = Field(
         default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        env="ANALYSIS_CORS_METHODS"
+        env="ANALYSIS_CORS_METHODS",
     )
     headers: List[str] = Field(
         default_factory=lambda: [
             "Content-Type",
-            "Authorization", 
+            "Authorization",
             "X-API-Key",
             "X-Tenant-ID",
             "X-Correlation-ID",
-            "X-Request-ID"
+            "X-Request-ID",
         ],
-        env="ANALYSIS_CORS_HEADERS"
+        env="ANALYSIS_CORS_HEADERS",
     )
     max_age: int = Field(default=3600, env="ANALYSIS_CORS_MAX_AGE")  # 1 hour
-    
+
     class Config:
+        """Pydantic configuration for CORSSettings."""
+
         env_prefix = "ANALYSIS_CORS_"
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_CORS_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 class Settings(BaseSettings):
@@ -168,35 +253,56 @@ class Settings(BaseSettings):
     @property
     def generation_config(self) -> Dict[str, Any]:
         """Get generation configuration for model server."""
+        model_settings = (
+            self.model if hasattr(self.model, "temperature") else ModelSettings()
+        )
         return {
-            "temperature": self.model.temperature,
-            "top_p": self.model.top_p,
-            "max_new_tokens": self.model.max_new_tokens,
+            "temperature": model_settings.temperature,
+            "top_p": model_settings.top_p,
+            "max_new_tokens": model_settings.max_new_tokens,
         }
-    
+
     @property
     def cors_origins(self) -> List[str]:
         """Get CORS allowed origins."""
-        return self.cors.origins
-    
+        cors_settings = self.cors if hasattr(self.cors, "origins") else CORSSettings()
+        return cors_settings.origins
+
     @property
     def cors_allow_credentials(self) -> bool:
         """Get CORS allow credentials setting."""
-        return self.cors.allow_credentials
-    
+        cors_settings = (
+            self.cors if hasattr(self.cors, "allow_credentials") else CORSSettings()
+        )
+        return cors_settings.allow_credentials
+
     @property
     def cors_allow_methods(self) -> List[str]:
         """Get CORS allowed methods."""
-        return self.cors.methods
-    
+        cors_settings = self.cors if hasattr(self.cors, "methods") else CORSSettings()
+        return cors_settings.methods
+
     @property
     def cors_allow_headers(self) -> List[str]:
         """Get CORS allowed headers."""
-        return self.cors.headers
+        cors_settings = self.cors if hasattr(self.cors, "headers") else CORSSettings()
+        return cors_settings.headers
 
     class Config:
+        """Pydantic configuration for main Settings."""
+
         env_prefix = "ANALYSIS_"
         case_sensitive = False
+
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "ANALYSIS_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
 
 
 # Global settings instance

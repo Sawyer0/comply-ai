@@ -1,0 +1,17 @@
+{
+  "current_version": "1.1.0",
+  "history": [
+    {
+      "version": "1.1.0",
+      "created_at": "2025-09-25T16:08:21.155618+00:00",
+      "created_by": "system",
+      "change_type": "minor",
+      "changes": [
+        "Registered framework GDPR v1.0.0"
+      ],
+      "backward_compatible": true,
+      "migration_notes": null,
+      "checksum": "2b05c85b4687e6967da0bdd11a4ff2b3aad7d9039b9d0b07e5113d3ad09ea083"
+    }
+  ]
+}

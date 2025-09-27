@@ -1,0 +1,17 @@
+{
+  "current_version": "2.0.0",
+  "history": [
+    {
+      "version": "2.0.0",
+      "created_at": "2025-09-25T16:08:20.984842+00:00",
+      "created_by": "system",
+      "change_type": "major",
+      "changes": [
+        "Initial canonical taxonomy creation"
+      ],
+      "backward_compatible": false,
+      "migration_notes": "Initial version - no migration needed",
+      "checksum": "fb309c61b56bda4c95e89173b6a0592705aecf4ddb9b85b3e39be45f940d1c42"
+    }
+  ]
+}

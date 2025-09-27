@@ -10,5 +10,11 @@ data:
 {{ .Files.Get "policies/detector_selection.rego" | indent 4 }}
   conflict_resolution.rego: |
 {{ .Files.Get "policies/conflict_resolution.rego" | indent 4 }}
+  pii_detection.rego: |
+{{ .Files.Get "policies/pii_detection.rego" | indent 4 }}
+  compliance_check.rego: |
+{{ .Files.Get "policies/compliance_check.rego" | indent 4 }}
+  security_validation.rego: |
+{{ .Files.Get "policies/security_validation.rego" | indent 4 }}
   tenant_policies.json: |
 {{ .Files.Get "policies/tenant_policies_data.json" | indent 4 }}

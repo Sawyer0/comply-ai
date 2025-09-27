@@ -7,7 +7,7 @@ security pattern matching and violation detection.
 
 import logging
 import re
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Any
 
 from ..interfaces import (
     AttackType,

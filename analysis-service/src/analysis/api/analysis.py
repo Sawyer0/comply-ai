@@ -3,14 +3,32 @@ Analysis API endpoints for Analysis Service.
 
 This module provides REST API endpoints for analysis operations including
 pattern recognition, risk scoring, and compliance intelligence.
+Uses shared components for validation, logging, and error handling.
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from typing import List, Dict, Any, Optional
-import logging
 import hashlib
 import time
+from datetime import datetime
 
+# Import shared components
+from ..shared_integration import (
+    get_shared_logger,
+    get_correlation_id,
+    set_correlation_id,
+    validate_input,
+    validate_output,
+    SharedAnalysisRequest,
+    AnalysisResponse,
+    CanonicalTaxonomyResult,
+    QualityMetrics,
+    ValidationError,
+    AuthenticationError,
+    AuthorizationError,
+)
+
+from ..validation.shared_validators import get_shared_validation_service
 from ..dependencies import (
     get_tenant_manager,
     get_analytics_manager,
@@ -26,21 +44,24 @@ from ..engines.risk_scoring.database import RiskScoringDatabaseManager
 from ..privacy.database import PrivacyDatabaseManager
 from ..engines.risk_scoring.validator import RiskScoringValidator
 from ..privacy.privacy_validator import PrivacyValidator
-from shared.utils.correlation import get_correlation_id
 
-logger = logging.getLogger(__name__)
+logger = get_shared_logger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
 
-@router.post("/analyze", response_model=Dict[str, Any])
+@router.post("/analyze", response_model=AnalysisResponse)
+@validate_input
+@validate_output
 async def analyze_content(
     request_data: Dict[str, Any],
     x_tenant_id: str = Header(..., description="Tenant ID"),
+    x_api_key: str = Header(..., description="API Key"),
     x_analysis_type: str = Header(
         default="pattern_recognition", description="Analysis type"
     ),
     x_framework: Optional[str] = Header(None, description="Compliance framework"),
+    x_correlation_id: Optional[str] = Header(None, description="Correlation ID"),
     tenant_manager: TenantManager = Depends(get_tenant_manager),
     analytics_manager: AnalyticsManager = Depends(get_analytics_manager),
     plugin_manager: PluginManager = Depends(get_plugin_manager),
@@ -55,23 +76,39 @@ async def analyze_content(
     Args:
         request_data: Analysis request data
         x_tenant_id: Tenant identifier
+        x_api_key: API key for authentication
         x_analysis_type: Type of analysis to perform
         x_framework: Optional compliance framework
+        x_correlation_id: Optional correlation ID for request tracing
         tenant_manager: Tenant manager instance
         analytics_manager: Analytics manager instance
         plugin_manager: Plugin manager instance
 
     Returns:
-        Analysis results
+        Analysis results conforming to shared interface
     """
     start_time = time.time()
+    
+    # Set correlation ID for request tracing
+    if x_correlation_id:
+        set_correlation_id(x_correlation_id)
 
     try:
+        # Validate API key and permissions using shared validation
+        validation_service = get_shared_validation_service()
+        auth_result = await validation_service.validate_request_auth(
+            x_api_key, f"analysis:{x_analysis_type}"
+        )
+        
+        # Validate input data using shared validators
+        input_validation = validation_service.validate_analysis_input(request_data)
+        
         logger.info(
             "Starting analysis",
             tenant_id=x_tenant_id,
             analysis_type=x_analysis_type,
             correlation_id=get_correlation_id(),
+            authenticated_tenant=auth_result.get("tenant_id")
         )
 
         # Get tenant configuration

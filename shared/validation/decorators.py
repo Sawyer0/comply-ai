@@ -29,6 +29,12 @@ def validate_request_response(
         async def async_wrapper(*args, **kwargs) -> Any:
             correlation_id = get_correlation_id()
 
+            # Validate correlation ID if required
+            if require_correlation_id and not correlation_id:
+                raise ValidationError(
+                    "Correlation ID is required but not found in context"
+                )
+
             # Extract request data and tenant_id from kwargs
             request_data = kwargs.get("request")
             tenant_id = kwargs.get("tenant_id")
@@ -125,6 +131,12 @@ def validate_request_response(
         def sync_wrapper(*args, **kwargs) -> Any:
             correlation_id = get_correlation_id()
 
+            # Validate correlation ID if required
+            if require_correlation_id and not correlation_id:
+                raise ValidationError(
+                    "Correlation ID is required but not found in context"
+                )
+
             # Extract request data and tenant_id from kwargs
             request_data = kwargs.get("request")
             tenant_id = kwargs.get("tenant_id")
@@ -216,9 +228,9 @@ def validate_request_response(
 
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
+            return async_wrapper  # type: ignore
         else:
-            return sync_wrapper
+            return sync_wrapper  # type: ignore
 
     return decorator
 
@@ -302,9 +314,9 @@ def validate_tenant_access(
 
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
+            return async_wrapper  # type: ignore
         else:
-            return sync_wrapper
+            return sync_wrapper  # type: ignore
 
     return decorator
 
@@ -360,8 +372,8 @@ def validate_confidence_threshold(min_confidence: float = 0.0):
 
         # Return appropriate wrapper based on function type
         if asyncio.iscoroutinefunction(func):
-            return async_wrapper
+            return async_wrapper  # type: ignore
         else:
-            return sync_wrapper
+            return sync_wrapper  # type: ignore
 
     return decorator

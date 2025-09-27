@@ -7,7 +7,7 @@ Follows SRP by focusing solely on alert lifecycle management.
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from .models import QualityAlert, AlertStatus
 

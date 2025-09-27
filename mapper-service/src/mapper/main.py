@@ -21,6 +21,15 @@ from .security.rate_limiting_service import RateLimitingService
 from .security import SecurityManager
 from .resilience import ResilienceManager
 from .quality import QualityManager
+from .shared_integration import (
+    initialize_shared_components,
+    get_shared_logger,
+    get_shared_metrics,
+    get_shared_resilience_manager,
+    get_shared_tenant_manager,
+    get_shared_cost_monitor,
+)
+from .middleware import setup_shared_middleware
 
 # Configure structured logging
 structlog.configure(
@@ -134,6 +143,15 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Mapper Service")
 
     try:
+        # Initialize shared components first
+        shared_components = initialize_shared_components()
+        logger.info("Shared components initialized", components=list(shared_components.keys()))
+        
+        # Initialize tenant and cost management
+        tenant_manager = get_shared_tenant_manager()
+        cost_monitor = get_shared_cost_monitor()
+        logger.info("Tenant and cost management initialized")
+
         # Initialize database connections
         app_state["database_manager"] = create_database_manager_from_env()
         await app_state["database_manager"].initialize()
@@ -237,6 +255,9 @@ app.add_middleware(
         "X-Request-ID",
     ],
 )
+
+# Setup shared middleware components
+setup_shared_middleware(app)
 
 # Add security, resilience, and quality middleware
 app.add_middleware(WAFMiddleware)

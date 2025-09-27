@@ -1,0 +1,48 @@
+{
+  "schema_name": "analysis_request",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "schema_definition": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "orchestration_response": {
+            "type": "object"
+          },
+          "analysis_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "frameworks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "orchestration_response",
+          "analysis_types"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

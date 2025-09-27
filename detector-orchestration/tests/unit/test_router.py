@@ -1,7 +1,18 @@
 """Tests for content router."""
 
 import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock
+
+from tests.unit.helpers.factories import (
+    make_detector_endpoint,
+    make_orchestration_config,
+    make_orchestration_request,
+    make_policy_decision,
+    make_routing_decision,
+    make_routing_plan,
+    make_settings,
+)
+from tests.unit.helpers.mocks import make_async_mock
 
 from detector_orchestration.models import (
     OrchestrationRequest,
@@ -11,9 +22,8 @@ from detector_orchestration.models import (
     Priority,
     ProcessingMode,
 )
-from detector_orchestration.config import Settings, OrchestrationConfig, DetectorEndpoint
 from detector_orchestration.router import ContentRouter
-from detector_orchestration.policy import PolicyManager, PolicyDecision, CoverageMethod
+from detector_orchestration.policy import CoverageMethod, PolicyDecision, PolicyManager
 
 
 class TestContentRouter:

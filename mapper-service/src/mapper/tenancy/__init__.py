@@ -1,83 +1,21 @@
 """
-Tenancy module for mapper service.
+Tenancy components for mapper service.
 
-Provides comprehensive multi-tenancy support including:
-- Tenant management and isolation
-- Cost monitoring and billing
-- Resource management and auto-scaling
-- Usage analytics and reporting
+This package provides tenant isolation and management functionality
+that integrates with shared components for consistent tenant handling.
 """
 
-from typing import Optional
-from .tenant_manager import (
+from .shared_tenant_manager import (
     MapperTenantManager,
-    MapperTenantConfig,
-    MapperResourceType,
-    MapperResourceQuota,
-)
-from .cost_tracker import (
-    MapperCostTracker,
-    MappingCostEvent,
-)
-from .billing_manager import (
-    BillingManager,
-    BillingTier,
-    Invoice,
-    InvoiceStatus,
-    PaymentMethod,
-    UsageLineItem,
-)
-from .resource_manager import (
-    ResourceManager,
-    ResourceAllocation,
-    ResourceMetrics,
-    ScalingRecommendation,
-    ScalingAction,
+    get_shared_tenant_manager,
 )
 
-# Import service adapter
-from .service_adapter import TenantServiceAdapter, TenantInfo, TenantUsage
-
-# Global tenant service instance
-_tenant_service: Optional[TenantServiceAdapter] = None
-
-
-def get_tenant_service() -> Optional[TenantServiceAdapter]:
-    """Get the global tenant service instance."""
-    return _tenant_service
-
-
-def set_tenant_service(service: TenantServiceAdapter) -> None:
-    """Set the global tenant service instance."""
-    global _tenant_service
-    _tenant_service = service
-
+def get_tenant_service() -> MapperTenantManager:
+    """Get tenant service instance (alias for get_shared_tenant_manager)."""
+    return get_shared_tenant_manager()
 
 __all__ = [
-    # Tenant Management
     "MapperTenantManager",
-    "MapperTenantConfig",
-    "MapperResourceType",
-    "MapperResourceQuota",
-    "TenantServiceAdapter",
-    "TenantInfo",
-    "TenantUsage",
+    "get_shared_tenant_manager",
     "get_tenant_service",
-    "set_tenant_service",
-    # Cost Tracking
-    "MapperCostTracker",
-    "MappingCostEvent",
-    # Billing
-    "BillingManager",
-    "BillingTier",
-    "Invoice",
-    "InvoiceStatus",
-    "PaymentMethod",
-    "UsageLineItem",
-    # Resource Management
-    "ResourceManager",
-    "ResourceAllocation",
-    "ResourceMetrics",
-    "ScalingRecommendation",
-    "ScalingAction",
 ]

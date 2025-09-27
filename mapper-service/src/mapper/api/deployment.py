@@ -8,7 +8,7 @@ feature flags, and optimization pipelines.
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 
 # Import shared components
@@ -37,12 +37,44 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/deployment", tags=["deployment"])
 
 
-# Authentication dependency
-async def get_current_user(api_key: str = Depends(lambda: "dummy_key")):
-    """Get current authenticated user - placeholder implementation."""
-    # In a real implementation, this would validate the API key
-    # and return user information
-    return {"user_id": "system", "tenant_id": "default"}
+# Authentication dependency using shared components
+async def get_current_user(request: Request) -> Dict[str, Any]:
+    """Get current authenticated user using shared authentication."""
+    from ..shared_integration import validate_api_key, get_tenant_from_api_key
+    from fastapi import HTTPException
+    from typing import Optional
+
+    # Extract API key from header
+    api_key: Optional[str] = request.headers.get("X-API-Key")
+    if not api_key:
+        # Try Authorization header
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            api_key = auth_header[7:]
+
+    if not api_key:
+        raise HTTPException(
+            status_code=401, detail="API key required for deployment operations"
+        )
+
+    # Validate API key using shared validation
+    is_valid = await validate_api_key(api_key)
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # Get tenant information
+    tenant_id = await get_tenant_from_api_key(api_key)
+    if not tenant_id:
+        raise HTTPException(
+            status_code=401, detail="Unable to determine tenant from API key"
+        )
+
+    return {
+        "user_id": "api_key_user",
+        "tenant_id": tenant_id,
+        "api_key": api_key,
+        "authenticated": True,
+    }
 
 
 # Authorization dependency

@@ -2,12 +2,24 @@
 Analysis request and result schemas for the analysis service.
 
 This module defines the core data structures used for analysis requests
-and results throughout the analysis service.
+and results throughout the analysis service. Uses shared interfaces.
 """
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, validator
+
+# Import shared interfaces for consistency
+from ...shared_integration import (
+    CanonicalTaxonomyResult,
+    QualityMetrics,
+    PatternAnalysisResult,
+    RiskScoringResult,
+    ComplianceMappingResult,
+    RAGInsights,
+    ValidationError,
+)
 
 
 @dataclass
@@ -43,33 +55,62 @@ class AnalysisRequest:
     frameworks: List[str] = field(default_factory=list)
 
 
-@dataclass
-class AnalysisResult:
+class AnalysisResult(BaseModel):
     """
     Analysis result containing findings and assessments.
 
     This represents the output of analysis operations including
     risk scores, compliance assessments, and evidence.
+    Uses shared interfaces for consistency.
     """
 
     # Core result data
-    analysis_type: str
-    confidence: float
-    timestamp: datetime = field(default_factory=datetime.now)
+    analysis_type: str = Field(description="Type of analysis performed")
+    confidence: float = Field(description="Confidence score", ge=0.0, le=1.0)
+    timestamp: datetime = Field(default_factory=datetime.now, description="Analysis timestamp")
 
-    # Analysis outputs
-    risk_score: Optional[Dict[str, Any]] = None
-    compliance_assessment: Optional[Dict[str, Any]] = None
-    patterns: Optional[List[Dict[str, Any]]] = None
+    # Analysis outputs using shared interfaces
+    canonical_results: List[CanonicalTaxonomyResult] = Field(
+        default_factory=list, description="Canonical taxonomy results"
+    )
+    quality_metrics: Optional[QualityMetrics] = Field(
+        None, description="Quality metrics"
+    )
+    pattern_analysis: Optional[PatternAnalysisResult] = Field(
+        None, description="Pattern analysis results"
+    )
+    risk_scores: Optional[RiskScoringResult] = Field(
+        None, description="Risk scoring results"
+    )
+    compliance_mappings: Optional[List[ComplianceMappingResult]] = Field(
+        None, description="Compliance mapping results"
+    )
+    rag_insights: Optional[RAGInsights] = Field(
+        None, description="RAG-enhanced insights"
+    )
 
     # Supporting data
-    evidence: List[Dict[str, Any]] = field(default_factory=list)
-    recommendations: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    evidence: List[Dict[str, Any]] = Field(default_factory=list, description="Supporting evidence")
+    recommendations: List[Dict[str, Any]] = Field(default_factory=list, description="Recommendations")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
 
     # Quality metrics
-    processing_time: Optional[float] = None
-    data_quality_score: Optional[float] = None
+    processing_time: Optional[float] = Field(None, description="Processing time in seconds", ge=0)
+    data_quality_score: Optional[float] = Field(None, description="Data quality score", ge=0.0, le=1.0)
+
+    @validator("confidence", "data_quality_score")
+    def validate_confidence_scores(cls, v):
+        """Validate confidence and quality scores are in valid range."""
+        if v is not None and (v < 0.0 or v > 1.0):
+            raise ValidationError("Score must be between 0.0 and 1.0")
+        return v
+
+    @validator("analysis_type")
+    def validate_analysis_type(cls, v):
+        """Validate analysis type is not empty."""
+        if not v or not v.strip():
+            raise ValidationError("Analysis type cannot be empty")
+        return v.strip()
 
 
 @dataclass

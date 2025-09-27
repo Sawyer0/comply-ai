@@ -1,0 +1,50 @@
+{
+  "schema_name": "mapping_request",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "schema_definition": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "analysis_response": {
+            "type": "object"
+          },
+          "target_frameworks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "mapping_mode": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "fast",
+              "comprehensive"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "analysis_response",
+          "target_frameworks"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

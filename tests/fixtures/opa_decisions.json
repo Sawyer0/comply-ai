@@ -1,5 +1,0 @@
-{
-  "highest_confidence": {"strategy": "highest_confidence"},
-  "tenant_preference": {"strategy": "tenant_preference", "preferred_detector": "det-C"},
-  "malformed": {"unexpected": "shape"}
-}

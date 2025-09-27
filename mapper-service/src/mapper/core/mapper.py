@@ -8,11 +8,27 @@ taxonomy with framework adaptation.
 
 import asyncio
 import json
-import logging
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
+# Import shared components first
+from ..shared_integration import (
+    get_shared_logger,
+    get_shared_metrics,
+    get_shared_database,
+    CircuitBreaker,
+    validate_confidence_score,
+    validate_non_empty_string,
+    BaseServiceException,
+    ValidationError,
+    ServiceUnavailableError,
+    set_correlation_id,
+    get_correlation_id,
+    track_request_metrics,
+)
+
+# Import service-specific components
 from ..serving.model_server import ModelServer, create_model_server, GenerationConfig
 from ..serving.fallback_mapper import FallbackMapper
 from ..validation.validation_pipeline import ValidationPipeline
@@ -27,7 +43,8 @@ from ..resilience import (
     FallbackConfig,
 )
 
-logger = logging.getLogger(__name__)
+# Use shared logger
+logger = get_shared_logger(__name__)
 
 
 @dataclass
@@ -104,6 +121,7 @@ class CoreMapper:
             self.model_server = None
             self.is_initialized = True
 
+    @track_request_metrics
     async def map_detector_output(self, request: MappingRequest) -> MappingResponse:
         """
         Map detector output to canonical taxonomy.
@@ -114,6 +132,20 @@ class CoreMapper:
         Returns:
             MappingResponse: Mapped response with taxonomy and scores
         """
+        # Set correlation ID for request tracking
+        if hasattr(request, 'correlation_id') and request.correlation_id:
+            set_correlation_id(request.correlation_id)
+        
+        # Validate inputs using shared validators
+        try:
+            validate_non_empty_string(request.detector, "detector")
+            validate_non_empty_string(request.output, "output")
+            if request.confidence_threshold is not None:
+                validate_confidence_score(request.confidence_threshold)
+        except ValidationError as e:
+            logger.error("Input validation failed", error=str(e))
+            raise ValidationError(f"Invalid mapping request: {str(e)}")
+        
         if not self.is_initialized:
             await self.initialize()
 
@@ -142,6 +174,7 @@ class CoreMapper:
                         "Model-based mapping successful",
                         detector=context.detector,
                         confidence=getattr(validation_result, "confidence_score", 0.0),
+                        correlation_id=get_correlation_id(),
                     )
                     return response
 
@@ -151,6 +184,7 @@ class CoreMapper:
                         detector=context.detector,
                         reason=validation_result.fallback_reason,
                         errors=validation_result.output_errors,
+                        correlation_id=get_correlation_id(),
                     )
                     # Execute fallback through validation pipeline
                     fallback_response = self.components[
@@ -160,14 +194,32 @@ class CoreMapper:
                         return fallback_response
 
             # Fall back to rule-based mapping
-            logger.info("Using fallback mapping", detector=context.detector)
+            logger.info("Using fallback mapping", detector=context.detector, correlation_id=get_correlation_id())
             return self._fallback_mapping(context)
 
-        except (RuntimeError, ValueError, json.JSONDecodeError) as e:
+        except ValidationError as e:
             logger.error(
-                "Mapping failed, using fallback",
+                "Validation error in mapping, using fallback",
                 detector=context.detector,
                 error=str(e),
+                correlation_id=get_correlation_id(),
+            )
+            return self._fallback_mapping(context)
+        except ServiceUnavailableError as e:
+            logger.error(
+                "Service unavailable during mapping, using fallback", 
+                detector=context.detector,
+                error=str(e),
+                correlation_id=get_correlation_id(),
+            )
+            return self._fallback_mapping(context)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as e:
+            logger.error(
+                "Mapping failed with unexpected error, using fallback",
+                detector=context.detector,
+                error=str(e),
+                error_type=type(e).__name__,
+                correlation_id=get_correlation_id(),
             )
             return self._fallback_mapping(context)
 

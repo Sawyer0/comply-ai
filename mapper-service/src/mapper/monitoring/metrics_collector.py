@@ -15,7 +15,9 @@ import threading
 
 import structlog
 
-logger = structlog.get_logger(__name__)
+from ..shared_integration import get_shared_logger, get_shared_metrics, track_request_metrics
+
+logger = get_shared_logger(__name__)
 
 
 class MetricType(str, Enum):
@@ -80,6 +82,9 @@ class MetricsCollector:
         self._gauges: Dict[str, float] = {}
 
         self.logger = logger.bind(component="metrics_collector")
+        
+        # Integrate with shared metrics
+        self.shared_metrics = get_shared_metrics()
 
         # Start cleanup thread
         self._cleanup_thread = threading.Thread(
@@ -108,6 +113,16 @@ class MetricsCollector:
                     labels=labels or {},
                 )
             )
+            
+            # Also record in shared metrics
+            try:
+                self.shared_metrics.increment_request_count(
+                    method="mapper",
+                    endpoint=name,
+                    status="success" if labels and labels.get("status") == "success" else "info"
+                )
+            except Exception as e:
+                self.logger.warning("Failed to record metric in shared collector", error=str(e))
 
     def set_gauge(
         self, name: str, value: float, labels: Optional[Dict[str, str]] = None
