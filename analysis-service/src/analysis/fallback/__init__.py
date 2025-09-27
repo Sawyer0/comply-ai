@@ -8,4 +8,16 @@ This module provides:
 - Graceful degradation
 """
 
-__all__ = []
+from .rule_based import (
+    RuleBasedRiskAssessment,
+    RuleBasedPatternAnalysis,
+    RuleBasedComplianceMapping,
+    RuleResult,
+)
+
+__all__ = [
+    "RuleBasedRiskAssessment",
+    "RuleBasedPatternAnalysis",
+    "RuleBasedComplianceMapping",
+    "RuleResult",
+]

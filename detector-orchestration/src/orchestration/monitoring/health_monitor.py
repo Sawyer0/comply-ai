@@ -8,21 +8,11 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
-from enum import Enum
-
 from shared.utils.correlation import get_correlation_id
+from shared.interfaces.common import HealthStatus
+from ..utils.registry import run_registry_operation
 
 logger = logging.getLogger(__name__)
-
-
-class HealthStatus(str, Enum):
-    """Health status enumeration."""
-
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    UNKNOWN = "unknown"
-
 
 class HealthCheck:
     """Health check result - data structure only."""
@@ -77,84 +67,50 @@ class HealthMonitor:
         self._health_check_clients: Dict[str, Any] = {}
 
     def register_service(self, service_id: str, health_check_client: Any) -> bool:
-        """Register a service for health monitoring.
+        """Register a service for health monitoring."""
 
-        Args:
-            service_id: Unique identifier for the service
-            health_check_client: Client object that can perform health checks
+        context = {"service_id": service_id}
 
-        Returns:
-            True if registration successful
-        """
-        correlation_id = get_correlation_id()
-
-        try:
+        def _operation() -> bool:
             self._health_check_clients[service_id] = health_check_client
             self._health_status[service_id] = HealthStatus.UNKNOWN
             self._health_history[service_id] = []
             self._failure_counts[service_id] = 0
             self._last_check_time[service_id] = datetime.utcnow()
-
-            logger.info(
-                "Registered service %s for health monitoring",
-                service_id,
-                extra={"correlation_id": correlation_id, "service_id": service_id},
-            )
-
             return True
 
-        except Exception as e:
-            logger.error(
-                "Failed to register service %s for health monitoring: %s",
-                service_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "error": str(e),
-                },
-            )
-            return False
+        return run_registry_operation(
+            _operation,
+            logger=logger,
+            success_message="Registered service %s for health monitoring",
+            success_args=(service_id,),
+            error_message="Failed to register service %s for health monitoring",
+            error_args=(service_id,),
+            log_context=context,
+        )
 
     def unregister_service(self, service_id: str) -> bool:
-        """Unregister a service from health monitoring.
+        """Unregister a service from health monitoring."""
 
-        Args:
-            service_id: Unique identifier for the service
+        context = {"service_id": service_id}
 
-        Returns:
-            True if unregistration successful
-        """
-        correlation_id = get_correlation_id()
-
-        try:
-            # Remove from all tracking dictionaries
+        def _operation() -> bool:
             self._health_check_clients.pop(service_id, None)
             self._health_status.pop(service_id, None)
             self._health_history.pop(service_id, None)
             self._failure_counts.pop(service_id, None)
             self._last_check_time.pop(service_id, None)
-
-            logger.info(
-                "Unregistered service %s from health monitoring",
-                service_id,
-                extra={"correlation_id": correlation_id, "service_id": service_id},
-            )
-
             return True
 
-        except Exception as e:
-            logger.error(
-                "Failed to unregister service %s from health monitoring: %s",
-                service_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "error": str(e),
-                },
-            )
-            return False
+        return run_registry_operation(
+            _operation,
+            logger=logger,
+            success_message="Unregistered service %s from health monitoring",
+            success_args=(service_id,),
+            error_message="Failed to unregister service %s from health monitoring",
+            error_args=(service_id,),
+            log_context=context,
+        )
 
     async def check_service_health(self, service_id: str) -> HealthCheck:
         """Perform health check on a specific service.

@@ -25,6 +25,12 @@ from detector_orchestration.models import (
     RoutingPlan,
 )
 
+from tests.fixtures.test_data import (
+    build_orchestration_request,
+    build_routing_decision,
+    request_headers,
+)
+
 
 class MockDetector:
     """Mock detector for testing."""
@@ -76,39 +82,7 @@ def mock_detectors():
 @pytest.fixture
 def sample_orchestration_request() -> OrchestrationRequest:
     """Provide a sample orchestration request."""
-    return OrchestrationRequest(
-        content="This is test content for detector analysis",
-        content_type=ContentType.TEXT,
-        tenant_id="test-tenant",
-        policy_bundle="default",
-        environment="dev",
-        processing_mode=ProcessingMode.SYNC,
-        priority=Priority.NORMAL,
-        metadata={"test": True},
-    )
-
-
-def build_routing_decision(
-    selected_detectors: list[str],
-    *,
-    policy_bundle: str = "default",
-    tenant_id: str = "test-tenant",
-    coverage_requirements: dict[str, Any] | None = None,
-    routing_reason: str = "integration-test",
-    health_status: Iterable[str] | None = None,
-) -> RoutingDecision:
-    healthy_set = set(health_status or selected_detectors)
-    return RoutingDecision(
-        selected_detectors=selected_detectors,
-        routing_reason=routing_reason,
-        policy_applied=policy_bundle,
-        coverage_requirements=dict(
-            coverage_requirements or {"min_success_fraction": 1.0}
-        ),
-        health_status={
-            detector: detector in healthy_set for detector in selected_detectors
-        },
-    )
+    return build_orchestration_request()
 
 
 class TestOrchestrationEndToEnd:
@@ -192,10 +166,7 @@ class TestOrchestrationEndToEnd:
                         response = test_client.post(
                             "/orchestrate",
                             json=sample_orchestration_request.model_dump(),
-                            headers={
-                                "Authorization": "Bearer test-token",
-                                "X-Tenant-ID": "test-tenant",
-                            },
+                            headers=request_headers(),
                         )
 
                         assert response.status_code == 200
@@ -292,10 +263,7 @@ class TestOrchestrationEndToEnd:
                         response = test_client.post(
                             "/orchestrate",
                             json=sample_orchestration_request.model_dump(),
-                            headers={
-                                "Authorization": "Bearer test-token",
-                                "X-Tenant-ID": "test-tenant",
-                            },
+                            headers=request_headers(),
                         )
 
                         assert response.status_code == 502  # Communication failed
@@ -379,10 +347,7 @@ class TestOrchestrationEndToEnd:
                         response = test_client.post(
                             "/orchestrate",
                             json=sample_orchestration_request.model_dump(),
-                            headers={
-                                "Authorization": "Bearer test-token",
-                                "X-Tenant-ID": "test-tenant",
-                            },
+                            headers=request_headers(),
                         )
 
                         assert response.status_code == 206  # Partial content
@@ -409,10 +374,7 @@ class TestOrchestrationEndToEnd:
             response = test_client.post(
                 "/orchestrate",
                 json=sample_orchestration_request.model_dump(),
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "X-Tenant-ID": "test-tenant",
-                },
+                headers=request_headers(),
             )
 
             assert response.status_code == 202  # Accepted
@@ -463,10 +425,7 @@ class TestOrchestrationEndToEnd:
             response = test_client.post(
                 "/orchestrate/batch",
                 json={"requests": [req.model_dump() for req in batch_requests]},
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "X-Tenant-ID": "test-tenant",
-                },
+                headers=request_headers(),
             )
 
             assert response.status_code == 200
@@ -492,11 +451,7 @@ class TestOrchestrationEndToEnd:
             response = test_client.post(
                 "/orchestrate",
                 json=sample_orchestration_request.model_dump(),
-                headers={
-                    "Authorization": "Bearer test-token",
-                    "X-Tenant-ID": "test-tenant",
-                    "Idempotency-Key": idempotency_key,
-                },
+                headers=request_headers(idempotency_key=idempotency_key),
             )
 
             # Should return cached response
@@ -520,10 +475,7 @@ class TestOrchestrationEndToEnd:
                 response = test_client.post(
                     "/orchestrate",
                     json=sample_orchestration_request.model_dump(),
-                    headers={
-                        "Authorization": "Bearer test-token",
-                        "X-Tenant-ID": "test-tenant",
-                    },
+                    headers=request_headers(),
                 )
 
                 # Should return cached response
@@ -613,10 +565,7 @@ class TestOrchestrationEndToEnd:
                         response = test_client.post(
                             "/orchestrate",
                             json=sample_orchestration_request.model_dump(),
-                            headers={
-                                "Authorization": "Bearer test-token",
-                                "X-Tenant-ID": "test-tenant",
-                            },
+                            headers=request_headers(),
                         )
 
                         assert response.status_code == 200

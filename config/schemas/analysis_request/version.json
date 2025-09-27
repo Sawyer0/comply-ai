@@ -1,0 +1,17 @@
+{
+  "current_version": "1.1.0",
+  "history": [
+    {
+      "version": "1.1.0",
+      "created_at": "2025-09-25T16:08:21.141545+00:00",
+      "created_by": "system",
+      "change_type": "minor",
+      "changes": [
+        "Registered schema analysis_request v1.0.0"
+      ],
+      "backward_compatible": true,
+      "migration_notes": null,
+      "checksum": "c49d4d8c2a2805d6f14f178bfa0fede575481cf9c7ae5fadbb64a0af665d6c2e"
+    }
+  ]
+}

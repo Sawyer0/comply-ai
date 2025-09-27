@@ -5,6 +5,7 @@ Single Responsibility: Enforce tenant data isolation and access controls.
 """
 
 import logging
+import re
 from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -464,6 +465,33 @@ class TenantIsolationManager:
             and len(tenant_id) >= 3
             and len(tenant_id) <= 50
         )
+    
+    def validate_tenant_format(self, tenant_id: str) -> None:
+        """Validate tenant ID format with detailed error reporting.
+
+        Args:
+            tenant_id: Tenant identifier to validate
+
+        Raises:
+            ValidationError: If tenant ID format is invalid
+        """
+        if not tenant_id:
+            raise ValidationError("Tenant ID cannot be empty")
+
+        if not isinstance(tenant_id, str):
+            raise ValidationError("Tenant ID must be a string")
+
+        if len(tenant_id) < 3:
+            raise ValidationError("Tenant ID must be at least 3 characters")
+
+        if len(tenant_id) > 50:
+            raise ValidationError("Tenant ID cannot exceed 50 characters")
+
+        # Add regex validation for allowed characters
+        if not re.match(r"^[a-zA-Z0-9_-]+$", tenant_id):
+            raise ValidationError(
+                "Tenant ID can only contain letters, numbers, hyphens, and underscores"
+            )
 
     def _log_cross_tenant_access(
         self,

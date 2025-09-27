@@ -76,6 +76,8 @@ def retry_with_backoff(
                         await asyncio.sleep(delay)
 
                 # All attempts failed
+                if last_exception is None:
+                    last_exception = Exception("Function failed without capturing an exception")
                 logger.error(
                     "Function %s failed after %d attempts",
                     func.__name__,
@@ -130,6 +132,8 @@ def retry_with_backoff(
                         time.sleep(delay)
 
                 # All attempts failed
+                if last_exception is None:
+                    last_exception = Exception("Function failed without capturing an exception")
                 logger.error(
                     "Function %s failed after %d attempts",
                     func.__name__,

@@ -86,18 +86,34 @@ class MapperSettings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging level")
 
     class Config:
+        """Pydantic configuration for MapperSettings."""
+
         env_prefix = "MAPPER_"
         case_sensitive = False
 
+        @staticmethod
+        def get_env_prefix() -> str:
+            """Get environment variable prefix."""
+            return "MAPPER_"
+
+        @staticmethod
+        def is_case_sensitive() -> bool:
+            """Check if environment variables are case sensitive."""
+            return False
+
     @validator("model_backend")
+    @classmethod
     def validate_backend(cls, v):
+        """Validate model backend selection."""
         valid_backends = ["vllm", "tgi", "cpu"]
         if v.lower() not in valid_backends:
             raise ValueError(f"Backend must be one of: {valid_backends}")
         return v.lower()
 
     @validator("log_level")
+    @classmethod
     def validate_log_level(cls, v):
+        """Validate logging level selection."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of: {valid_levels}")
@@ -105,7 +121,11 @@ class MapperSettings(BaseSettings):
 
     def get_backend_kwargs(self) -> Dict[str, Any]:
         """Get backend-specific configuration."""
-        base_kwargs = self.backend_kwargs.copy()
+        # Handle FieldInfo by getting the actual value
+        backend_kwargs_value = (
+            self.backend_kwargs if isinstance(self.backend_kwargs, dict) else {}
+        )
+        base_kwargs = backend_kwargs_value.copy()
 
         if self.model_backend == "vllm":
             base_kwargs.setdefault("tensor_parallel_size", 1)
@@ -116,3 +136,9 @@ class MapperSettings(BaseSettings):
             base_kwargs.setdefault("device", "cpu")
 
         return base_kwargs
+
+    def get_environment_variable(
+        self, key: str, default: Optional[str] = None
+    ) -> Optional[str]:
+        """Get environment variable value."""
+        return os.getenv(key, default)

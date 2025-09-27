@@ -1,0 +1,10 @@
+{
+  "framework_name": "ISO27001",
+  "current_mappings": {
+    "PII.Contact.Email": "ISO27001.A.8.2.1.DataClassification",
+    "PII.Identity.Name": "ISO27001.A.8.2.1.DataClassification",
+    "PII.Financial.CreditCard": "ISO27001.A.8.2.1.DataClassification",
+    "SECURITY.Access.Unauthorized": "ISO27001.A.9.1.1.AccessControlPolicy",
+    "SECURITY.Credentials.Password": "ISO27001.A.9.2.1.UserRegistration"
+  }
+}

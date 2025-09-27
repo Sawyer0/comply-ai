@@ -287,8 +287,75 @@ class OptimizationStrategy:
     async def suggest_parameters(
         self, iteration: int, previous_results: List[OptimizationResult]
     ) -> Dict[str, Any]:
-        """Suggest next parameters to try."""
-        raise NotImplementedError
+        """Suggest next parameters to try using Bayesian optimization approach."""
+        try:
+            import random
+            from typing import Union
+            
+            # If no previous results, use random parameters from search space
+            if not previous_results or iteration == 0:
+                return self._sample_random_parameters()
+            
+            # For subsequent iterations, use simple optimization heuristics
+            best_result = max(previous_results, key=lambda r: r.score)
+            best_params = best_result.parameters
+            
+            # Generate variations around the best parameters
+            suggested_params = {}
+            for param_name, param_config in self.search_space.items():
+                current_value = best_params.get(param_name)
+                
+                if param_config["type"] == "float":
+                    min_val = param_config["min"]
+                    max_val = param_config["max"]
+                    
+                    if current_value is not None:
+                        # Add gaussian noise around current best value
+                        std_dev = (max_val - min_val) * 0.1  # 10% of range
+                        new_value = random.gauss(current_value, std_dev)
+                        suggested_params[param_name] = max(min_val, min(max_val, new_value))
+                    else:
+                        suggested_params[param_name] = random.uniform(min_val, max_val)
+                        
+                elif param_config["type"] == "int":
+                    min_val = param_config["min"]
+                    max_val = param_config["max"]
+                    
+                    if current_value is not None:
+                        # Small random variation around current value
+                        variation = max(1, int((max_val - min_val) * 0.1))
+                        new_value = current_value + random.randint(-variation, variation)
+                        suggested_params[param_name] = max(min_val, min(max_val, new_value))
+                    else:
+                        suggested_params[param_name] = random.randint(min_val, max_val)
+                        
+                elif param_config["type"] == "choice":
+                    choices = param_config["choices"]
+                    if current_value in choices and random.random() > 0.3:  # 70% chance to keep current
+                        suggested_params[param_name] = current_value
+                    else:
+                        suggested_params[param_name] = random.choice(choices)
+                        
+            return suggested_params
+            
+        except Exception as e:
+            logger.error("Failed to suggest parameters, using random fallback", error=str(e))
+            return self._sample_random_parameters()
+    
+    def _sample_random_parameters(self) -> Dict[str, Any]:
+        """Sample random parameters from search space."""
+        import random
+        
+        params = {}
+        for param_name, param_config in self.search_space.items():
+            if param_config["type"] == "float":
+                params[param_name] = random.uniform(param_config["min"], param_config["max"])
+            elif param_config["type"] == "int":
+                params[param_name] = random.randint(param_config["min"], param_config["max"])
+            elif param_config["type"] == "choice":
+                params[param_name] = random.choice(param_config["choices"])
+                
+        return params
 
     def calculate_score(self, metrics: Dict[MetricType, float]) -> float:
         """Calculate optimization score from metrics."""

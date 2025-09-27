@@ -10,6 +10,7 @@ import json
 from typing import Dict, List, Optional, Any
 
 from shared.utils.correlation import get_correlation_id
+from ..service import DetectorRegistrationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class DetectorCLI:
             Result message
         """
         try:
-            success = await self.service.register_detector(
+            registration = DetectorRegistrationConfig(
                 detector_id=detector_id,
                 endpoint=endpoint,
                 detector_type=detector_type,
@@ -102,6 +103,7 @@ class DetectorCLI:
                 max_retries=max_retries,
                 supported_content_types=content_types or ["text"],
             )
+            success = await self.service.register_detector(registration)
 
             if success:
                 return f"Successfully registered detector '{detector_id}' at {endpoint}"

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
+from shared.interfaces.mapper import MappingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class FallbackMapper:
 
     def map(
         self, detector: str, output: str, reason: str = "low_confidence"
-    ) -> "MappingResponse":
+    ) -> MappingResponse:
         """
         Map detector output using rule-based mappings.
 
@@ -84,7 +85,15 @@ class FallbackMapper:
             MappingResponse: Mapped response
         """
         # Import here to avoid circular dependency
-        from ..schemas.models import MappingResponse, Provenance
+        from shared.interfaces.analysis import CanonicalTaxonomyResult
+        from shared.interfaces.mapper import (
+            MappingResult,
+            ComplianceMapping,
+            ValidationResult,
+            CostMetrics,
+            ModelMetrics,
+            ComplianceStatus,
+        )
 
         # Track fallback usage
         self._track_usage(detector, reason)
@@ -103,26 +112,24 @@ class FallbackMapper:
         # Try exact match first
         canonical_label = detector_maps.get(output)
         if canonical_label:
-            return MappingResponse(
-                taxonomy=[canonical_label],
-                scores={canonical_label: 1.0},
-                confidence=0.8,  # High confidence for exact rule match
-                notes=f"Rule-based mapping (exact): {output} -> {canonical_label}",
-                provenance=Provenance(detector=detector, raw_ref=output),
-                version_info=None,
+            return self._create_mapping_response(
+                canonical_label,
+                detector,
+                output,
+                0.8,
+                f"Rule-based mapping (exact): {output} -> {canonical_label}",
             )
 
         # Try case-insensitive match
         output_lower = output.lower()
         for rule_output, canonical_label in detector_maps.items():
             if rule_output.lower() == output_lower:
-                return MappingResponse(
-                    taxonomy=[canonical_label],
-                    scores={canonical_label: 1.0},
-                    confidence=0.7,  # Slightly lower confidence for case-insensitive match
-                    notes=f"Rule-based mapping (case-insensitive): {output} -> {canonical_label}",
-                    provenance=Provenance(detector=detector, raw_ref=output),
-                    version_info=None,
+                return self._create_mapping_response(
+                    canonical_label,
+                    detector,
+                    output,
+                    0.7,
+                    f"Rule-based mapping (case-insensitive): {output} -> {canonical_label}",
                 )
 
         # Try partial match
@@ -131,13 +138,12 @@ class FallbackMapper:
                 rule_output.lower() in output_lower
                 or output_lower in rule_output.lower()
             ):
-                return MappingResponse(
-                    taxonomy=[canonical_label],
-                    scores={canonical_label: 0.8},
-                    confidence=0.5,  # Lower confidence for partial match
-                    notes=f"Rule-based mapping (partial): {output} -> {canonical_label}",
-                    provenance=Provenance(detector=detector, raw_ref=output),
-                    version_info=None,
+                return self._create_mapping_response(
+                    canonical_label,
+                    detector,
+                    output,
+                    0.5,
+                    f"Rule-based mapping (partial): {output} -> {canonical_label}",
                 )
 
         # No match found
@@ -146,9 +152,92 @@ class FallbackMapper:
         )
         return self._create_unknown_response(detector, output, reason)
 
+    def _create_mapping_response(
+        self,
+        canonical_label: str,
+        detector: str,
+        output: str,
+        confidence: float,
+        recommendation: str,
+    ) -> MappingResponse:
+        """Create a standardized mapping response."""
+        from shared.interfaces.analysis import CanonicalTaxonomyResult
+        from shared.interfaces.mapper import (
+            MappingResult,
+            ComplianceMapping,
+            ValidationResult,
+            CostMetrics,
+            ModelMetrics,
+            ComplianceStatus,
+        )
+
+        # Create canonical result
+        canonical_result = CanonicalTaxonomyResult(
+            canonical_labels=[canonical_label],
+            confidence_scores={canonical_label: confidence},
+            overall_confidence=confidence,
+            metadata={"raw_output": output},
+        )
+
+        # Create framework mapping
+        framework_mapping = ComplianceMapping(
+            framework="canonical",
+            control_id=canonical_label,
+            control_name=canonical_label,
+            requirement=f"Rule-based mapping from {detector}",
+            evidence_type="detector_output",
+            compliance_status=ComplianceStatus.COMPLIANT,
+            confidence=confidence,
+            metadata={"detector": detector, "raw_ref": output},
+        )
+
+        # Create validation result
+        validation_result = ValidationResult(
+            is_valid=True,
+            schema_compliance=True,
+            confidence_threshold_met=confidence >= 0.5,
+            validation_errors=[],
+            validation_warnings=[],
+        )
+
+        # Create mapping result
+        mapping_result = MappingResult(
+            canonical_result=canonical_result,
+            framework_mappings=[framework_mapping],
+            confidence=confidence,
+            validation_result=validation_result,
+            fallback_used=True,
+        )
+
+        # Create cost and model metrics
+        cost_metrics = CostMetrics(
+            tokens_processed=0,
+            inference_cost=0.0,
+            storage_cost=0.0,
+            total_cost=0.0,
+            cost_per_request=0.0,
+        )
+
+        model_metrics = ModelMetrics(
+            model_name="fallback_mapper",
+            model_version="1.0.0",
+            inference_time_ms=1.0,
+            gpu_utilization=0.0,
+            memory_usage_mb=1,
+            batch_size=1,
+        )
+
+        return MappingResponse(
+            mapping_results=[mapping_result],
+            overall_confidence=confidence,
+            cost_metrics=cost_metrics,
+            model_metrics=model_metrics,
+            recommendations=[recommendation],
+        )
+
     def _create_unknown_response(
         self, detector: str, output: str, reason: str = "unknown"
-    ) -> "MappingResponse":
+    ) -> MappingResponse:
         """
         Create response for unknown/unmapped outputs.
 
@@ -160,16 +249,12 @@ class FallbackMapper:
         Returns:
             MappingResponse: Unknown response
         """
-        # Import here to avoid circular dependency
-        from ..schemas.models import MappingResponse, Provenance
-
-        return MappingResponse(
-            taxonomy=["OTHER.Unknown"],
-            scores={"OTHER.Unknown": 0.0},
-            confidence=0.0,
-            notes=f"No mapping found for detector {detector} output: {output} (reason: {reason})",
-            provenance=Provenance(detector=detector, raw_ref=output),
-            version_info=None,
+        return self._create_mapping_response(
+            "OTHER.Unknown",
+            detector,
+            output,
+            0.0,
+            f"No mapping found for detector {detector} output: {output} (reason: {reason})",
         )
 
     def _track_usage(self, detector: str, reason: str) -> None:

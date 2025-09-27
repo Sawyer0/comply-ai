@@ -8,7 +8,7 @@ Follows SRP by focusing solely on logging metadata without raw content.
 import logging
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, asdict
 
 from .content_scrubber import ContentScrubber

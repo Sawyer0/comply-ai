@@ -8,6 +8,7 @@ batch processing operations, and job monitoring.
 from fastapi import APIRouter, HTTPException, Depends, Header, Body, Query
 from typing import Dict, List, Any, Optional
 import logging
+import time
 from datetime import datetime
 
 from ..pipelines.batch_processor import (

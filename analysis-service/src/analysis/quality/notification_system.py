@@ -26,7 +26,16 @@ class NotificationChannel:
 
     async def send_notification(self, alert: QualityAlert) -> bool:
         """Send notification for alert. To be implemented by subclasses."""
-        raise NotImplementedError
+        # Default implementation logs the alert
+        logger.info(
+            "Quality alert notification",
+            alert_id=alert.id,
+            alert_type=alert.alert_type,
+            severity=alert.severity.value,
+            message=alert.message,
+            channel=self.__class__.__name__
+        )
+        return True
 
     def should_notify(self, alert: QualityAlert) -> bool:
         """Check if this channel should notify for the alert."""

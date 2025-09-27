@@ -6,11 +6,52 @@ Single Responsibility: Maintain registry of available detector services and thei
 
 import logging
 from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from shared.utils.correlation import get_correlation_id
+from ..utils.registry import run_registry_operation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ServiceMetadata:
+    """Typed metadata stored alongside service registrations."""
+
+    timeout_ms: int = 5000
+    max_retries: int = 3
+    supported_content_types: List[str] = field(default_factory=list)
+    analyze_path: Optional[str] = "/analyze"
+    response_parser: Optional[str] = None
+    auth_headers: Optional[Dict[str, str]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize metadata to a dictionary."""
+        payload: Dict[str, Any] = {
+            "timeout_ms": self.timeout_ms,
+            "max_retries": self.max_retries,
+            "supported_content_types": self.supported_content_types,
+            "analyze_path": self.analyze_path,
+            "response_parser": self.response_parser,
+        }
+        if self.auth_headers is not None:
+            payload["auth_headers"] = self.auth_headers
+        return payload
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "ServiceMetadata":
+        """Create metadata from a raw dictionary."""
+        if not data:
+            return cls()
+        return cls(
+            timeout_ms=int(data.get("timeout_ms", 5000)),
+            max_retries=int(data.get("max_retries", 3)),
+            supported_content_types=list(data.get("supported_content_types", [])),
+            analyze_path=data.get("analyze_path", "/analyze"),
+            response_parser=data.get("response_parser"),
+            auth_headers=data.get("auth_headers"),
+        )
 
 
 class ServiceEndpoint:
@@ -60,21 +101,16 @@ class ServiceDiscoveryManager:
         version: str = "1.0.0",
         metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Register a service in the discovery registry.
+        """Register a service in the discovery registry."""
 
-        Args:
-            service_id: Unique identifier for the service
-            endpoint_url: URL endpoint for the service
-            service_type: Type/category of the service
-            version: Service version
-            metadata: Additional service metadata
+        context = {
+            "service_id": service_id,
+            "service_type": service_type,
+            "endpoint_url": endpoint_url,
+            "version": version,
+        }
 
-        Returns:
-            True if registration successful, False otherwise
-        """
-        correlation_id = get_correlation_id()
-
-        try:
+        def _operation() -> bool:
             endpoint = ServiceEndpoint(
                 service_id=service_id,
                 endpoint_url=endpoint_url,
@@ -83,104 +119,63 @@ class ServiceDiscoveryManager:
                 metadata=metadata,
             )
 
-            # Add to registry
             self._service_registry[service_id] = endpoint
 
-            # Add to type index
             if service_type not in self._service_types:
                 self._service_types[service_type] = []
 
             if service_id not in self._service_types[service_type]:
                 self._service_types[service_type].append(service_id)
 
-            logger.info(
-                "Registered service %s of type %s at %s",
-                service_id,
-                service_type,
-                endpoint_url,
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "service_type": service_type,
-                    "endpoint_url": endpoint_url,
-                    "version": version,
-                },
-            )
-
             return True
 
-        except Exception as e:
-            logger.error(
-                "Failed to register service %s: %s",
-                service_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "error": str(e),
-                },
-            )
-            return False
+        return run_registry_operation(
+            _operation,
+            logger=logger,
+            success_message="Registered service %s of type %s at %s",
+            success_args=(service_id, service_type, endpoint_url),
+            error_message="Failed to register service %s",
+            error_args=(service_id,),
+            log_context=context,
+        )
 
     def unregister_service(self, service_id: str) -> bool:
-        """Unregister a service from the discovery registry.
+        """Unregister a service from the discovery registry."""
 
-        Args:
-            service_id: Unique identifier for the service to unregister
-
-        Returns:
-            True if unregistration successful, False otherwise
-        """
-        correlation_id = get_correlation_id()
-
-        try:
-            if service_id not in self._service_registry:
-                logger.warning(
-                    "Attempted to unregister unknown service %s",
-                    service_id,
-                    extra={"correlation_id": correlation_id, "service_id": service_id},
-                )
-                return False
-
-            endpoint = self._service_registry[service_id]
-            service_type = endpoint.service_type
-
-            # Remove from registry
-            del self._service_registry[service_id]
-
-            # Remove from type index
-            if service_type in self._service_types:
-                if service_id in self._service_types[service_type]:
-                    self._service_types[service_type].remove(service_id)
-
-                # Clean up empty type lists
-                if not self._service_types[service_type]:
-                    del self._service_types[service_type]
-
-            logger.info(
-                "Unregistered service %s",
+        if service_id not in self._service_registry:
+            correlation_id = get_correlation_id()
+            logger.warning(
+                "Attempted to unregister unknown service %s",
                 service_id,
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "service_type": service_type,
-                },
+                extra={"correlation_id": correlation_id, "service_id": service_id},
             )
+            return False
+
+        context: Dict[str, Any] = {"service_id": service_id}
+
+        def _operation() -> bool:
+            endpoint = self._service_registry.pop(service_id)
+            service_type = endpoint.service_type
+            context["service_type"] = service_type
+
+            if service_type in self._service_types:
+                service_ids = self._service_types[service_type]
+                if service_id in service_ids:
+                    service_ids.remove(service_id)
+                if not service_ids:
+                    del self._service_types[service_type]
 
             return True
 
-        except Exception as e:
-            logger.error(
-                "Failed to unregister service %s: %s",
-                service_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "service_id": service_id,
-                    "error": str(e),
-                },
-            )
-            return False
+        return run_registry_operation(
+            _operation,
+            logger=logger,
+            success_message="Unregistered service %s",
+            success_args=(service_id,),
+            error_message="Failed to unregister service %s",
+            error_args=(service_id,),
+            log_context=context,
+        )
 
     def discover_services(
         self, service_type: Optional[str] = None
@@ -300,4 +295,5 @@ class ServiceDiscoveryManager:
 __all__ = [
     "ServiceDiscoveryManager",
     "ServiceEndpoint",
+    "ServiceMetadata",
 ]

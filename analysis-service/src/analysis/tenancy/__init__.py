@@ -1,33 +1,16 @@
 """
-Multi-tenancy support for Analysis Service.
+Tenancy components for analysis service.
 
-This module provides comprehensive multi-tenancy capabilities including:
-- Tenant configuration management
-- Resource quota enforcement
-- Tenant-specific analytics tracking
-- Data isolation
+This package provides tenant isolation and management functionality
+that integrates with shared components for consistent tenant handling.
 """
 
-from .models import (
-    TenantConfiguration,
-    TenantStatus,
-    ResourceType,
-    ResourceQuota,
-    TenantAnalytics,
-    TenantRequest,
-    QuotaRequest,
+from .shared_tenant_manager import (
+    AnalysisTenantManager,
+    get_shared_tenant_manager,
 )
-from .manager import TenantManager
-from .analytics import AnalyticsManager
 
 __all__ = [
-    "TenantConfiguration",
-    "TenantStatus",
-    "ResourceType",
-    "ResourceQuota",
-    "TenantAnalytics",
-    "TenantRequest",
-    "QuotaRequest",
-    "TenantManager",
-    "AnalyticsManager",
+    "AnalysisTenantManager",
+    "get_shared_tenant_manager",
 ]

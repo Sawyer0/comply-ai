@@ -5,6 +5,13 @@ This module provides taxonomy systems for pattern recognition,
 risk assessment, and compliance analysis.
 """
 
+# Import centralized taxonomy system
+from shared.taxonomy import (
+    canonical_taxonomy,
+    schema_evolution_manager,
+    framework_mapping_registry,
+)
+
 from .pattern_taxonomy import (
     PatternTaxonomy,
     PatternType,
@@ -22,4 +29,7 @@ __all__ = [
     "RiskCategory",
     "RiskLevel",
     "RiskFactor",
+    "canonical_taxonomy",
+    "schema_evolution_manager",
+    "framework_mapping_registry",
 ]

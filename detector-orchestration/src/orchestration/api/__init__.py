@@ -1,13 +1,15 @@
-"""API endpoints for orchestration service.
+"""API endpoints for orchestration service following SRP.
 
-This module provides HTTP API endpoints following SRP:
+This module provides HTTP API endpoints with clear separation of concerns:
 - OrchestrationAPI: Main orchestration endpoints
 - DetectorAPI: Detector management endpoints
-- HealthAPI: Health check endpoints
-- PolicyAPI: Policy management endpoints
+- HealthAPI: Health check and monitoring endpoints
+- Dependencies: Shared dependency injection functions
 """
 
-# API endpoints will be implemented in separate task
-# For now, this module is a placeholder
+from .orchestration_api import router as orchestration_router
+from .detector_api import router as detector_router
+from .health_api import router as health_router
+from . import dependencies
 
-__all__ = []
+__all__ = ["orchestration_router", "detector_router", "health_router", "dependencies"]

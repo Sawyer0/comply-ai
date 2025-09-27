@@ -113,8 +113,8 @@ class EmbeddingsManager:
                         self.cache_hits += 1
                         continue
 
-                # Text not in cache
-                embeddings.append(None)  # Placeholder
+                # Text not in cache - add placeholder for now
+                embeddings.append(None)  # Will be replaced with actual embedding
                 uncached_texts.append(text)
                 uncached_indices.append(i)
                 self.cache_misses += 1

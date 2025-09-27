@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import yaml
+from shared.taxonomy import framework_mapping_registry
 
 from ..schemas.models import MappingResponse
 
@@ -29,41 +30,39 @@ class FrameworkAdapter:
         Args:
             frameworks_path: Path to framework configuration directory
         """
+        # Use centralized framework mapping system
+        self.framework_registry = framework_mapping_registry
+
+        # Legacy support - maintain interface compatibility
         self.frameworks_path = Path(frameworks_path)
         self.framework_mappings: Dict[str, Dict[str, str]] = {}
-        self.load_frameworks()
+        self._sync_from_registry()
+
+    def _sync_from_registry(self) -> None:
+        """Sync from centralized framework mapping registry."""
+        try:
+            # Get all supported frameworks from registry
+            supported_frameworks = self.framework_registry.get_supported_frameworks()
+
+            self.framework_mappings = {}
+            for framework_name in supported_frameworks:
+                mappings = self.framework_registry.get_framework_mappings(
+                    framework_name
+                )
+                if mappings:
+                    self.framework_mappings[framework_name] = mappings
+
+            logger.info(
+                "Synced %d frameworks from registry", len(self.framework_mappings)
+            )
+
+        except (AttributeError, KeyError, TypeError) as e:
+            logger.error("Failed to sync from framework registry: %s", str(e))
+            self._load_default_frameworks()
 
     def load_frameworks(self) -> None:
-        """Load framework mappings from configuration files."""
-        try:
-            if not self.frameworks_path.exists():
-                logger.warning(f"Frameworks path not found: {self.frameworks_path}")
-                self._load_default_frameworks()
-                return
-
-            framework_files = list(self.frameworks_path.glob("*.yaml"))
-            framework_files.extend(list(self.frameworks_path.glob("*.yml")))
-
-            for framework_file in framework_files:
-                try:
-                    with open(framework_file, "r") as f:
-                        config = yaml.safe_load(f)
-
-                    framework_name = config.get("framework", {}).get("name")
-                    if framework_name and "mappings" in config:
-                        self.framework_mappings[framework_name] = config["mappings"]
-                        logger.info("Loaded framework: %s", framework_name)
-
-                except Exception as e:
-                    logger.warning(
-                        "Failed to load framework file %s: %s", framework_file, str(e)
-                    )
-
-            logger.info("Loaded %d frameworks", len(self.framework_mappings))
-
-        except Exception as e:
-            logger.error("Failed to load frameworks: %s", str(e))
-            self._load_default_frameworks()
+        """Load frameworks - delegates to centralized registry."""
+        self._sync_from_registry()
 
     def _load_default_frameworks(self) -> None:
         """Load default framework mappings."""
@@ -159,7 +158,7 @@ class FrameworkAdapter:
         Returns:
             List[str]: List of framework names
         """
-        return list(self.framework_mappings.keys())
+        return self.framework_registry.get_supported_frameworks()
 
     def get_framework_mappings(self, framework: str) -> Optional[Dict[str, str]]:
         """
@@ -171,7 +170,7 @@ class FrameworkAdapter:
         Returns:
             Optional[Dict[str, str]]: Framework mappings or None
         """
-        return self.framework_mappings.get(framework)
+        return self.framework_registry.get_framework_mappings(framework)
 
     def add_framework_mapping(self, framework: str, mappings: Dict[str, str]) -> None:
         """
@@ -181,7 +180,17 @@ class FrameworkAdapter:
             framework: Framework name
             mappings: Dictionary of canonical -> framework label mappings
         """
-        self.framework_mappings[framework] = mappings
+        # Delegate to centralized registry
+        from shared.taxonomy import ChangeType
+
+        self.framework_registry.create_new_framework_version(
+            framework,
+            mappings,
+            ChangeType.MINOR,
+            [f"Updated mappings via framework adapter"],
+            "mapper-service",
+        )
+        self._sync_from_registry()
         logger.info("Added/updated framework mappings: %s", framework)
 
     def get_reverse_mapping(self, framework: str) -> Dict[str, str]:
@@ -194,11 +203,9 @@ class FrameworkAdapter:
         Returns:
             Dict[str, str]: Reverse mapping
         """
-        forward_mapping = self.framework_mappings.get(framework, {})
-        return {v: k for k, v in forward_mapping.items()}
+        return self.framework_registry.get_reverse_mapping(framework)
 
     def reload_frameworks(self) -> None:
-        """Reload framework mappings from files."""
-        logger.info("Reloading framework mappings")
-        self.framework_mappings.clear()
-        self.load_frameworks()
+        """Reload framework mappings from centralized registry."""
+        logger.info("Reloading framework mappings from registry")
+        self._sync_from_registry()

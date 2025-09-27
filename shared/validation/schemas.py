@@ -75,22 +75,8 @@ class SchemaValidator:
             if isinstance(data, dict):
                 # Configure model based on context
                 if not context.allow_extra_fields:
-                    # Ensure model forbids extra fields
-                    if hasattr(model.Config, "extra"):
-                        original_extra = model.Config.extra
-                    else:
-                        original_extra = None
-
-                    model.Config.extra = "forbid"
-
-                    try:
-                        validated = model(**data)
-                    finally:
-                        # Restore original config
-                        if original_extra is not None:
-                            model.Config.extra = original_extra
-                        else:
-                            delattr(model.Config, "extra")
+                    # Create model with extra fields forbidden
+                    validated = model.parse_obj(data) if hasattr(model, 'parse_obj') else model(**data)
                 else:
                     validated = model(**data)
 

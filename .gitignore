@@ -127,5 +127,4 @@ tmp/
 *.hdf5
 
 # Cache directories
-.cache/
-cache/
+

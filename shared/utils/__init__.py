@@ -7,6 +7,16 @@ from .circuit_breaker import CircuitBreaker
 from .middleware import CorrelationMiddleware
 from .logging import configure_logging
 from .metrics import MetricsCollector
+from .cache import (
+    CacheBackend,
+    RedisCache,
+    MemoryCache,
+    IdempotencyCache,
+    ResponseCache,
+    create_cache_backend,
+    create_idempotency_cache,
+    create_response_cache,
+)
 
 __all__ = [
     "get_correlation_id",
@@ -19,4 +29,13 @@ __all__ = [
     "CorrelationMiddleware",
     "configure_logging",
     "MetricsCollector",
+    # Cache utilities
+    "CacheBackend",
+    "RedisCache",
+    "MemoryCache",
+    "IdempotencyCache",
+    "ResponseCache",
+    "create_cache_backend",
+    "create_idempotency_cache",
+    "create_response_cache",
 ]

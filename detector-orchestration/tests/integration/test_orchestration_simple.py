@@ -16,6 +16,12 @@ from detector_orchestration.models import (
     ProcessingMode,
 )
 
+from tests.fixtures.test_data import (
+    build_batch_requests,
+    build_orchestration_request,
+    request_headers,
+)
+
 
 @pytest.fixture
 def test_client():
@@ -27,16 +33,7 @@ def test_client():
 @pytest.fixture
 def sample_request():
     """Provide a sample orchestration request."""
-    return OrchestrationRequest(
-        content="This is test content for detector analysis",
-        content_type=ContentType.TEXT,
-        tenant_id="test-tenant",
-        policy_bundle="default",
-        environment="dev",
-        processing_mode=ProcessingMode.SYNC,
-        priority=Priority.NORMAL,
-        metadata={"test": True},
-    )
+    return build_orchestration_request()
 
 
 class TestOrchestrationAPI:
@@ -71,10 +68,7 @@ class TestOrchestrationAPI:
         response = test_client.post(
             "/orchestrate",
             json=sample_request.model_dump(),
-            headers={
-                "Authorization": "Bearer test-token",
-                "X-Tenant-ID": "test-tenant",
-            },
+            headers=request_headers(),
         )
         
         # The endpoint should respond (even if it fails due to missing detectors)
@@ -87,25 +81,12 @@ class TestOrchestrationAPI:
 
     def test_orchestrate_batch_endpoint_basic(self, test_client):
         """Test basic batch orchestration endpoint functionality."""
-        batch_requests = [
-            OrchestrationRequest(
-                content=f"Test content {i}",
-                content_type=ContentType.TEXT,
-                tenant_id="test-tenant",
-                policy_bundle="default",
-                environment="dev",
-                priority=Priority.NORMAL,
-            ).model_dump()
-            for i in range(2)
-        ]
+        batch_requests = build_batch_requests()
         
         response = test_client.post(
             "/orchestrate/batch",
             json={"requests": batch_requests},
-            headers={
-                "Authorization": "Bearer test-token",
-                "X-Tenant-ID": "test-tenant",
-            },
+            headers=request_headers(),
         )
         
         # The endpoint should respond (even if it fails due to missing detectors)
@@ -125,10 +106,7 @@ class TestOrchestrationAPI:
         response = test_client.post(
             "/orchestrate",
             json={"invalid": "data"},
-            headers={
-                "Authorization": "Bearer test-token",
-                "X-Tenant-ID": "test-tenant",
-            },
+            headers=request_headers(),
         )
         
         # Should return validation error

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set
 
 import yaml
+from shared.taxonomy import canonical_taxonomy
 
 logger = logging.getLogger(__name__)
 
@@ -27,34 +28,55 @@ class TaxonomyManager:
         Args:
             taxonomy_path: Path to taxonomy configuration file
         """
+        # Use centralized taxonomy system
+        self.canonical_taxonomy = canonical_taxonomy
+
+        # Legacy support - maintain interface compatibility
         self.taxonomy_path = Path(taxonomy_path)
         self.taxonomy: Dict[str, Dict] = {}
         self.valid_labels: Set[str] = set()
-        self.load_taxonomy()
+        self._sync_from_canonical()
 
-    def load_taxonomy(self) -> None:
-        """Load taxonomy from configuration file."""
+    def _sync_from_canonical(self) -> None:
+        """Sync from centralized canonical taxonomy."""
         try:
-            if not self.taxonomy_path.exists():
-                logger.warning(f"Taxonomy file not found: {self.taxonomy_path}")
-                self._load_default_taxonomy()
-                return
+            # Convert canonical taxonomy to legacy format for compatibility
+            self.taxonomy = {}
 
-            with open(self.taxonomy_path, "r") as f:
-                config = yaml.safe_load(f)
+            for category_name, category in self.canonical_taxonomy.categories.items():
+                if category.deprecated:
+                    continue
 
-            self.taxonomy = config.get("taxonomy", {})
-            self._build_valid_labels()
+                self.taxonomy[category_name] = {
+                    "description": category.description,
+                    "subcategories": {},
+                }
+
+                for subcat_name, subcategory in category.subcategories.items():
+                    if subcategory.deprecated:
+                        continue
+
+                    self.taxonomy[category_name]["subcategories"][subcat_name] = {
+                        "description": subcategory.description,
+                        "types": subcategory.types,
+                    }
+
+            # Use canonical valid labels
+            self.valid_labels = self.canonical_taxonomy.valid_labels.copy()
 
             logger.info(
-                "Loaded taxonomy with %d categories and %d total labels",
+                "Synced from canonical taxonomy: %d categories and %d total labels",
                 len(self.taxonomy),
                 len(self.valid_labels),
             )
 
-        except Exception as e:
-            logger.error("Failed to load taxonomy: %s", str(e))
+        except (AttributeError, KeyError, TypeError) as e:
+            logger.error("Failed to sync from canonical taxonomy: %s", str(e))
             self._load_default_taxonomy()
+
+    def load_taxonomy(self) -> None:
+        """Load taxonomy - delegates to canonical system."""
+        self._sync_from_canonical()
 
     def _load_default_taxonomy(self) -> None:
         """Load default taxonomy if file is not available."""
@@ -139,7 +161,7 @@ class TaxonomyManager:
         Returns:
             bool: True if label is valid
         """
-        return label in self.valid_labels
+        return self.canonical_taxonomy.is_valid_label(label)
 
     def get_category(self, label: str) -> Optional[str]:
         """
@@ -151,10 +173,7 @@ class TaxonomyManager:
         Returns:
             Optional[str]: Category name or None
         """
-        parts = label.split(".")
-        if len(parts) >= 1:
-            return parts[0]
-        return None
+        return self.canonical_taxonomy.get_category(label)
 
     def get_subcategory(self, label: str) -> Optional[str]:
         """
@@ -166,10 +185,7 @@ class TaxonomyManager:
         Returns:
             Optional[str]: Subcategory name or None
         """
-        parts = label.split(".")
-        if len(parts) >= 2:
-            return parts[1]
-        return None
+        return self.canonical_taxonomy.get_subcategory(label)
 
     def get_type(self, label: str) -> Optional[str]:
         """
@@ -181,10 +197,7 @@ class TaxonomyManager:
         Returns:
             Optional[str]: Type name or None
         """
-        parts = label.split(".")
-        if len(parts) >= 3:
-            return parts[2]
-        return None
+        return self.canonical_taxonomy.get_type(label)
 
     def get_labels_by_category(self, category: str) -> List[str]:
         """
@@ -196,9 +209,7 @@ class TaxonomyManager:
         Returns:
             List[str]: List of labels in the category
         """
-        return [
-            label for label in self.valid_labels if label.startswith(f"{category}.")
-        ]
+        return self.canonical_taxonomy.get_labels_by_category(category)
 
     def get_similar_labels(self, label: str, max_results: int = 5) -> List[str]:
         """
@@ -248,27 +259,11 @@ class TaxonomyManager:
         Returns:
             Dict[str, int]: Taxonomy statistics
         """
-        categories = set()
-        subcategories = set()
-        types = set()
-
-        for label in self.valid_labels:
-            parts = label.split(".")
-            if len(parts) >= 1:
-                categories.add(parts[0])
-            if len(parts) >= 2:
-                subcategories.add(f"{parts[0]}.{parts[1]}")
-            if len(parts) >= 3:
-                types.add(label)
-
-        return {
-            "total_labels": len(self.valid_labels),
-            "categories": len(categories),
-            "subcategories": len(subcategories),
-            "types": len(types),
-        }
+        return self.canonical_taxonomy.get_taxonomy_stats()
 
     def reload_taxonomy(self) -> None:
-        """Reload taxonomy from file."""
-        logger.info("Reloading taxonomy")
-        self.load_taxonomy()
+        """Reload taxonomy from canonical system."""
+        logger.info("Reloading taxonomy from canonical system")
+        # Reload the canonical taxonomy by re-initializing it
+        self.canonical_taxonomy._load_taxonomy()
+        self._sync_from_canonical()

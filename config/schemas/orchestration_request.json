@@ -1,0 +1,50 @@
+{
+  "schema_name": "orchestration_request",
+  "versions": [
+    {
+      "version": "1.0.0",
+      "schema_definition": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "detector_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "processing_mode": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "fast",
+              "thorough"
+            ]
+          },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "content"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

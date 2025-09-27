@@ -13,6 +13,7 @@ Other responsibilities are in separate modules:
 """
 
 from .coordinator import DetectorCoordinator, RoutingPlan
+from .detector_client import CustomerDetectorClient
 from .router import ContentRouter, RoutingDecision, DetectorConfig
 from .aggregator import ResponseAggregator, AggregatedOutput
 
@@ -20,6 +21,7 @@ __all__ = [
     # Coordination
     "DetectorCoordinator",
     "RoutingPlan",
+    "CustomerDetectorClient",
     # Routing
     "ContentRouter",
     "RoutingDecision",

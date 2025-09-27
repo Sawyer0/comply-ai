@@ -8,6 +8,7 @@ import logging
 from .orchestration_client import OrchestrationServiceClient
 from .analysis_client import AnalysisServiceClient
 from .mapper_client import MapperServiceClient
+from .opa_client import OPAClient
 from ..utils.retry import RetryConfig
 from ..utils.circuit_breaker import CircuitBreaker
 
@@ -69,7 +70,7 @@ class ClientFactory:
                 effective_config.circuit_breaker_timeout,
             )
 
-        return self._wrap_client(client, "orchestration", effective_config)
+        return self._wrap_client(client, "orchestration", effective_config, tenant_id)
 
     def create_analysis_client(
         self, config: Optional[ClientConfig] = None, tenant_id: Optional[str] = None
@@ -96,7 +97,7 @@ class ClientFactory:
                 effective_config.circuit_breaker_timeout,
             )
 
-        return self._wrap_client(client, "analysis", effective_config)
+        return self._wrap_client(client, "analysis", effective_config, tenant_id)
 
     def create_mapper_client(
         self, config: Optional[ClientConfig] = None, tenant_id: Optional[str] = None
@@ -123,7 +124,32 @@ class ClientFactory:
                 effective_config.circuit_breaker_timeout,
             )
 
-        return self._wrap_client(client, "mapper", effective_config)
+        return self._wrap_client(client, "mapper", effective_config, tenant_id)
+
+    def create_opa_client(
+        self, config: Optional[ClientConfig] = None, tenant_id: Optional[str] = None
+    ) -> OPAClient:
+        """Create an OPA client."""
+        effective_config = self._merge_config(config)
+
+        base_url = effective_config.base_url or os.getenv(
+            "OPA_ENDPOINT", "http://localhost:8181"
+        )
+
+        client = OPAClient(
+            base_url=base_url,
+            timeout=effective_config.timeout,
+            max_retries=effective_config.max_retries,
+        )
+
+        if effective_config.enable_circuit_breaker:
+            self._setup_circuit_breaker(
+                "opa",
+                effective_config.circuit_breaker_threshold,
+                effective_config.circuit_breaker_timeout,
+            )
+
+        return self._wrap_client(client, "opa", effective_config, tenant_id)
 
     def get_client(self, service_name: str, client_type: Type[T]) -> Optional[T]:
         """Get a cached client instance."""
@@ -178,14 +204,38 @@ class ClientFactory:
                 name=f"{service_name}_circuit_breaker",
             )
 
-    def _wrap_client(self, client: T, service_name: str, config: ClientConfig) -> T:
+    def _wrap_client(
+        self,
+        client: T,
+        service_name: str,
+        config: ClientConfig,
+        tenant_id: Optional[str] = None,
+    ) -> T:
         """Wrap client with additional functionality."""
-        # Cache the client
-        client_key = f"{service_name}_{client.__class__.__name__}"
+        # Cache the client with tenant-specific key
+        tenant_suffix = f"_{tenant_id}" if tenant_id else ""
+        client_key = f"{service_name}_{client.__class__.__name__}{tenant_suffix}"
         self._clients[client_key] = client
 
-        # Add circuit breaker and retry logic would be implemented here
-        # For now, return the client as-is
+        # Apply circuit breaker configuration if enabled
+        if config.enable_circuit_breaker and service_name in self._circuit_breakers:
+            circuit_breaker = self._circuit_breakers[service_name]
+            logger.debug(
+                "Client wrapped with circuit breaker",
+                extra={
+                    "service_name": service_name,
+                    "tenant_id": tenant_id,
+                    "circuit_breaker_state": circuit_breaker.state.name,
+                    "failure_count": circuit_breaker.failure_count,
+                    "timeout": config.timeout,
+                    "max_retries": config.max_retries,
+                },
+            )
+        else:
+            logger.debug(
+                "Client wrapped without circuit breaker",
+                extra={"service_name": service_name, "tenant_id": tenant_id},
+            )
         return client
 
 
@@ -212,3 +262,10 @@ def create_mapper_client_with_config(
 ) -> MapperServiceClient:
     """Create mapper client with enhanced configuration."""
     return default_factory.create_mapper_client(config, tenant_id)
+
+
+def create_opa_client_with_config(
+    config: Optional[ClientConfig] = None, tenant_id: Optional[str] = None
+) -> OPAClient:
+    """Create OPA client with enhanced configuration."""
+    return default_factory.create_opa_client(config, tenant_id)

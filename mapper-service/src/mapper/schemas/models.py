@@ -39,12 +39,14 @@ class MappingRequest(BaseModel):
 
     @validator("detector")
     def validate_detector(cls, v):
+        """Validate detector name is not empty."""
         if not v or not v.strip():
             raise ValueError("Detector name cannot be empty")
         return v.strip()
 
     @validator("output")
     def validate_output(cls, v):
+        """Validate output is not empty."""
         if not v or not v.strip():
             raise ValueError("Output cannot be empty")
         return v.strip()
@@ -64,12 +66,14 @@ class MappingResponse(BaseModel):
 
     @validator("taxonomy")
     def validate_taxonomy(cls, v):
+        """Validate taxonomy list is not empty."""
         if not v:
             raise ValueError("Taxonomy cannot be empty")
         return v
 
     @validator("scores")
-    def validate_scores(cls, v, values):
+    def validate_scores(cls, v):
+        """Validate scores dictionary is not empty and values are in valid range."""
         if not v:
             raise ValueError("Scores cannot be empty")
 
@@ -88,6 +92,7 @@ class BatchMappingRequest(BaseModel):
 
     @validator("requests")
     def validate_requests(cls, v):
+        """Validate requests list is not empty and within size limits."""
         if not v:
             raise ValueError("Requests list cannot be empty")
         if len(v) > 100:  # Reasonable batch size limit

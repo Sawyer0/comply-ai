@@ -13,8 +13,12 @@ from .shared_integration import (
     get_shared_logger,
     get_shared_database,
     get_shared_metrics,
+    get_shared_resilience_manager,
+    get_shared_tenant_manager,
+    get_shared_cost_monitor,
     initialize_shared_components,
 )
+from .middleware import setup_shared_middleware
 from .security import SecurityManager, SecurityConfig
 from .security.exceptions import SecurityError, RateLimitError
 
@@ -135,6 +139,10 @@ async def lifespan(application: FastAPI):
     try:
         # Initialize shared components
         app_state["shared_components"] = initialize_shared_components()
+        
+        # Initialize tenant and cost management
+        app_state["tenant_manager"] = get_shared_tenant_manager()
+        app_state["cost_monitor"] = get_shared_cost_monitor()
 
         # Initialize security manager
         security_config = SecurityConfig()
@@ -188,6 +196,9 @@ app.add_middleware(
         "X-Request-ID",
     ],
 )
+
+# Setup shared middleware components
+setup_shared_middleware(app)
 
 # Add security and metrics middleware
 app.add_middleware(SecurityMiddleware)

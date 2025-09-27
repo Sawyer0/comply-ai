@@ -567,6 +567,42 @@ class AsyncJobProcessor:
             "registered_job_types": list(self._job_handlers.keys()),
             "is_running": self._is_running,
         }
+    
+    def get_jobs_by_status(self, statuses: List[JobStatus]) -> List[AsyncJob]:
+        """Get all jobs matching the given statuses.
+        
+        Args:
+            statuses: List of job statuses to filter by
+            
+        Returns:
+            List of jobs matching the statuses
+        """
+        matching_jobs = []
+        for job in self._jobs.values():
+            if job.status in statuses:
+                matching_jobs.append(job)
+                
+        return matching_jobs
+    
+    def process_job_payload(self, payload: Union[Dict[str, Any], str]) -> Dict[str, Any]:
+        """Process job payload, handling both dict and string formats.
+        
+        Args:
+            payload: Job payload as dict or JSON string
+            
+        Returns:
+            Processed payload as dict
+        """
+        if isinstance(payload, str):
+            try:
+                import json
+                return json.loads(payload)
+            except json.JSONDecodeError:
+                return {"raw_payload": payload}
+        elif isinstance(payload, dict):
+            return payload
+        else:
+            return {"payload": str(payload)}
 
 
 # Export only the async job processing functionality

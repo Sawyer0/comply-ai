@@ -1,0 +1,12 @@
+{
+  "framework_name": "GDPR",
+  "current_mappings": {
+    "PII.Contact.Email": "GDPR.PersonalData.ContactDetails",
+    "PII.Contact.Phone": "GDPR.PersonalData.ContactDetails",
+    "PII.Contact.Address": "GDPR.PersonalData.ContactDetails",
+    "PII.Identity.Name": "GDPR.PersonalData.IdentifyingInformation",
+    "PII.Identity.SSN": "GDPR.PersonalData.IdentifyingInformation",
+    "PII.Financial.CreditCard": "GDPR.SpecialCategory.FinancialData",
+    "PII.Financial.BankAccount": "GDPR.SpecialCategory.FinancialData"
+  }
+}

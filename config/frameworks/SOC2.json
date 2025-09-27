@@ -1,0 +1,11 @@
+{
+  "framework_name": "SOC2",
+  "current_mappings": {
+    "SECURITY.Access.Unauthorized": "SOC2.CC6.LogicalAccess",
+    "SECURITY.Access.Privilege": "SOC2.CC6.LogicalAccess",
+    "SECURITY.Credentials.Password": "SOC2.CC6.LogicalAccess",
+    "SECURITY.Credentials.APIKey": "SOC2.CC6.LogicalAccess",
+    "PII.Contact.Email": "SOC2.CC6.DataProtection",
+    "PII.Financial.CreditCard": "SOC2.CC6.DataProtection"
+  }
+}

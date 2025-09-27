@@ -17,7 +17,17 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-import structlog
+
+# Import shared components for consistency
+from ..shared_integration import (
+    get_shared_logger,
+    set_correlation_id,
+    get_correlation_id,
+    track_request_metrics,
+    ValidationError,
+    BaseServiceException,
+    ServiceUnavailableError,
+)
 
 from ..core.mapper import CoreMapper
 from ..schemas.models import (
@@ -38,7 +48,7 @@ from .dependencies import (
     get_api_key_manager_dependency as get_api_key_manager,
 )
 
-logger = structlog.get_logger(__name__)
+logger = get_shared_logger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["mapper"])
 
@@ -48,8 +58,8 @@ router = APIRouter(prefix="/api/v1", tags=["mapper"])
 # =============================================================================
 
 
-@router.get("/", response_model=APIResponse)
-async def get_service_info() -> APIResponse:
+@router.get("/", response_model="APIResponse")
+async def get_service_info() -> "APIResponse":
     """
     Get service information.
 
@@ -59,7 +69,10 @@ async def get_service_info() -> APIResponse:
         data={
             "service": "Mapper Service",
             "version": "1.0.0",
-            "description": "Core mapping functionality, model serving, and response generation",
+            "description": (
+                "Core mapping functionality, model serving, "
+                "and response generation"
+            ),
             "endpoints": {
                 "health": "/api/v1/health",
                 "mapping": "/api/v1/map",
@@ -201,8 +214,10 @@ class CostTrackingRequest(BaseModel):
 
 
 @router.post("/map", response_model=APIResponse)
+@track_request_metrics
 async def map_detector_output(
     mapping_request: MappingRequest,
+    request: Request,
     api_key_info: APIKeyInfo = Depends(require_permission(Permission.MAP_CANONICAL)),
     mapper: CoreMapper = Depends(get_mapper),
     _rate_limit_check: APIKeyInfo = Depends(check_rate_limit),
@@ -212,6 +227,13 @@ async def map_detector_output(
 
     Requires: map:canonical permission
     """
+    # Set correlation ID from request headers or generate new one
+    correlation_id = request.headers.get("X-Correlation-ID")
+    if correlation_id:
+        set_correlation_id(correlation_id)
+    else:
+        correlation_id = get_correlation_id()
+
     start_time = datetime.utcnow()
 
     try:
@@ -223,27 +245,62 @@ async def map_detector_output(
         return APIResponse(
             data=response.dict(),
             metadata={
-                "request_id": (
-                    mapping_request.correlation_id
-                    if hasattr(mapping_request, "correlation_id")
-                    else None
-                ),
+                "request_id": correlation_id,
+                "correlation_id": correlation_id,
                 "timestamp": datetime.utcnow().isoformat(),
                 "processing_time_ms": processing_time,
                 "tenant_id": api_key_info.tenant_id,
             },
         )
 
-    except Exception as e:
+    except ValidationError as e:
         logger.error(
-            "Mapping failed",
+            "Validation error in mapping request",
             error=str(e),
             tenant_id=api_key_info.tenant_id,
             detector=getattr(mapping_request, "detector", "unknown"),
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(e)}",
+        ) from e
+    except ServiceUnavailableError as e:
+        logger.error(
+            "Service unavailable during mapping",
+            error=str(e),
+            tenant_id=api_key_info.tenant_id,
+            detector=getattr(mapping_request, "detector", "unknown"),
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Service temporarily unavailable: {str(e)}",
+        ) from e
+    except BaseServiceException as e:
+        logger.error(
+            "Service error in mapping request",
+            error=str(e),
+            tenant_id=api_key_info.tenant_id,
+            detector=getattr(mapping_request, "detector", "unknown"),
+            correlation_id=correlation_id,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Mapping failed: {str(e)}",
+            detail=f"Service error: {str(e)}",
+        ) from e
+    except Exception as e:
+        logger.error(
+            "Unexpected error in mapping request",
+            error=str(e),
+            error_type=type(e).__name__,
+            tenant_id=api_key_info.tenant_id,
+            detector=getattr(mapping_request, "detector", "unknown"),
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected error occurred: {str(e)}",
         ) from e
 
 

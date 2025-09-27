@@ -5,45 +5,28 @@ orchestration service with all SRP-organized components.
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
-from typing import Dict, Any, List
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from shared.interfaces.orchestration import (
-    OrchestrationRequest,
-    OrchestrationResponse,
-    DetectorInfo,
-    DetectorRegistration,
-)
-from shared.interfaces.base import HealthResponse
 from shared.validation.middleware import (
     ValidationMiddleware,
     TenantValidationMiddleware,
 )
-from shared.utils.correlation import get_correlation_id, set_correlation_id
 from shared.exceptions.base import BaseServiceException
 
-from .service import OrchestrationService
+from .service import OrchestrationService, OrchestrationConfig
+from .app_state import service_container
+from .api import orchestration_router, detector_router, health_router
+from .config import settings
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-# Service instance holder
-class ServiceHolder:
-    """Holds the orchestration service instance."""
-
-    orchestration_service: OrchestrationService = None
-
-
-service_holder = ServiceHolder()
 
 
 @asynccontextmanager
@@ -53,20 +36,20 @@ async def lifespan(_app: FastAPI):
     # Startup
     logger.info("Starting Detector Orchestration Service")
 
-    # Initialize service with configuration from environment
-    service_holder.orchestration_service = OrchestrationService(
-        enable_health_monitoring=os.getenv("ENABLE_HEALTH_MONITORING", "true").lower()
-        == "true",
-        enable_service_discovery=os.getenv("ENABLE_SERVICE_DISCOVERY", "true").lower()
-        == "true",
-        enable_policy_management=os.getenv("ENABLE_POLICY_MANAGEMENT", "true").lower()
-        == "true",
-        health_check_interval=int(os.getenv("HEALTH_CHECK_INTERVAL", "30")),
-        service_ttl_minutes=int(os.getenv("SERVICE_TTL_MINUTES", "30")),
+    # Initialize service with configuration from settings
+    config = OrchestrationConfig(
+        enable_health_monitoring=settings.enable_health_monitoring,
+        enable_service_discovery=settings.enable_service_discovery,
+        enable_policy_management=settings.enable_policy_management,
+        health_check_interval=settings.health_check_interval,
+        service_ttl_minutes=settings.service_ttl_minutes,
     )
+    orchestration_service = OrchestrationService(config=config)
+
+    service_container.set_orchestration_service(orchestration_service)
 
     # Start the service
-    await service_holder.orchestration_service.start()
+    await orchestration_service.start()
 
     # Register some example detectors for testing
     await _register_example_detectors()
@@ -77,8 +60,10 @@ async def lifespan(_app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Detector Orchestration Service")
-    if service_holder.orchestration_service:
-        await service_holder.orchestration_service.stop()
+    service = service_container.get_orchestration_service()
+    if service:
+        await service.stop()
+        service_container.clear()
     logger.info("Detector Orchestration Service stopped")
 
 
@@ -90,26 +75,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware with secure configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Development frontend
-        "http://localhost:8080",  # Development dashboard
-        "https://app.comply-ai.com",  # Production frontend
-        "https://dashboard.comply-ai.com",  # Production dashboard
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=[
-        "Content-Type",
-        "Authorization", 
-        "X-API-Key",
-        "X-Tenant-ID",
-        "X-Correlation-ID",
-        "X-Request-ID"
-    ],
-)
+# Add CORS middleware with configuration from settings
+cors_config = settings.get_cors_config()
+app.add_middleware(CORSMiddleware, **cors_config)
 
 # Add validation middleware
 app.add_middleware(
@@ -120,24 +88,14 @@ app.add_middleware(
 )
 
 # Add tenant validation middleware
-app.add_middleware(TenantValidationMiddleware, require_tenant_id=True)
+app.add_middleware(
+    TenantValidationMiddleware, require_tenant_id=settings.require_tenant_id
+)
 
-
-# Dependency to get tenant ID
-def get_tenant_id(x_tenant_id: str = Header(..., alias="X-Tenant-ID")) -> str:
-    """Extract tenant ID from headers."""
-    return x_tenant_id
-
-
-# Dependency to get correlation ID
-def get_correlation_id_header(
-    x_correlation_id: str = Header(None, alias="X-Correlation-ID")
-) -> str:
-    """Extract or generate correlation ID."""
-    if x_correlation_id:
-        set_correlation_id(x_correlation_id)
-        return x_correlation_id
-    return get_correlation_id()
+# Include API routers following SRP
+app.include_router(health_router, prefix=settings.api_prefix)
+app.include_router(orchestration_router, prefix=settings.api_prefix)
+app.include_router(detector_router, prefix=settings.api_prefix)
 
 
 @app.exception_handler(BaseServiceException)
@@ -149,226 +107,13 @@ async def service_exception_handler(_request, exc: BaseServiceException):
     )
 
 
-@app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint."""
-    try:
-        if service_holder.orchestration_service:
-            status = await service_holder.orchestration_service.get_service_status()
-            return HealthResponse(
-                status="healthy" if status["status"] == "running" else "unhealthy",
-                version="1.0.0",
-                uptime_seconds=None,  # Could be calculated
-            )
-
-        return HealthResponse(status="unhealthy", version="1.0.0")
-    except (ConnectionError, TimeoutError) as e:
-        logger.error("Health check failed: %s", str(e))
-        return HealthResponse(status="unhealthy", version="1.0.0")
-
-
-@app.post("/api/v1/orchestrate", response_model=OrchestrationResponse)
-async def orchestrate_detectors(
-    request: OrchestrationRequest,
-    tenant_id: str = Depends(get_tenant_id),
-    correlation_id: str = Depends(get_correlation_id_header),
-):
-    """Main orchestration endpoint.
-
-    Coordinates all SRP components to:
-    1. Route content to appropriate detectors
-    2. Execute detectors according to routing plan
-    3. Aggregate results into unified response
-    4. Apply policies and generate recommendations
-    """
-    try:
-        if not service_holder.orchestration_service:
-            raise HTTPException(status_code=503, detail="Service not available")
-
-        logger.info(
-            "Received orchestration request for tenant %s",
-            tenant_id,
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "detector_types": getattr(request, "detector_types", []),
-            },
-        )
-
-        response = await service_holder.orchestration_service.orchestrate(
-            request=request, tenant_id=tenant_id, correlation_id=correlation_id
-        )
-
-        return response
-
-    except Exception as e:
-        logger.error(
-            "Orchestration failed: %s",
-            str(e),
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.post("/api/v1/detectors/register")
-async def register_detector(
-    registration: DetectorRegistration,
-    tenant_id: str = Depends(get_tenant_id),
-    correlation_id: str = Depends(get_correlation_id_header),
-):
-    """Register a new detector with the orchestration service."""
-    try:
-        if not service_holder.orchestration_service:
-            raise HTTPException(status_code=503, detail="Service not available")
-
-        success = await service_holder.orchestration_service.register_detector(
-            detector_id=registration.detector_type,  # Use type as ID for now
-            endpoint=registration.endpoint_url,
-            detector_type=registration.detector_type,
-            timeout_ms=5000,  # Default timeout
-            max_retries=3,  # Default retries
-            supported_content_types=["text"],  # Default content types
-        )
-
-        if success:
-            return {
-                "message": f"Detector {registration.detector_type} registered successfully"
-            }
-
-        raise HTTPException(status_code=400, detail="Failed to register detector")
-
-    except Exception as e:
-        logger.error(
-            "Detector registration failed: %s",
-            str(e),
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "detector_type": registration.detector_type,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.delete("/api/v1/detectors/{detector_id}")
-async def unregister_detector(
-    detector_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    correlation_id: str = Depends(get_correlation_id_header),
-):
-    """Unregister a detector from the orchestration service."""
-    try:
-        if not service_holder.orchestration_service:
-            raise HTTPException(status_code=503, detail="Service not available")
-
-        success = await service_holder.orchestration_service.unregister_detector(
-            detector_id
-        )
-
-        if success:
-            return {"message": f"Detector {detector_id} unregistered successfully"}
-
-        raise HTTPException(status_code=404, detail="Detector not found")
-
-    except Exception as e:
-        logger.error(
-            "Detector unregistration failed: %s",
-            str(e),
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "detector_id": detector_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.get("/api/v1/detectors")
-async def list_detectors(
-    tenant_id: str = Depends(get_tenant_id),
-    correlation_id: str = Depends(get_correlation_id_header),
-) -> List[DetectorInfo]:
-    """List available detectors with detailed information."""
-    try:
-        if not service_holder.orchestration_service:
-            raise HTTPException(status_code=503, detail="Service not available")
-
-        detector_names = (
-            service_holder.orchestration_service.content_router.get_available_detectors()
-        )
-
-        # Convert to DetectorInfo objects with additional details
-        detector_infos = []
-        for detector_name in detector_names:
-            config = (
-                service_holder.orchestration_service.content_router.get_detector_config(
-                    detector_name
-                )
-            )
-            detector_infos.append(
-                DetectorInfo(
-                    detector_id=detector_name,
-                    detector_type=config.detector_type if config else "unknown",
-                    status="active",  # Could be enhanced with actual health check
-                    endpoint_url=config.endpoint if config else "",
-                    supported_content_types=(
-                        config.supported_content_types if config else ["text"]
-                    ),
-                    timeout_ms=config.timeout_ms if config else 5000,
-                    max_retries=config.max_retries if config else 3,
-                )
-            )
-
-        return detector_infos
-
-    except Exception as e:
-        logger.error(
-            "List detectors failed: %s",
-            str(e),
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.get("/api/v1/status")
-async def get_service_status(
-    tenant_id: str = Depends(get_tenant_id),
-    correlation_id: str = Depends(get_correlation_id_header),
-) -> Dict[str, Any]:
-    """Get comprehensive service status."""
-    try:
-        if not service_holder.orchestration_service:
-            raise HTTPException(status_code=503, detail="Service not available")
-
-        status = await service_holder.orchestration_service.get_service_status()
-        return status
-
-    except Exception as e:
-        logger.error(
-            "Get service status failed: %s",
-            str(e),
-            extra={
-                "correlation_id": correlation_id,
-                "tenant_id": tenant_id,
-                "error": str(e),
-            },
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+# All endpoints are now handled by separate API modules following SRP
 
 
 async def _register_example_detectors():
     """Register some example detectors for testing."""
-    if not service_holder.orchestration_service:
+    service = service_container.get_orchestration_service()
+    if not service:
         return
 
     example_detectors = [
@@ -391,7 +136,7 @@ async def _register_example_detectors():
 
     for detector in example_detectors:
         try:
-            await service_holder.orchestration_service.register_detector(
+            await service.register_detector(
                 detector_id=detector["detector_id"],
                 endpoint=detector["endpoint"],
                 detector_type=detector["detector_type"],
@@ -408,17 +153,15 @@ async def _register_example_detectors():
 if __name__ == "__main__":
     import uvicorn
 
-    # Configuration from environment
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", "8000"))
-    log_level = os.getenv("LOG_LEVEL", "info")
-
-    logger.info("Starting Detector Orchestration Service on %s:%d", host, port)
+    logger.info(
+        "Starting Detector Orchestration Service on %s:%d", settings.host, settings.port
+    )
 
     uvicorn.run(
         "main:app",
-        host=host,
-        port=port,
-        log_level=log_level,
-        reload=os.getenv("RELOAD", "false").lower() == "true",
+        host=settings.host,
+        port=settings.port,
+        log_level=str(settings.log_level).lower(),
+        reload=settings.reload,
+        workers=settings.workers if not settings.reload else 1,
     )
