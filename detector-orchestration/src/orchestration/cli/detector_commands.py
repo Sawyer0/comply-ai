@@ -4,241 +4,196 @@ This module provides ONLY detector management CLI commands.
 Single Responsibility: Handle CLI commands for detector operations.
 """
 
-import asyncio
-import logging
-import json
-from typing import Dict, List, Optional, Any
+from __future__ import annotations
 
-from shared.utils.correlation import get_correlation_id
-from ..service import DetectorRegistrationConfig
+from dataclasses import dataclass
+import json
+import logging
+from typing import Optional, Sequence
+
+from shared.exceptions.base import BaseServiceException
+
+from ..service import DetectorRegistrationConfig, OrchestrationService
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - yaml optional for CLI formatting
+    yaml = None
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class DetectorRegistrationOptions:
+    """Input parameters for registering a detector via the CLI."""
+
+    detector_id: str
+    endpoint: str
+    detector_type: str
+    timeout_ms: int = 5000
+    max_retries: int = 3
+    content_types: Optional[Sequence[str]] = None
+
+
 class DetectorCLI:
-    """CLI commands for detector management.
+    """CLI commands for detector management."""
 
-    Single Responsibility: Provide CLI interface for detector operations.
-    Does NOT handle: business logic, validation, orchestration.
-    """
-
-    def __init__(self, orchestration_service):
-        """Initialize detector CLI.
-
-        Args:
-            orchestration_service: OrchestrationService instance
-        """
+    def __init__(self, orchestration_service: OrchestrationService) -> None:
         self.service = orchestration_service
 
     async def list_detectors(self, output_format: str = "table") -> str:
-        """List all registered detectors.
+        """List all registered detectors."""
 
-        Args:
-            output_format: Output format (table, json, yaml)
+        router = getattr(self.service, "content_router", None)
+        if not router:
+            return "Content router not initialized"
 
-        Returns:
-            Formatted detector list
-        """
-        try:
-            detectors = self.service.content_router.get_available_detectors()
+        detector_names = router.get_available_detectors()
 
-            if output_format == "json":
-                return json.dumps(detectors, indent=2)
-            elif output_format == "yaml":
-                import yaml
+        if output_format == "json":
+            return json.dumps(detector_names, indent=2)
 
-                return yaml.dump(detectors, default_flow_style=False)
-            else:
-                # Table format
-                if not detectors:
-                    return "No detectors registered."
+        if output_format == "yaml":
+            if yaml is None:
+                return "PyYAML not installed; use --format json instead"
+            return yaml.dump(detector_names, default_flow_style=False)  # type: ignore[arg-type]
 
-                output = "Registered Detectors:\\n"
-                output += "=" * 50 + "\\n"
-                for i, detector in enumerate(detectors, 1):
-                    config = self.service.content_router.get_detector_config(detector)
-                    if config:
-                        output += f"{i:2d}. {detector}\\n"
-                        output += f"    Endpoint: {config.endpoint}\\n"
-                        output += f"    Timeout: {config.timeout_ms}ms\\n"
-                        output += f"    Enabled: {config.enabled}\\n"
-                        output += f"    Content Types: {', '.join(config.supported_content_types)}\\n\\n"
-                    else:
-                        output += f"{i:2d}. {detector} (no config)\\n\\n"
-
-                return output
-
-        except Exception as e:
-            logger.error("Failed to list detectors: %s", str(e))
-            return f"Error listing detectors: {str(e)}"
+        return self._format_detector_table(detector_names)
 
     async def register_detector(
-        self,
-        detector_id: str,
-        endpoint: str,
-        detector_type: str,
-        timeout_ms: int = 5000,
-        max_retries: int = 3,
-        content_types: Optional[List[str]] = None,
+        self, options: DetectorRegistrationOptions
     ) -> str:
-        """Register a new detector.
+        """Register a new detector."""
 
-        Args:
-            detector_id: Detector identifier
-            endpoint: Detector endpoint URL
-            detector_type: Type of detector
-            timeout_ms: Timeout in milliseconds
-            max_retries: Maximum retry attempts
-            content_types: Supported content types
+        registration = DetectorRegistrationConfig(
+            detector_id=options.detector_id,
+            endpoint=options.endpoint,
+            detector_type=options.detector_type,
+            timeout_ms=options.timeout_ms,
+            max_retries=options.max_retries,
+            supported_content_types=list(options.content_types or ["text"]),
+        )
 
-        Returns:
-            Result message
-        """
         try:
-            registration = DetectorRegistrationConfig(
-                detector_id=detector_id,
-                endpoint=endpoint,
-                detector_type=detector_type,
-                timeout_ms=timeout_ms,
-                max_retries=max_retries,
-                supported_content_types=content_types or ["text"],
+            was_registered = await self.service.register_detector(registration)
+        except (BaseServiceException, ValueError, RuntimeError) as exc:
+            return self._format_error("register detector", exc)
+
+        if not was_registered:
+            return (
+                f"Failed to register detector '{options.detector_id}'"
             )
-            success = await self.service.register_detector(registration)
 
-            if success:
-                return f"Successfully registered detector '{detector_id}' at {endpoint}"
-            else:
-                return f"Failed to register detector '{detector_id}'"
-
-        except Exception as e:
-            logger.error("Failed to register detector: %s", str(e))
-            return f"Error registering detector: {str(e)}"
+        return (
+            f"Successfully registered detector '{options.detector_id}' at {options.endpoint}"
+        )
 
     async def unregister_detector(self, detector_id: str) -> str:
-        """Unregister a detector.
+        """Unregister a detector."""
 
-        Args:
-            detector_id: Detector identifier
-
-        Returns:
-            Result message
-        """
         try:
-            success = await self.service.unregister_detector(detector_id)
+            was_removed = await self.service.unregister_detector(detector_id)
+        except (BaseServiceException, RuntimeError) as exc:
+            return self._format_error("unregister detector", exc)
 
-            if success:
-                return f"Successfully unregistered detector '{detector_id}'"
-            else:
-                return f"Failed to unregister detector '{detector_id}' (not found)"
+        if not was_removed:
+            return f"Detector '{detector_id}' not found"
 
-        except Exception as e:
-            logger.error("Failed to unregister detector: %s", str(e))
-            return f"Error unregistering detector: {str(e)}"
+        return f"Successfully unregistered detector '{detector_id}'"
 
     async def detector_health(self, detector_id: Optional[str] = None) -> str:
-        """Check detector health.
+        """Check detector health."""
 
-        Args:
-            detector_id: Optional specific detector to check
+        monitor = getattr(self.service, "health_monitor", None)
+        if not monitor:
+            return "Health monitoring is disabled"
 
-        Returns:
-            Health status report
-        """
         try:
-            if not self.service.health_monitor:
-                return "Health monitoring is disabled"
-
             if detector_id:
-                # Check specific detector
-                health_check = await self.service.health_monitor.check_service_health(
-                    detector_id
-                )
-                return f"Detector '{detector_id}': {health_check.status.value}"
-            else:
-                # Check all detectors
-                health_checks = await self.service.health_monitor.check_all_services()
+                health_check = await monitor.check_service_health(detector_id)
+                status = health_check.status.value if health_check else "unknown"
+                return f"Detector '{detector_id}': {status}"
 
-                if not health_checks:
-                    return "No detectors registered for health monitoring"
+            health_checks = await monitor.check_all_services()
+        except (BaseServiceException, RuntimeError) as exc:
+            return self._format_error("retrieve detector health", exc)
 
-                output = "Detector Health Status:\\n"
-                output += "=" * 50 + "\\n"
+        if not health_checks:
+            return "No detectors registered for health monitoring"
 
-                for detector_id, health_check in health_checks.items():
-                    status_icon = "✓" if health_check.status.value == "healthy" else "✗"
-                    output += (
-                        f"{status_icon} {detector_id}: {health_check.status.value}"
-                    )
+        lines = ["Detector Health Status:", "=" * 50]
+        for detected_name, health_check in health_checks.items():
+            status = health_check.status.value
+            parts = [f"{detected_name}: {status}"]
+            if health_check.response_time_ms:
+                parts.append(f"{health_check.response_time_ms}ms")
+            if health_check.error_message:
+                parts.append(health_check.error_message)
+            lines.append(" - ".join(parts))
 
-                    if health_check.response_time_ms:
-                        output += f" ({health_check.response_time_ms}ms)"
-
-                    if health_check.error_message:
-                        output += f" - {health_check.error_message}"
-
-                    output += "\\n"
-
-                return output
-
-        except Exception as e:
-            logger.error("Failed to check detector health: %s", str(e))
-            return f"Error checking detector health: {str(e)}"
+        return "\n".join(lines)
 
     async def detector_config(self, detector_id: str) -> str:
-        """Show detector configuration.
+        """Show detector configuration."""
 
-        Args:
-            detector_id: Detector identifier
+        router = getattr(self.service, "content_router", None)
+        if not router:
+            return "Content router not initialized"
 
-        Returns:
-            Configuration details
-        """
-        try:
-            config = self.service.content_router.get_detector_config(detector_id)
+        config = router.get_detector_config(detector_id)
+        if not config:
+            return f"Detector '{detector_id}' not found"
 
-            if not config:
-                return f"Detector '{detector_id}' not found"
-
-            config_dict = {
-                "name": config.name,
-                "endpoint": config.endpoint,
-                "timeout_ms": config.timeout_ms,
-                "max_retries": config.max_retries,
-                "supported_content_types": config.supported_content_types,
-                "enabled": config.enabled,
-            }
-
-            return json.dumps(config_dict, indent=2)
-
-        except Exception as e:
-            logger.error("Failed to get detector config: %s", str(e))
-            return f"Error getting detector config: {str(e)}"
+        config_dict = {
+            "name": config.name,
+            "endpoint": config.endpoint,
+            "timeout_ms": config.timeout_ms,
+            "max_retries": config.max_retries,
+            "supported_content_types": config.supported_content_types,
+            "enabled": config.enabled,
+        }
+        return json.dumps(config_dict, indent=2)
 
     async def test_detector(
-        self, detector_id: str, test_content: str = "test content"
+        self,
+        detector_id: str,
+        test_content: str = "test content",
     ) -> str:
-        """Test a detector with sample content.
+        """Test a detector with sample content."""
 
-        Args:
-            detector_id: Detector identifier
-            test_content: Content to test with
+        return (
+            "Detector self-test is not implemented yet"
+            f" (requested detector='{detector_id}', sample='{test_content}')."
+        )
 
-        Returns:
-            Test result
-        """
-        try:
-            # This would require implementing a test method in the service
-            # For now, just return a placeholder
-            return (
-                f"Test functionality for detector '{detector_id}' not yet implemented"
-            )
+    def _format_detector_table(self, detector_names: Sequence[str]) -> str:
+        """Create a human-friendly table of registered detectors."""
 
-        except Exception as e:
-            logger.error("Failed to test detector: %s", str(e))
-            return f"Error testing detector: {str(e)}"
+        if not detector_names:
+            return "No detectors registered."
+
+        router = getattr(self.service, "content_router", None)
+        lines = ["Registered Detectors:", "=" * 50]
+        for index, name in enumerate(detector_names, start=1):
+            config = router.get_detector_config(name) if router else None
+            lines.append(f"{index:2d}. {name}")
+            if config:
+                lines.append(f"    Endpoint: {config.endpoint}")
+                lines.append(f"    Timeout: {config.timeout_ms}ms")
+                lines.append(f"    Enabled: {config.enabled}")
+                lines.append(
+                    "    Content Types: "
+                    + ", ".join(config.supported_content_types)
+                )
+            else:
+                lines.append("    Configuration not available")
+        return "\n".join(lines)
+
+    def _format_error(self, action: str, exc: Exception) -> str:
+        """Log an error and return a friendly message."""
+
+        logger.error("Failed to %s: %s", action, exc)
+        return f"Error attempting to {action}: {exc}"
 
 
-# Export only the detector CLI functionality
-__all__ = [
-    "DetectorCLI",
-]
+__all__ = ["DetectorCLI", "DetectorRegistrationOptions"]

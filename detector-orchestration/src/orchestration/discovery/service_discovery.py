@@ -4,18 +4,21 @@ This module provides ONLY service discovery - finding and registering detector s
 Single Responsibility: Maintain registry of available detector services and their endpoints.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 
 from shared.utils.correlation import get_correlation_id
+
 from ..utils.registry import run_registry_operation
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class ServiceMetadata:
     """Typed metadata stored alongside service registrations."""
 
@@ -27,21 +30,23 @@ class ServiceMetadata:
     auth_headers: Optional[Dict[str, str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize metadata to a dictionary."""
+        """Serialize metadata to a dictionary suitable for persistence."""
+
         payload: Dict[str, Any] = {
             "timeout_ms": self.timeout_ms,
             "max_retries": self.max_retries,
-            "supported_content_types": self.supported_content_types,
+            "supported_content_types": list(self.supported_content_types),
             "analyze_path": self.analyze_path,
             "response_parser": self.response_parser,
         }
         if self.auth_headers is not None:
-            payload["auth_headers"] = self.auth_headers
+            payload["auth_headers"] = dict(self.auth_headers)
         return payload
 
     @classmethod
     def from_dict(cls, data: Optional[Dict[str, Any]]) -> "ServiceMetadata":
         """Create metadata from a raw dictionary."""
+
         if not data:
             return cls()
         return cls(
@@ -54,24 +59,55 @@ class ServiceMetadata:
         )
 
 
+@dataclass(slots=True)
+class ServiceRegistration:
+    """Parameters required to register a detector service."""
+
+    service_id: str
+    endpoint_url: str
+    service_type: str
+    version: str = "1.0.0"
+    metadata: Optional[Dict[str, Any]] = None
+
+    def normalized_metadata(self) -> Dict[str, Any]:
+        """Return metadata as a concrete mapping."""
+
+        return dict(self.metadata or {})
+
+    def log_context(self) -> Dict[str, Any]:
+        """Return context information used for registry logging."""
+
+        return {
+            "service_id": self.service_id,
+            "service_type": self.service_type,
+            "endpoint_url": self.endpoint_url,
+            "version": self.version,
+        }
+
+
+@dataclass(slots=True)
 class ServiceEndpoint:
     """Service endpoint information - data structure only."""
 
-    def __init__(
-        self,
-        service_id: str,
-        endpoint_url: str,
-        service_type: str,
-        version: str = "1.0.0",
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        self.service_id = service_id
-        self.endpoint_url = endpoint_url
-        self.service_type = service_type
-        self.version = version
-        self.metadata = metadata or {}
-        self.registered_at = datetime.utcnow()
-        self.last_seen = datetime.utcnow()
+    service_id: str
+    endpoint_url: str
+    service_type: str
+    version: str = "1.0.0"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    registered_at: datetime = field(default_factory=datetime.utcnow)
+    last_seen: datetime = field(default_factory=datetime.utcnow)
+
+    @classmethod
+    def from_registration(cls, registration: ServiceRegistration) -> "ServiceEndpoint":
+        """Create an endpoint instance from registration parameters."""
+
+        return cls(
+            service_id=registration.service_id,
+            endpoint_url=registration.endpoint_url,
+            service_type=registration.service_type,
+            version=registration.version,
+            metadata=registration.normalized_metadata(),
+        )
 
 
 class ServiceDiscoveryManager:
@@ -87,83 +123,59 @@ class ServiceDiscoveryManager:
         Args:
             service_ttl_minutes: Time-to-live for service registrations in minutes
         """
+
         self.service_ttl_minutes = service_ttl_minutes
         self._service_registry: Dict[str, ServiceEndpoint] = {}
-        self._service_types: Dict[str, List[str]] = (
-            {}
-        )  # service_type -> list of service_ids
+        self._service_types: Dict[str, List[str]] = {}
 
-    def register_service(
-        self,
-        service_id: str,
-        endpoint_url: str,
-        service_type: str,
-        version: str = "1.0.0",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+    def register_service(self, registration: ServiceRegistration) -> bool:
         """Register a service in the discovery registry."""
 
-        context = {
-            "service_id": service_id,
-            "service_type": service_type,
-            "endpoint_url": endpoint_url,
-            "version": version,
-        }
+        context = registration.log_context()
 
         def _operation() -> bool:
-            endpoint = ServiceEndpoint(
-                service_id=service_id,
-                endpoint_url=endpoint_url,
-                service_type=service_type,
-                version=version,
-                metadata=metadata,
-            )
+            endpoint = ServiceEndpoint.from_registration(registration)
+            self._service_registry[registration.service_id] = endpoint
 
-            self._service_registry[service_id] = endpoint
+            if registration.service_type not in self._service_types:
+                self._service_types[registration.service_type] = []
 
-            if service_type not in self._service_types:
-                self._service_types[service_type] = []
-
-            if service_id not in self._service_types[service_type]:
-                self._service_types[service_type].append(service_id)
+            if registration.service_id not in self._service_types[registration.service_type]:
+                self._service_types[registration.service_type].append(registration.service_id)
 
             return True
 
         return run_registry_operation(
             _operation,
             logger=logger,
-            success_message="Registered service %s of type %s at %s",
-            success_args=(service_id, service_type, endpoint_url),
+            success_message="Registered service %s",
+            success_args=(registration.service_id,),
             error_message="Failed to register service %s",
-            error_args=(service_id,),
+            error_args=(registration.service_id,),
             log_context=context,
         )
 
     def unregister_service(self, service_id: str) -> bool:
         """Unregister a service from the discovery registry."""
 
-        if service_id not in self._service_registry:
-            correlation_id = get_correlation_id()
-            logger.warning(
-                "Attempted to unregister unknown service %s",
-                service_id,
-                extra={"correlation_id": correlation_id, "service_id": service_id},
-            )
-            return False
-
-        context: Dict[str, Any] = {"service_id": service_id}
+        context = {
+            "service_id": service_id,
+        }
 
         def _operation() -> bool:
-            endpoint = self._service_registry.pop(service_id)
-            service_type = endpoint.service_type
-            context["service_type"] = service_type
+            if service_id not in self._service_registry:
+                return False
 
+            endpoint = self._service_registry.pop(service_id)
+
+            service_type = endpoint.service_type
             if service_type in self._service_types:
-                service_ids = self._service_types[service_type]
-                if service_id in service_ids:
-                    service_ids.remove(service_id)
-                if not service_ids:
-                    del self._service_types[service_type]
+                self._service_types[service_type] = [
+                    sid for sid in self._service_types[service_type] if sid != service_id
+                ]
+
+                if not self._service_types[service_type]:
+                    self._service_types.pop(service_type)
 
             return True
 
@@ -177,9 +189,7 @@ class ServiceDiscoveryManager:
             log_context=context,
         )
 
-    def discover_services(
-        self, service_type: Optional[str] = None
-    ) -> List[ServiceEndpoint]:
+    def discover_services(self, service_type: Optional[str] = None) -> List[ServiceEndpoint]:
         """Discover services by type.
 
         Args:
@@ -188,14 +198,12 @@ class ServiceDiscoveryManager:
         Returns:
             List of service endpoints matching the criteria
         """
-        # Clean up expired services first
+
         self._cleanup_expired_services()
 
         if service_type is None:
-            # Return all services
             return list(self._service_registry.values())
 
-        # Return services of specific type
         service_ids = self._service_types.get(service_type, [])
         return [
             self._service_registry[sid]
@@ -204,49 +212,28 @@ class ServiceDiscoveryManager:
         ]
 
     def get_service(self, service_id: str) -> Optional[ServiceEndpoint]:
-        """Get a specific service by ID.
+        """Get a specific service by ID."""
 
-        Args:
-            service_id: Unique identifier for the service
-
-        Returns:
-            Service endpoint if found, None otherwise
-        """
         self._cleanup_expired_services()
         return self._service_registry.get(service_id)
 
     def update_service_heartbeat(self, service_id: str) -> bool:
-        """Update the last seen timestamp for a service.
+        """Update the last seen timestamp for a service."""
 
-        Args:
-            service_id: Unique identifier for the service
-
-        Returns:
-            True if update successful, False if service not found
-        """
         if service_id in self._service_registry:
             self._service_registry[service_id].last_seen = datetime.utcnow()
             return True
         return False
 
     def get_service_types(self) -> List[str]:
-        """Get list of all registered service types.
+        """Get list of all registered service types."""
 
-        Returns:
-            List of service type names
-        """
         self._cleanup_expired_services()
         return list(self._service_types.keys())
 
     def get_service_count(self, service_type: Optional[str] = None) -> int:
-        """Get count of registered services.
+        """Get count of registered services."""
 
-        Args:
-            service_type: Optional service type to filter by
-
-        Returns:
-            Number of registered services
-        """
         self._cleanup_expired_services()
 
         if service_type is None:
@@ -254,12 +241,13 @@ class ServiceDiscoveryManager:
 
         return len(self._service_types.get(service_type, []))
 
-    def _cleanup_expired_services(self):
+    def _cleanup_expired_services(self) -> None:
         """Remove expired services from the registry."""
+
         current_time = datetime.utcnow()
         ttl_delta = timedelta(minutes=self.service_ttl_minutes)
 
-        expired_services = []
+        expired_services: List[str] = []
         for service_id, endpoint in self._service_registry.items():
             if current_time - endpoint.last_seen > ttl_delta:
                 expired_services.append(service_id)
@@ -268,16 +256,13 @@ class ServiceDiscoveryManager:
             logger.info(
                 "Removing expired service %s",
                 service_id,
-                extra={"service_id": service_id},
+                extra={"service_id": service_id, "correlation_id": get_correlation_id()},
             )
             self.unregister_service(service_id)
 
     def get_registry_status(self) -> Dict[str, Any]:
-        """Get status information about the service registry.
+        """Get status information about the service registry."""
 
-        Returns:
-            Dictionary with registry status information
-        """
         self._cleanup_expired_services()
 
         return {
@@ -291,9 +276,9 @@ class ServiceDiscoveryManager:
         }
 
 
-# Export only the service discovery functionality
 __all__ = [
     "ServiceDiscoveryManager",
     "ServiceEndpoint",
     "ServiceMetadata",
+    "ServiceRegistration",
 ]

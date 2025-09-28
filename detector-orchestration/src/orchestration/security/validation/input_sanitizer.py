@@ -7,7 +7,7 @@ Single Responsibility: Sanitize and validate input data for security.
 import html
 import re
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from urllib.parse import unquote
 
 from shared.utils.correlation import get_correlation_id
@@ -84,34 +84,33 @@ class InputSanitizer:
         try:
             if isinstance(data, str):
                 return self._sanitize_string(data)
-            elif isinstance(data, dict):
+            if isinstance(data, dict):
                 return self._sanitize_dict(data)
-            elif isinstance(data, list):
+            if isinstance(data, list):
                 return self._sanitize_list(data)
-            elif isinstance(data, (int, float, bool, type(None))):
+            if isinstance(data, (int, float, bool, type(None))):
                 return data
-            else:
-                # Convert unknown types to string and sanitize
-                logger.debug(
-                    "Converting unknown type %s to string for sanitization",
-                    type(data).__name__,
-                    extra={"correlation_id": correlation_id},
-                )
-                return self._sanitize_string(str(data))
 
-        except Exception as e:
+            logger.debug(
+                "Converting unknown type %s to string for sanitization",
+                type(data).__name__,
+                extra={"correlation_id": correlation_id},
+            )
+            return self._sanitize_string(str(data))
+
+        except (ValueError, TypeError) as exc:
             logger.error(
                 "Error during sanitization: %s",
-                str(e),
+                exc,
                 extra={
                     "correlation_id": correlation_id,
                     "data_type": type(data).__name__,
-                    "error": str(e),
+                    "error": str(exc),
                 },
             )
             raise ValidationError(
-                f"Input sanitization failed: {str(e)}", correlation_id=correlation_id
-            ) from e
+                f"Input sanitization failed: {exc}", correlation_id=correlation_id
+            ) from exc
 
     def _sanitize_string(self, text: str) -> str:
         """Sanitize a string input.
@@ -204,10 +203,10 @@ class InputSanitizer:
                     break  # No more decoding needed
                 text = decoded
             return text
-        except Exception as e:
+        except (ValueError, UnicodeDecodeError) as exc:
             logger.debug(
                 "URL decoding failed, using original text: %s",
-                str(e),
+                exc,
                 extra={"correlation_id": get_correlation_id()},
             )
             return text
@@ -250,13 +249,11 @@ class InputSanitizer:
         try:
             if isinstance(data, str):
                 return len(data) <= self.max_length
-            elif isinstance(data, (dict, list)):
-                # Estimate size by converting to string
+            if isinstance(data, (dict, list)):
                 estimated_size = len(str(data))
                 return estimated_size <= self.max_length * 2  # Allow some overhead
-            else:
-                return True  # Other types are typically small
-        except Exception:
+            return True  # Other types are typically small
+        except (TypeError, ValueError):
             return False
 
     def sanitize_filename(self, filename: str) -> str:

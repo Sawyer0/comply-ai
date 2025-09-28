@@ -6,7 +6,7 @@ Single Responsibility: Detect various attack patterns in input data.
 
 import re
 import logging
-from typing import List, Dict, Any, Optional, Set
+from typing import List, Dict, Any, Set
 from enum import Enum
 from dataclasses import dataclass
 
@@ -252,11 +252,11 @@ class AttackDetector:
                     )
                     detections.append(detection)
 
-            except Exception as e:
+            except (re.error, ValueError) as exc:
                 logger.error(
                     "Error processing pattern %s: %s",
                     pattern_def.name,
-                    str(e),
+                    exc,
                     extra={"correlation_id": correlation_id},
                 )
 
@@ -329,7 +329,7 @@ class AttackDetector:
             AttackSeverity.HIGH,
             AttackSeverity.CRITICAL,
         ]
-        max_severity = max(severities, key=lambda s: severity_order.index(s))
+        max_severity = max(severities, key=severity_order.index)
 
         # Count high confidence attacks
         high_confidence_count = sum(1 for d in detections if d.confidence > 0.8)

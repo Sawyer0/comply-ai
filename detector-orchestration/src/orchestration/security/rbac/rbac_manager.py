@@ -5,12 +5,11 @@ Single Responsibility: Manage roles and permissions for authorization.
 """
 
 import logging
-from typing import Dict, List, Set, Optional, Any
+from typing import Dict, List, Set, Optional
 from enum import Enum
 from dataclasses import dataclass
 
 from shared.utils.correlation import get_correlation_id
-from shared.exceptions.base import AuthenticationError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -167,46 +166,38 @@ class RBACManager:
         """
         correlation_id = get_correlation_id()
 
-        try:
-            if role not in self._role_definitions:
-                raise ValidationError(f"Invalid role: {role.value}")
-
-            if user_id not in self._user_roles:
-                self._user_roles[user_id] = {}
-
-            self._user_roles[user_id][tenant_id] = role
-
-            logger.info(
-                "Assigned role %s to user %s for tenant %s",
-                role.value,
-                user_id,
-                tenant_id,
-                extra={
-                    "correlation_id": correlation_id,
-                    "user_id": user_id,
-                    "tenant_id": tenant_id,
-                    "role": role.value,
-                },
-            )
-
-            return True
-
-        except Exception as e:
+        if role not in self._role_definitions:
             logger.error(
-                "Failed to assign role %s to user %s for tenant %s: %s",
+                "Invalid role assignment attempted: %s",
                 role.value,
-                user_id,
-                tenant_id,
-                str(e),
                 extra={
                     "correlation_id": correlation_id,
                     "user_id": user_id,
                     "tenant_id": tenant_id,
-                    "role": role.value,
-                    "error": str(e),
                 },
             )
             return False
+
+        if user_id not in self._user_roles:
+            self._user_roles[user_id] = {}
+
+        self._user_roles[user_id][tenant_id] = role
+
+        logger.info(
+            "Assigned role %s to user %s for tenant %s",
+            role.value,
+            user_id,
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": user_id,
+                "tenant_id": tenant_id,
+                "role": role.value,
+            },
+        )
+
+        return True
+
 
     def revoke_role(self, user_id: str, tenant_id: str) -> bool:
         """Revoke a user's role for a specific tenant.
@@ -220,56 +211,38 @@ class RBACManager:
         """
         correlation_id = get_correlation_id()
 
-        try:
-            if user_id in self._user_roles and tenant_id in self._user_roles[user_id]:
-                role = self._user_roles[user_id][tenant_id]
-                del self._user_roles[user_id][tenant_id]
-
-                # Clean up empty user entries
-                if not self._user_roles[user_id]:
-                    del self._user_roles[user_id]
-
-                logger.info(
-                    "Revoked role %s from user %s for tenant %s",
-                    role.value,
-                    user_id,
-                    tenant_id,
-                    extra={
-                        "correlation_id": correlation_id,
-                        "user_id": user_id,
-                        "tenant_id": tenant_id,
-                        "role": role.value,
-                    },
-                )
-
-                return True
-            else:
-                logger.warning(
-                    "Cannot revoke role: user %s has no role for tenant %s",
-                    user_id,
-                    tenant_id,
-                    extra={
-                        "correlation_id": correlation_id,
-                        "user_id": user_id,
-                        "tenant_id": tenant_id,
-                    },
-                )
-                return False
-
-        except Exception as e:
-            logger.error(
-                "Failed to revoke role from user %s for tenant %s: %s",
+        if user_id not in self._user_roles or tenant_id not in self._user_roles[user_id]:
+            logger.warning(
+                "Cannot revoke role: user %s has no role for tenant %s",
                 user_id,
                 tenant_id,
-                str(e),
                 extra={
                     "correlation_id": correlation_id,
                     "user_id": user_id,
                     "tenant_id": tenant_id,
-                    "error": str(e),
                 },
             )
             return False
+
+        role = self._user_roles[user_id].pop(tenant_id)
+        if not self._user_roles[user_id]:
+            del self._user_roles[user_id]
+
+        logger.info(
+            "Revoked role %s from user %s for tenant %s",
+            role.value,
+            user_id,
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": user_id,
+                "tenant_id": tenant_id,
+                "role": role.value,
+            },
+        )
+
+        return True
+
 
     def check_permission(
         self, user_id: str, tenant_id: str, required_permission: Permission
@@ -286,81 +259,60 @@ class RBACManager:
         """
         correlation_id = get_correlation_id()
 
-        try:
-            # Get user's role for the tenant
-            user_role = self.get_user_role(user_id, tenant_id)
-            if not user_role:
-                logger.debug(
-                    "Permission denied: user %s has no role for tenant %s",
-                    user_id,
-                    tenant_id,
-                    extra={
-                        "correlation_id": correlation_id,
-                        "user_id": user_id,
-                        "tenant_id": tenant_id,
-                        "required_permission": required_permission.value,
-                    },
-                )
-                return False
-
-            # Check if role has the required permission
-            role_definition = self._role_definitions.get(user_role)
-            if not role_definition:
-                logger.warning(
-                    "Permission denied: invalid role %s for user %s",
-                    user_role.value,
-                    user_id,
-                    extra={
-                        "correlation_id": correlation_id,
-                        "user_id": user_id,
-                        "tenant_id": tenant_id,
-                        "role": user_role.value,
-                        "required_permission": required_permission.value,
-                    },
-                )
-                return False
-
-            has_permission = required_permission in role_definition.permissions
-
-            # Check tenant-specific permissions if role doesn't have it
-            if not has_permission:
-                tenant_permissions = self._tenant_permissions.get(tenant_id, set())
-                has_permission = required_permission in tenant_permissions
-
+        user_role = self.get_user_role(user_id, tenant_id)
+        if not user_role:
             logger.debug(
-                "Permission check: user %s %s permission %s for tenant %s",
+                "Permission denied: user %s has no role for tenant %s",
                 user_id,
-                "has" if has_permission else "lacks",
-                required_permission.value,
                 tenant_id,
+                extra={
+                    "correlation_id": correlation_id,
+                    "user_id": user_id,
+                    "tenant_id": tenant_id,
+                    "required_permission": required_permission.value,
+                },
+            )
+            return False
+
+        role_definition = self._role_definitions.get(user_role)
+        if not role_definition:
+            logger.warning(
+                "Permission denied: invalid role %s for user %s",
+                user_role.value,
+                user_id,
                 extra={
                     "correlation_id": correlation_id,
                     "user_id": user_id,
                     "tenant_id": tenant_id,
                     "role": user_role.value,
                     "required_permission": required_permission.value,
-                    "has_permission": has_permission,
-                },
-            )
-
-            return has_permission
-
-        except Exception as e:
-            logger.error(
-                "Permission check failed for user %s, tenant %s, permission %s: %s",
-                user_id,
-                tenant_id,
-                required_permission.value,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "user_id": user_id,
-                    "tenant_id": tenant_id,
-                    "required_permission": required_permission.value,
-                    "error": str(e),
                 },
             )
             return False
+
+        has_permission = required_permission in role_definition.permissions
+        if not has_permission:
+            tenant_permissions = self._tenant_permissions.get(tenant_id, set())
+            has_permission = required_permission in tenant_permissions
+
+        logger.debug(
+            "Permission check: user %s %s permission %s for tenant %s",
+            user_id,
+            "has" if has_permission else "lacks",
+            required_permission.value,
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "user_id": user_id,
+                "tenant_id": tenant_id,
+                "role": user_role.value,
+                "required_permission": required_permission.value,
+                "has_permission": has_permission,
+            },
+        )
+
+        return has_permission
+
 
     def get_user_role(self, user_id: str, tenant_id: str) -> Optional[Role]:
         """Get a user's role for a specific tenant.
@@ -438,39 +390,31 @@ class RBACManager:
         """
         correlation_id = get_correlation_id()
 
-        try:
-            if tenant_id not in self._tenant_permissions:
-                self._tenant_permissions[tenant_id] = set()
-
-            self._tenant_permissions[tenant_id].add(permission)
-
-            logger.info(
-                "Added custom permission %s for tenant %s",
+        permissions = self._tenant_permissions.setdefault(tenant_id, set())
+        if permission in permissions:
+            logger.debug(
+                "Permission %s already granted to tenant %s",
                 permission.value,
                 tenant_id,
-                extra={
-                    "correlation_id": correlation_id,
-                    "tenant_id": tenant_id,
-                    "permission": permission.value,
-                },
+                extra={"correlation_id": correlation_id},
             )
-
             return True
 
-        except Exception as e:
-            logger.error(
-                "Failed to add permission %s for tenant %s: %s",
-                permission.value,
-                tenant_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "tenant_id": tenant_id,
-                    "permission": permission.value,
-                    "error": str(e),
-                },
-            )
-            return False
+        permissions.add(permission)
+
+        logger.info(
+            "Added custom permission %s for tenant %s",
+            permission.value,
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "tenant_id": tenant_id,
+                "permission": permission.value,
+            },
+        )
+
+        return True
+
 
     def get_role_definition(self, role: Role) -> Optional[RoleDefinition]:
         """Get the definition for a specific role.

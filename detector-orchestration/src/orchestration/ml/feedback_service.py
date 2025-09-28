@@ -12,7 +12,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 from shared.interfaces.orchestration import DetectorResult
-from shared.utils.performance import calculate_performance_reward, PerformanceTracker
+from shared.utils.performance import calculate_performance_reward
 from shared.utils.correlation import get_correlation_id
 
 from .performance_predictor import PerformancePredictor, PerformanceMetrics
@@ -46,7 +46,7 @@ class MLFeedbackService:
         self,
         detector_results: List[DetectorResult],
         routing_decision: Any,
-        content_features: Any,
+        _content_features: Any,
     ) -> None:
         """Update all ML models with performance feedback.
 
@@ -76,10 +76,10 @@ class MLFeedbackService:
                 },
             )
 
-        except Exception as e:
+        except (ValueError, RuntimeError, TypeError) as exc:
             logger.error(
                 "Failed to update ML models with feedback: %s",
-                str(e),
+                exc,
                 extra={"correlation_id": correlation_id},
             )
 

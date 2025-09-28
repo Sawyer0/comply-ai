@@ -8,13 +8,13 @@ This module provides ONLY load balancing capabilities:
 """
 
 import logging
-import asyncio
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from collections import defaultdict, deque
-import numpy as np
+from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class LoadBalancingStrategy(str, Enum):
 
 
 @dataclass
-class DetectorLoad:
+class DetectorLoad:  # pylint: disable=too-many-instance-attributes
     """Current load information for a detector."""
 
     detector_id: str
@@ -43,6 +43,50 @@ class DetectorLoad:
     queue_length: int
     last_updated: datetime
     capacity_score: float = field(default=1.0)
+
+
+@dataclass(slots=True)
+class ScoringWeights:
+    """Weights applied to adaptive scoring components."""
+
+    response_time: float = 0.4
+    success_rate: float = 0.3
+    load: float = 0.2
+    availability: float = 0.1
+
+
+@dataclass(slots=True)
+class PerformanceThresholds:
+    """Thresholds used to determine detector health."""
+
+    max_response_time_ms: int = 5000
+    min_success_rate: float = 0.8
+    max_error_rate: float = 0.2
+    max_queue_length: int = 10
+
+
+@dataclass(slots=True)
+class LoadBalancerConfig:
+    """Configuration bundle for adaptive load balancer."""
+
+    load_update_interval: int = 5
+    weights: ScoringWeights = field(default_factory=ScoringWeights)
+    thresholds: PerformanceThresholds = field(default_factory=PerformanceThresholds)
+
+
+@dataclass(slots=True)
+class LoadBalancerState:
+    """Mutable runtime state for adaptive load balancer."""
+
+    detector_loads: Dict[str, DetectorLoad] = field(default_factory=dict)
+    request_history: Dict[str, deque] = field(
+        default_factory=lambda: defaultdict(lambda: deque(maxlen=100))
+    )
+    performance_history: Dict[str, deque] = field(
+        default_factory=lambda: defaultdict(lambda: deque(maxlen=50))
+    )
+    round_robin_index: int = 0
+    last_load_update: datetime = field(default_factory=datetime.now)
 
 
 @dataclass
@@ -62,33 +106,126 @@ class AdaptiveLoadBalancer:
 
     def __init__(
         self, strategy: LoadBalancingStrategy = LoadBalancingStrategy.ADAPTIVE
-    ):
+    ) -> None:
         """Initialize adaptive load balancer.
 
         Args:
             strategy: Load balancing strategy to use
         """
         self.strategy = strategy
-        self.detector_loads: Dict[str, DetectorLoad] = {}
-        self.request_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=100))
-        self.performance_history: Dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=50)
-        )
-        self.round_robin_index = 0
-        self.load_update_interval = 5  # seconds
-        self.last_load_update = datetime.now()
+        self._config = LoadBalancerConfig()
+        self._state = LoadBalancerState()
 
-        # Adaptive parameters
-        self.response_time_weight = 0.4
-        self.success_rate_weight = 0.3
-        self.load_weight = 0.2
-        self.availability_weight = 0.1
+        # pylint: disable=missing-function-docstring
+    @property
+    def config(self) -> LoadBalancerConfig:
+        return self._config
 
-        # Performance thresholds
-        self.max_response_time_ms = 5000
-        self.min_success_rate = 0.8
-        self.max_error_rate = 0.2
-        self.max_queue_length = 10
+    @property
+    def state(self) -> LoadBalancerState:
+        return self._state
+
+    @property
+    def detector_loads(self) -> Dict[str, DetectorLoad]:
+        return self._state.detector_loads
+
+    @property
+    def request_history(self) -> Dict[str, deque]:
+        return self._state.request_history
+
+    @property
+    def performance_history(self) -> Dict[str, deque]:
+        return self._state.performance_history
+
+    @property
+    def round_robin_index(self) -> int:
+        return self._state.round_robin_index
+
+    @round_robin_index.setter
+    def round_robin_index(self, value: int) -> None:
+        self._state.round_robin_index = value
+
+    @property
+    def load_update_interval(self) -> int:
+        return self._config.load_update_interval
+
+    @load_update_interval.setter
+    def load_update_interval(self, value: int) -> None:
+        self._config.load_update_interval = value
+
+    @property
+    def last_load_update(self) -> datetime:
+        return self._state.last_load_update
+
+    @last_load_update.setter
+    def last_load_update(self, value: datetime) -> None:
+        self._state.last_load_update = value
+
+    @property
+    def response_time_weight(self) -> float:
+        return self._config.weights.response_time
+
+    @response_time_weight.setter
+    def response_time_weight(self, value: float) -> None:
+        self._config.weights.response_time = value
+
+    @property
+    def success_rate_weight(self) -> float:
+        return self._config.weights.success_rate
+
+    @success_rate_weight.setter
+    def success_rate_weight(self, value: float) -> None:
+        self._config.weights.success_rate = value
+
+    @property
+    def load_weight(self) -> float:
+        return self._config.weights.load
+
+    @load_weight.setter
+    def load_weight(self, value: float) -> None:
+        self._config.weights.load = value
+
+    @property
+    def availability_weight(self) -> float:
+        return self._config.weights.availability
+
+    @availability_weight.setter
+    def availability_weight(self, value: float) -> None:
+        self._config.weights.availability = value
+
+    @property
+    def max_response_time_ms(self) -> int:
+        return self._config.thresholds.max_response_time_ms
+
+    @max_response_time_ms.setter
+    def max_response_time_ms(self, value: int) -> None:
+        self._config.thresholds.max_response_time_ms = value
+
+    @property
+    def min_success_rate(self) -> float:
+        return self._config.thresholds.min_success_rate
+
+    @min_success_rate.setter
+    def min_success_rate(self, value: float) -> None:
+        self._config.thresholds.min_success_rate = value
+
+    @property
+    def max_error_rate(self) -> float:
+        return self._config.thresholds.max_error_rate
+
+    @max_error_rate.setter
+    def max_error_rate(self, value: float) -> None:
+        self._config.thresholds.max_error_rate = value
+
+    @property
+    def max_queue_length(self) -> int:
+        return self._config.thresholds.max_queue_length
+
+    @max_queue_length.setter
+    def max_queue_length(self, value: int) -> None:
+        self._config.thresholds.max_queue_length = value
+
+        # pylint: enable=missing-function-docstring
 
     def update_detector_load(self, detector_id: str, load_info: Dict[str, Any]) -> None:
         """Update load information for a detector.
@@ -136,8 +273,8 @@ class AdaptiveLoadBalancer:
                 },
             )
 
-        except Exception as e:
-            logger.error("Failed to update detector load: %s", str(e))
+        except (ValueError, TypeError, OverflowError) as exc:
+            logger.error("Failed to update detector load: %s", exc)
 
     def _calculate_capacity_score(self, load_info: Dict[str, Any]) -> float:
         """Calculate capacity score for a detector.
@@ -200,28 +337,28 @@ class AdaptiveLoadBalancer:
             healthy_detectors = self._filter_healthy_detectors(available_detectors)
 
             if not healthy_detectors:
-                return self._fallback_selection(available_detectors, num_detectors)
-
-            # Select based on strategy
-            if self.strategy == LoadBalancingStrategy.ADAPTIVE:
-                return await self._adaptive_selection(
+                decision = self._fallback_selection(available_detectors, num_detectors)
+            elif self.strategy == LoadBalancingStrategy.ADAPTIVE:
+                decision = await self._adaptive_selection(
                     healthy_detectors, num_detectors, content_features
                 )
             elif self.strategy == LoadBalancingStrategy.RESPONSE_TIME:
-                return self._response_time_selection(healthy_detectors, num_detectors)
+                decision = self._response_time_selection(healthy_detectors, num_detectors)
             elif self.strategy == LoadBalancingStrategy.LEAST_CONNECTIONS:
-                return self._least_connections_selection(
+                decision = self._least_connections_selection(
                     healthy_detectors, num_detectors
                 )
             elif self.strategy == LoadBalancingStrategy.WEIGHTED_ROUND_ROBIN:
-                return self._weighted_round_robin_selection(
+                decision = self._weighted_round_robin_selection(
                     healthy_detectors, num_detectors
                 )
-            else:  # ROUND_ROBIN
-                return self._round_robin_selection(healthy_detectors, num_detectors)
+            else:
+                decision = self._round_robin_selection(healthy_detectors, num_detectors)
 
-        except Exception as e:
-            logger.error("Detector selection failed: %s", str(e))
+            return decision
+
+        except (TypeError, ValueError, ZeroDivisionError) as exc:
+            logger.error("Detector selection failed: %s", exc)
             return self._fallback_selection(available_detectors, num_detectors)
 
     def _filter_healthy_detectors(self, detectors: List[str]) -> List[str]:
@@ -283,14 +420,18 @@ class AdaptiveLoadBalancer:
         sorted_detectors = sorted(
             detector_scores.items(), key=lambda x: x[1], reverse=True
         )
-        selected = [detector_id for detector_id, _ in sorted_detectors[:num_detectors]]
+        top_pairs = sorted_detectors[:num_detectors]
+        selected = [detector_id for detector_id, _ in top_pairs]
 
         # Calculate load distribution
-        total_score = sum(score for _, score in sorted_detectors[:num_detectors])
-        load_distribution = {
-            detector_id: score / total_score
-            for detector_id, score in sorted_detectors[:num_detectors]
-        }
+        total_score = sum(score for _, score in top_pairs)
+        if total_score <= 0:
+            load_distribution = self._even_distribution(selected)
+        else:
+            load_distribution = {
+                detector_id: score / total_score
+                for detector_id, score in top_pairs
+            }
 
         # Estimate response time
         estimated_response_time = self._estimate_response_time(selected)
@@ -415,7 +556,7 @@ class AdaptiveLoadBalancer:
 
         return base_affinity * complexity_factor
 
-    def _calculate_time_factor(self, detector_id: str) -> float:
+    def _calculate_time_factor(self, _detector_id: str) -> float:
         """Calculate time-based performance factor.
 
         Args:
@@ -433,10 +574,9 @@ class AdaptiveLoadBalancer:
         # This is a simplified example
         if 9 <= current_hour <= 17:  # Business hours
             return 1.0  # Peak performance
-        elif 18 <= current_hour <= 22:  # Evening
+        if 18 <= current_hour <= 22:  # Evening
             return 0.9
-        else:  # Night/early morning
-            return 0.8
+        return 0.8  # Night/early morning
 
     def _response_time_selection(
         self, detectors: List[str], num_detectors: int
@@ -462,13 +602,10 @@ class AdaptiveLoadBalancer:
         selected = [detector_id for detector_id, _ in detector_times[:num_detectors]]
 
         # Equal distribution
-        load_distribution = {
-            detector_id: 1.0 / len(selected) for detector_id in selected
-        }
+        load_distribution = self._even_distribution(selected)
 
-        estimated_response_time = np.mean(
-            [time for _, time in detector_times[:num_detectors]]
-        )
+        time_samples = [time for _, time in detector_times[:num_detectors]] if selected else []
+        estimated_response_time = float(np.mean(time_samples)) if time_samples else 0.0
 
         return LoadBalancingDecision(
             selected_detectors=selected,
@@ -502,10 +639,7 @@ class AdaptiveLoadBalancer:
         detector_loads.sort(key=lambda x: x[1])
         selected = [detector_id for detector_id, _ in detector_loads[:num_detectors]]
 
-        # Equal distribution
-        load_distribution = {
-            detector_id: 1.0 / len(selected) for detector_id in selected
-        }
+        load_distribution = self._even_distribution(selected)
 
         estimated_response_time = self._estimate_response_time(selected)
 
@@ -538,14 +672,18 @@ class AdaptiveLoadBalancer:
 
         # Select detectors with highest weights
         sorted_detectors = sorted(weights.items(), key=lambda x: x[1], reverse=True)
-        selected = [detector_id for detector_id, _ in sorted_detectors[:num_detectors]]
+        top_pairs = sorted_detectors[:num_detectors]
+        selected = [detector_id for detector_id, _ in top_pairs]
 
         # Weighted distribution
-        total_weight = sum(weight for _, weight in sorted_detectors[:num_detectors])
-        load_distribution = {
-            detector_id: weight / total_weight
-            for detector_id, weight in sorted_detectors[:num_detectors]
-        }
+        total_weight = sum(weight for _, weight in top_pairs)
+        if total_weight <= 0:
+            load_distribution = self._even_distribution(selected)
+        else:
+            load_distribution = {
+                detector_id: weight / total_weight
+                for detector_id, weight in top_pairs
+            }
 
         estimated_response_time = self._estimate_response_time(selected)
 
@@ -570,23 +708,18 @@ class AdaptiveLoadBalancer:
         Returns:
             Load balancing decision
         """
-        selected = []
+        selected: List[str] = []
 
-        for i in range(num_detectors):
-            if not detectors:
-                break
+        if detectors:
+            iterations = min(num_detectors, len(detectors))
+            for step in range(iterations):
+                index = (self.round_robin_index + step) % len(detectors)
+                selected.append(detectors[index])
 
-            index = (self.round_robin_index + i) % len(detectors)
-            selected.append(detectors[index])
+            if selected:
+                self.round_robin_index = (self.round_robin_index + len(selected)) % len(detectors)
 
-        self.round_robin_index = (self.round_robin_index + num_detectors) % len(
-            detectors
-        )
-
-        # Equal distribution
-        load_distribution = {
-            detector_id: 1.0 / len(selected) for detector_id in selected
-        }
+        load_distribution = self._even_distribution(selected)
 
         estimated_response_time = self._estimate_response_time(selected)
 
@@ -598,6 +731,13 @@ class AdaptiveLoadBalancer:
             reasoning="Selected using round robin",
             estimated_response_time=estimated_response_time,
         )
+
+    @staticmethod
+    def _even_distribution(selected: List[str]) -> Dict[str, float]:
+        if not selected:
+            return {}
+        share = 1.0 / len(selected)
+        return {detector_id: share for detector_id in selected}
 
     def _fallback_selection(
         self, detectors: List[str], num_detectors: int
@@ -612,9 +752,7 @@ class AdaptiveLoadBalancer:
             Fallback load balancing decision
         """
         selected = detectors[:num_detectors]
-        load_distribution = {
-            detector_id: 1.0 / len(selected) for detector_id in selected
-        }
+        load_distribution = self._even_distribution(selected)
 
         return LoadBalancingDecision(
             selected_detectors=selected,
