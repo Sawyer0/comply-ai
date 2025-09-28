@@ -16,20 +16,16 @@ from dataclasses import dataclass
 
 try:
     import numpy as np
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.cluster import KMeans
-    from sklearn.preprocessing import StandardScaler
-
-    SKLEARN_AVAILABLE = True
 except ImportError:
-    SKLEARN_AVAILABLE = False
     np = None
+
+NUMPY_AVAILABLE = np is not None
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ContentFeatures:
+class ContentFeatures:  # pylint: disable=too-many-instance-attributes
     """Content features for routing decisions."""
 
     content_type: str
@@ -63,21 +59,10 @@ class ContentAnalyzer:
             max_content_length: Maximum content length to analyze
         """
         self.max_content_length = max_content_length
-        if SKLEARN_AVAILABLE:
-            self.vectorizer = TfidfVectorizer(
-                max_features=100,  # Keep lightweight
-                stop_words="english",
-                ngram_range=(1, 2),
-            )
-            self.content_clusterer = KMeans(n_clusters=5, random_state=42)
-            self.scaler = StandardScaler()
-        else:
+        if not NUMPY_AVAILABLE:
             logger.warning(
-                "scikit-learn not available, using basic content analysis only"
+                "Advanced ML libraries not available, using basic content analysis only"
             )
-            self.vectorizer = None
-            self.content_clusterer = None
-            self.scaler = None
         self.is_trained = False
 
         # Content type patterns
@@ -225,7 +210,7 @@ class ContentAnalyzer:
         factors.append(special_density)
 
         # Average complexity
-        if not SKLEARN_AVAILABLE:
+        if not NUMPY_AVAILABLE:
             return sum(factors) / len(factors) if factors else 0.0
         return np.mean(factors)
 
@@ -531,7 +516,13 @@ class ContentAnalyzer:
         # Calculate confidence based on feature clarity
         confidence = self._calculate_profile_confidence(features)
 
-        profile_data = f"{features.content_type}_{features.complexity_score}_{features.content_length}"
+        profile_data = "_".join(
+            [
+                features.content_type,
+                f"{features.complexity_score}",
+                str(features.content_length),
+            ]
+        )
         profile_id = hashlib.md5(profile_data.encode()).hexdigest()[:8]
 
         return ContentProfile(
@@ -646,7 +637,7 @@ class ContentAnalyzer:
         else:
             confidence_factors.append(0.6)
 
-        if not SKLEARN_AVAILABLE:
+        if not NUMPY_AVAILABLE:
             return (
                 sum(confidence_factors) / len(confidence_factors)
                 if confidence_factors

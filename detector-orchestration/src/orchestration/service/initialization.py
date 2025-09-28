@@ -1,5 +1,6 @@
-"""Component initialization helpers for the orchestration service."""
+﻿"""Component initialization helpers for the orchestration service."""
 
+# pylint: disable=protected-access
 from __future__ import annotations
 
 import logging
@@ -12,6 +13,8 @@ from shared.utils.correlation import get_correlation_id
 from ..core import (
     ContentRouter,
     CustomerDetectorClient,
+    DetectorClientConfig,
+    DetectorConfig,
     DetectorCoordinator,
     ResponseAggregator,
 )
@@ -117,11 +120,13 @@ def bootstrap_detectors_from_discovery(service: "OrchestrationService") -> None:
             parser_callable = get_response_parser(None)
 
         router.register_detector(
-            name=endpoint.service_id,
-            endpoint=endpoint.endpoint_url,
-            timeout_ms=metadata.timeout_ms,
-            max_retries=metadata.max_retries,
-            supported_content_types=(metadata.supported_content_types or None),
+            DetectorConfig(
+                name=endpoint.service_id,
+                endpoint=endpoint.endpoint_url,
+                timeout_ms=metadata.timeout_ms,
+                max_retries=metadata.max_retries,
+                supported_content_types=metadata.supported_content_types or ["text"],
+            )
         )
 
         if endpoint.service_id in service.components.detector_clients:
@@ -132,14 +137,15 @@ def bootstrap_detectors_from_discovery(service: "OrchestrationService") -> None:
             analyze_endpoint = f"{analyze_endpoint}/{metadata.analyze_path.lstrip('/')}"
 
         timeout_seconds = max(metadata.timeout_ms / 1000.0, 0.1)
-        service.components.detector_clients[endpoint.service_id] = (
-            CustomerDetectorClient(
-                name=endpoint.service_id,
-                endpoint=analyze_endpoint,
-                timeout=timeout_seconds,
-                default_headers=metadata.auth_headers,
-                response_parser=parser_callable,
-            )
+        client_config = DetectorClientConfig(
+            name=endpoint.service_id,
+            endpoint=analyze_endpoint,
+            timeout=timeout_seconds,
+            default_headers=metadata.auth_headers or {},
+            response_parser=parser_callable,
+        )
+        service.components.detector_clients[endpoint.service_id] = CustomerDetectorClient(
+            client_config
         )
 
 

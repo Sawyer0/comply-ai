@@ -5,9 +5,16 @@ This module provides service discovery capabilities following SRP:
 - LoadBalancer: Balance load across available services
 """
 
-from .service_discovery import ServiceDiscoveryManager, ServiceEndpoint
+from .service_discovery import (
+    ServiceDiscoveryManager,
+    ServiceEndpoint,
+    ServiceMetadata,
+    ServiceRegistration,
+)
 
 __all__ = [
     "ServiceDiscoveryManager",
     "ServiceEndpoint",
+    "ServiceMetadata",
+    "ServiceRegistration",
 ]

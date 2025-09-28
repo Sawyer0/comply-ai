@@ -1,0 +1,479 @@
+﻿************* Module orchestration.discovery.service_discovery
+detector-orchestration\src\orchestration\discovery\service_discovery.py:60:4: R0913: Too many arguments (6/5) (too-many-arguments)
+detector-orchestration\src\orchestration\discovery\service_discovery.py:60:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\discovery\service_discovery.py:57:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+detector-orchestration\src\orchestration\discovery\service_discovery.py:96:4: R0913: Too many arguments (6/5) (too-many-arguments)
+detector-orchestration\src\orchestration\discovery\service_discovery.py:96:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+************* Module orchestration.ml.content_analyzer
+detector-orchestration\src\orchestration\ml\content_analyzer.py:534:0: C0301: Line too long (103/100) (line-too-long)
+detector-orchestration\src\orchestration\ml\content_analyzer.py:32:0: R0902: Too many instance attributes (8/7) (too-many-instance-attributes)
+************* Module orchestration.ml.feedback_service
+detector-orchestration\src\orchestration\ml\feedback_service.py:79:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\ml\feedback_service.py:49:8: W0613: Unused argument 'content_features' (unused-argument)
+detector-orchestration\src\orchestration\ml\feedback_service.py:15:0: W0611: Unused PerformanceTracker imported from shared.utils.performance (unused-import)
+************* Module orchestration.ml.load_balancer
+detector-orchestration\src\orchestration\ml\load_balancer.py:33:0: R0902: Too many instance attributes (10/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\ml\load_balancer.py:60:0: R0902: Too many instance attributes (15/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\ml\load_balancer.py:139:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\ml\load_balancer.py:223:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\ml\load_balancer.py:206:12: R1705: Unnecessary "elif" after "return", remove the leading "el" from "elif" (no-else-return)
+detector-orchestration\src\orchestration\ml\load_balancer.py:179:4: R0911: Too many return statements (7/6) (too-many-return-statements)
+detector-orchestration\src\orchestration\ml\load_balancer.py:434:8: R1705: Unnecessary "elif" after "return", remove the leading "el" from "elif" (no-else-return)
+detector-orchestration\src\orchestration\ml\load_balancer.py:418:37: W0613: Unused argument 'detector_id' (unused-argument)
+detector-orchestration\src\orchestration\ml\load_balancer.py:17:0: C0411: standard import "enum.Enum" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\load_balancer.py:11:0: W0611: Unused import asyncio (unused-import)
+detector-orchestration\src\orchestration\ml\load_balancer.py:12:0: W0611: Unused Tuple imported from typing (unused-import)
+detector-orchestration\src\orchestration\ml\load_balancer.py:14:0: W0611: Unused timedelta imported from datetime (unused-import)
+************* Module orchestration.ml.performance_predictor
+detector-orchestration\src\orchestration\ml\performance_predictor.py:303:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\ml\performance_predictor.py:351:8: W0613: Unused argument 'detector_id' (unused-argument)
+************* Module orchestration.ml.routing_optimizer
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:47:0: R0902: Too many instance attributes (12/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:412:8: R1705: Unnecessary "elif" after "return", remove the leading "el" from "elif" (no-else-return)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:421:37: W0613: Unused argument 'context' (unused-argument)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:12:0: C0411: standard import "typing.Dict" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:13:0: C0411: standard import "dataclasses.dataclass" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:14:0: C0411: standard import "datetime.datetime" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:15:0: C0411: standard import "collections.defaultdict" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:16:0: C0411: standard import "random" should be placed before third party import "numpy" (wrong-import-order)
+detector-orchestration\src\orchestration\ml\routing_optimizer.py:17:0: C0411: standard import "math" should be placed before third party import "numpy" (wrong-import-order)
+************* Module orchestration.monitoring.health_monitor
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:20:4: R0913: Too many arguments (6/5) (too-many-arguments)
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:20:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:17:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:36:0: R0902: Too many instance attributes (8/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:155:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\health_monitor.py:10:0: W0611: Unused timedelta imported from datetime (unused-import)
+************* Module orchestration.monitoring.prometheus_metrics
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:24:0: R0902: Too many instance attributes (14/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:153:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:180:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:202:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:221:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:236:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:251:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:267:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:283:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:298:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:313:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:344:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:329:36: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:329:36: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:330:34: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:330:34: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:331:35: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:331:35: W0212: Access to a protected member _value of a client class (protected-access)
+detector-orchestration\src\orchestration\monitoring\prometheus_metrics.py:8:0: W0611: Unused import time (unused-import)
+************* Module orchestration.pipelines.async_job_processor
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:570:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:584:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:586:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:54:0: R0902: Too many instance attributes (18/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:79:0: R0902: Too many instance attributes (11/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:142:4: R0913: Too many arguments (9/5) (too-many-arguments)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:142:4: R0917: Too many positional arguments (9/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:289:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:385:19: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:453:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:537:19: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\pipelines\async_job_processor.py:598:16: C0415: Import outside toplevel (json) (import-outside-toplevel)
+************* Module orchestration.plugins.base
+detector-orchestration\src\orchestration\plugins\base.py:58:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\base.py:70:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\base.py:78:4: C0116: Missing function or method docstring (missing-function-docstring)
+************* Module orchestration.plugins.detector_plugin
+detector-orchestration\src\orchestration\plugins\detector_plugin.py:77:44: W0613: Unused argument 'metadata' (unused-argument)
+************* Module orchestration.plugins.plugin_manager
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:63:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:102:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:141:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:166:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:193:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:251:19: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:266:19: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:264:56: W0212: Access to a protected member _initialized of a client class (protected-access)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:301:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:281:23: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:290:23: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:344:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:388:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:9:0: W0611: Unused import inspect (unused-import)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:10:0: W0611: Unused Type imported from typing (unused-import)
+detector-orchestration\src\orchestration\plugins\plugin_manager.py:11:0: W0611: Unused Path imported from pathlib (unused-import)
+************* Module orchestration.plugins.policy_plugin
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:11:0: W0404: Reimport 'Enum' (imported line 9) (reimported)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:12:0: W0404: Reimport 'Any' (imported line 10) (reimported)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:12:0: W0404: Reimport 'Dict' (imported line 10) (reimported)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:12:0: W0404: Reimport 'List' (imported line 10) (reimported)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:12:0: W0404: Reimport 'Optional' (imported line 10) (reimported)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:100:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:120:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:151:14: W0613: Unused argument 'policy_definition' (unused-argument)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:11:0: C0412: Imports from package enum are not grouped (ungrouped-imports)
+detector-orchestration\src\orchestration\plugins\policy_plugin.py:12:0: C0412: Imports from package typing are not grouped (ungrouped-imports)
+************* Module orchestration.policy.evaluator
+detector-orchestration\src\orchestration\policy\evaluator.py:26:0: R0913: Too many arguments (7/5) (too-many-arguments)
+detector-orchestration\src\orchestration\policy\evaluator.py:114:0: R0913: Too many arguments (8/5) (too-many-arguments)
+detector-orchestration\src\orchestration\policy\evaluator.py:114:0: R0914: Too many local variables (18/15) (too-many-locals)
+detector-orchestration\src\orchestration\policy\evaluator.py:114:0: R0912: Too many branches (13/12) (too-many-branches)
+************* Module orchestration.policy.metadata
+detector-orchestration\src\orchestration\policy\metadata.py:27:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:31:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:37:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:149:36: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:197:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:199:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:204:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:208:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:234:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:236:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:239:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\metadata.py:248:0: C0303: Trailing whitespace (trailing-whitespace)
+************* Module orchestration.policy.parser
+detector-orchestration\src\orchestration\policy\parser.py:125:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\parser.py:206:0: C0303: Trailing whitespace (trailing-whitespace)
+************* Module orchestration.policy.policy_loader
+detector-orchestration\src\orchestration\policy\policy_loader.py:55:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\policy_loader.py:74:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\policy_loader.py:78:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\policy_loader.py:84:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\policy_loader.py:88:0: C0303: Trailing whitespace (trailing-whitespace)
+************* Module orchestration.policy.policy_manager
+detector-orchestration\src\orchestration\policy\policy_manager.py:277:0: C0301: Line too long (102/100) (line-too-long)
+detector-orchestration\src\orchestration\policy\policy_manager.py:164:4: R0913: Too many arguments (7/5) (too-many-arguments)
+************* Module orchestration.policy.repository
+detector-orchestration\src\orchestration\policy\repository.py:165:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\policy\repository.py:166:12: R1705: Unnecessary "else" after "return", remove the "else" and de-indent the code inside it (no-else-return)
+detector-orchestration\src\orchestration\policy\repository.py:201:26: C0201: Consider iterating the dictionary directly instead of calling .keys() (consider-iterating-dictionary)
+************* Module orchestration.resilience.circuit_breaker
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:11:0: E0402: Attempted relative import beyond top-level package (relative-beyond-top-level)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:55:36: W0212: Access to a protected member _breakers of a client class (protected-access)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:63:26: W0212: Access to a protected member _breakers of a client class (protected-access)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:64:22: W0212: Access to a protected member _breakers of a client class (protected-access)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:82:32: W0212: Access to a protected member _breakers of a client class (protected-access)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:96:36: W0212: Access to a protected member _breakers of a client class (protected-access)
+detector-orchestration\src\orchestration\resilience\circuit_breaker.py:8:0: W0611: Unused Optional imported from typing (unused-import)
+************* Module orchestration.resilience.rate_limiter
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:27:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:143:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:327:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:281:4: R0912: Too many branches (15/12) (too-many-branches)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:353:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:410:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:435:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:7:0: W0611: Unused import asyncio (unused-import)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:10:0: W0611: Unused Tuple imported from typing (unused-import)
+detector-orchestration\src\orchestration\resilience\rate_limiter.py:11:0: W0611: Unused timedelta imported from datetime (unused-import)
+************* Module orchestration.security.auth.api_key_manager
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:29:0: R0902: Too many instance attributes (9/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:32:4: R0913: Too many arguments (10/5) (too-many-arguments)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:32:4: R0917: Too many positional arguments (10/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:29:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:224:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:269:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\auth\api_key_manager.py:15:0: W0611: Unused AuthenticationError imported from shared.exceptions.base (unused-import)
+************* Module orchestration.security.rbac.rbac_manager
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:194:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:259:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:224:12: R1705: Unnecessary "else" after "return", remove the "else" and de-indent the code inside it (no-else-return)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:348:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:460:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:8:0: W0611: Unused Any imported from typing (unused-import)
+detector-orchestration\src\orchestration\security\rbac\rbac_manager.py:13:0: W0611: Unused AuthenticationError imported from shared.exceptions.base (unused-import)
+************* Module orchestration.security.validation.input_sanitizer
+detector-orchestration\src\orchestration\security\validation\input_sanitizer.py:85:12: R1705: Unnecessary "elif" after "return", remove the leading "el" from "elif" (no-else-return)
+detector-orchestration\src\orchestration\security\validation\input_sanitizer.py:207:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\validation\input_sanitizer.py:259:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\validation\input_sanitizer.py:251:12: R1705: Unnecessary "elif" after "return", remove the leading "el" from "elif" (no-else-return)
+detector-orchestration\src\orchestration\security\validation\input_sanitizer.py:10:0: W0611: Unused Union imported from typing (unused-import)
+************* Module orchestration.security.waf.attack_detector
+detector-orchestration\src\orchestration\security\waf\attack_detector.py:255:19: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\security\waf\attack_detector.py:332:43: W0108: Lambda may not be necessary (unnecessary-lambda)
+detector-orchestration\src\orchestration\security\waf\attack_detector.py:9:0: W0611: Unused Optional imported from typing (unused-import)
+************* Module orchestration.service.lifecycle
+detector-orchestration\src\orchestration\service\lifecycle.py:20:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:24:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:30:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:31:18: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:32:21: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:35:8: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:37:8: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:42:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:45:13: E0602: Undefined variable 'PipelineContext' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:47:15: E0602: Undefined variable 'OrchestrationArtifacts' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:49:4: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:64:14: W0212: Access to a protected member _log_extra of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:75:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:78:13: E0602: Undefined variable 'PipelineContext' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:82:4: W0212: Access to a protected member _metrics of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:98:14: W0212: Access to a protected member _log_extra of a client class (protected-access)
+detector-orchestration\src\orchestration\service\lifecycle.py:108:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:111:13: E0602: Undefined variable 'PipelineContext' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:113:15: E0602: Undefined variable 'OrchestrationArtifacts' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:109:4: W0613: Unused argument 'service' (unused-argument)
+detector-orchestration\src\orchestration\service\lifecycle.py:146:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\lifecycle.py:149:13: E0602: Undefined variable 'PipelineContext' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:151:24: E0602: Undefined variable 'OrchestrationArtifacts' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:184:4: W0101: Unreachable code (unreachable)
+detector-orchestration\src\orchestration\service\lifecycle.py:186:7: E0602: Undefined variable 'aggregation' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:189:24: E0602: Undefined variable 'aggregation' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:193:35: E0602: Undefined variable 'aggregation' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:194:26: E0602: Undefined variable 'aggregation' (undefined-variable)
+detector-orchestration\src\orchestration\service\lifecycle.py:147:4: W0613: Unused argument 'service' (unused-argument)
+************* Module orchestration.service.models
+detector-orchestration\src\orchestration\service\models.py:68:0: R0902: Too many instance attributes (23/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\service\models.py:167:0: R0902: Too many instance attributes (9/7) (too-many-instance-attributes)
+************* Module orchestration.service.pipeline
+detector-orchestration\src\orchestration\service\pipeline.py:31:13: W0212: Access to a protected member _fallback_tenant_context of a client class (protected-access)
+detector-orchestration\src\orchestration\service\pipeline.py:100:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:107:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:122:18: W0212: Access to a protected member _log_extra of a client class (protected-access)
+detector-orchestration\src\orchestration\service\pipeline.py:132:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:145:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:166:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:183:0: C0116: Missing function or method docstring (missing-function-docstring)
+detector-orchestration\src\orchestration\service\pipeline.py:204:0: C0116: Missing function or method docstring (missing-function-docstring)
+************* Module orchestration.service.security
+detector-orchestration\src\orchestration\service\security.py:17:0: R0913: Too many arguments (7/5) (too-many-arguments)
+detector-orchestration\src\orchestration\service\security.py:32:14: W0212: Access to a protected member _log_extra of a client class (protected-access)
+detector-orchestration\src\orchestration\service\security.py:146:18: W0212: Access to a protected member _log_extra of a client class (protected-access)
+************* Module orchestration.service.__init__
+detector-orchestration\src\orchestration\service\__init__.py:23:0: C0327: Mixed line endings LF and CRLF (mixed-line-endings)
+************* Module orchestration.services.orchestration_service
+detector-orchestration\src\orchestration\services\orchestration_service.py:21:0: E0401: Unable to import 'orchestration.services.detector_management_service' (import-error)
+detector-orchestration\src\orchestration\services\orchestration_service.py:22:0: E0401: Unable to import 'orchestration.services.health_management_service' (import-error)
+detector-orchestration\src\orchestration\services\orchestration_service.py:23:0: E0401: Unable to import 'orchestration.services.security_service' (import-error)
+detector-orchestration\src\orchestration\services\orchestration_service.py:28:0: R0902: Too many instance attributes (11/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\services\orchestration_service.py:66:4: R0913: Too many arguments (6/5) (too-many-arguments)
+detector-orchestration\src\orchestration\services\orchestration_service.py:66:4: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\services\orchestration_service.py:133:39: E1101: Instance of 'tuple' has no 'confidence_score' member (no-member)
+detector-orchestration\src\orchestration\services\orchestration_service.py:100:12: W0612: Unused variable 'content_features' (unused-variable)
+detector-orchestration\src\orchestration\services\orchestration_service.py:105:12: W0612: Unused variable 'available_detectors' (unused-variable)
+detector-orchestration\src\orchestration\services\orchestration_service.py:179:8: W0613: Unused argument 'processing_time' (unused-argument)
+************* Module orchestration.services
+detector-orchestration\src\orchestration\services\__init__.py:11:0: E0401: Unable to import 'orchestration.services.detector_management_service' (import-error)
+detector-orchestration\src\orchestration\services\__init__.py:12:0: E0401: Unable to import 'orchestration.services.health_management_service' (import-error)
+detector-orchestration\src\orchestration\services\__init__.py:13:0: E0401: Unable to import 'orchestration.services.security_service' (import-error)
+************* Module orchestration.tenancy.tenant_isolation
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:468:0: C0303: Trailing whitespace (trailing-whitespace)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:19:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:158:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:220:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:283:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:325:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\tenancy\tenant_isolation.py:384:15: W0718: Catching too general exception Exception (broad-exception-caught)
+************* Module orchestration.tenancy.tenant_manager
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:52:0: R0902: Too many instance attributes (12/7) (too-many-instance-attributes)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:115:4: R0913: Too many arguments (7/5) (too-many-arguments)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:115:4: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:231:4: R0913: Too many arguments (8/5) (too-many-arguments)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:231:4: R0917: Too many positional arguments (8/5) (too-many-positional-arguments)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:320:15: W0718: Catching too general exception Exception (broad-exception-caught)
+detector-orchestration\src\orchestration\tenancy\tenant_manager.py:374:15: W0718: Catching too general exception Exception (broad-exception-caught)
+************* Module orchestration.tenancy.__init__
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.service.lifecycle:[181:197]
+==orchestration.service.pipeline:[200:218]
+    )
+
+    recommendations: List[str] = []
+
+    if aggregation.coverage < 0.5:
+        recommendations.append("Low detector coverage - consider adding more detectors")
+
+    aggregated_output = aggregation.aggregated_output
+    if aggregated_output and aggregated_output.confidence_score < 0.7:
+        recommendations.append("Low confidence results - consider manual review")
+
+    failed_count = len([r for r in aggregation.detector_results if r.confidence == 0.0])
+    if failed_count > len(aggregation.detector_results) * 0.3:
+        recommendations.append("High detector failure rate - check detector health")
+
+    return recommendations (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[386:402]
+==orchestration.tenancy.tenant_manager:[322:341]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id,
+                    "error": str(e),
+                },
+            )
+            return False
+
+    def delete_tenant(self, tenant_id: str) -> bool:
+        """Delete a tenant (soft delete by marking as deleted).
+
+        Args:
+            tenant_id: Tenant identifier
+
+        Returns:
+            True if deletion successful, False otherwise
+        """ (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.service.lifecycle:[170:179]
+==orchestration.service.orchestration_service:[323:332]
+            correlation_id=correlation_id,
+            detector_results=[],
+            aggregation_summary=AggregationSummary(
+                total_detectors=0,
+                successful_detectors=0,
+                failed_detectors=0,
+                average_confidence=0.0,
+            ),
+            coverage_achieved=0.0, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[386:394]
+==orchestration.tenancy.tenant_manager:[195:203]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id,
+                    "error": str(e),
+                },
+            ) (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.service.__init__:[13:21]
+==orchestration.service.models:[180:188]
+__all__ = [
+    "AggregationContext",
+    "DetectorRegistrationConfig",
+    "OrchestrationArtifacts",
+    "OrchestrationComponents",
+    "OrchestrationConfig",
+    "OrchestrationRequestContext",
+    "PipelineContext", (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.security.auth.api_key_manager:[138:146]
+==orchestration.tenancy.tenant_isolation:[327:335]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id,
+                    "error": str(e),
+                },
+            ) (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.security.waf.__init__:[18:25]
+==orchestration.security.waf.attack_detector:[431:438]
+__all__ = [
+    "AttackDetector",
+    "AttackPattern",
+    "AttackDetection",
+    "AttackType",
+    "AttackSeverity",
+] (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.policy.policy_manager:[143:152]
+==orchestration.security.auth.api_key_manager:[139:146]
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id,
+                    "error": str(e),
+                },
+            ) (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.pipelines.__init__:[15:22]
+==orchestration.pipelines.async_job_processor:[608:615]
+__all__ = [
+    "AsyncJobProcessor",
+    "AsyncJob",
+    "JobResult",
+    "JobStatus",
+    "JobPriority",
+] (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.ml.content_analyzer:[16:31]
+==orchestration.ml.performance_predictor:[14:31]
+try:
+    import numpy as np
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.model_selection import train_test_split
+    import joblib
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    # Fallback imports for when sklearn is not available
+    np = None
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.security.rbac.__init__:[15:21]
+==orchestration.security.rbac.rbac_manager:[495:501]
+__all__ = [
+    "RBACManager",
+    "Permission",
+    "Role",
+    "RoleDefinition",
+] (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[285:290]
+==orchestration.tenancy.tenant_manager:[376:381]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[222:227]
+==orchestration.tenancy.tenant_manager:[322:327]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[160:165]
+==orchestration.tenancy.tenant_manager:[195:200]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.tenancy.tenant_isolation:[83:88]
+==orchestration.tenancy.tenant_manager:[548:553]
+            tenant_id,
+            extra={
+                "correlation_id": correlation_id,
+                "tenant_id": tenant_id,
+                "user_id": user_id, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.security.auth.api_key_manager:[138:143]
+==orchestration.security.rbac.rbac_manager:[463:468]
+                tenant_id,
+                str(e),
+                extra={
+                    "correlation_id": correlation_id,
+                    "tenant_id": tenant_id, (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.security.__init__:[49:55]
+==orchestration.security.waf.attack_detector:[432:437]
+    "AttackDetector",
+    "AttackPattern",
+    "AttackDetection",
+    "AttackType",
+    "AttackSeverity",
+    # Validation (duplicate-code)
+detector-orchestration\src\orchestration\tenancy\__init__.py:1:0: R0801: Similar lines in 2 files
+==orchestration.cli.detector_commands:[29:34]
+==orchestration.service.models:[169:174]
+    detector_id: str
+    endpoint: str
+    detector_type: str
+    timeout_ms: int = 5000
+    max_retries: int = 3 (duplicate-code)
+
+------------------------------------------------------------------
+Your code has been rated at 9.40/10 (previous run: 9.28/10, +0.12)
+

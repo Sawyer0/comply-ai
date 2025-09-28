@@ -7,6 +7,7 @@ Single Responsibility: Manage API keys for authentication.
 import hashlib
 import secrets
 import logging
+from dataclasses import dataclass, field
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
 from enum import Enum
@@ -26,30 +27,19 @@ class ApiKeyStatus(str, Enum):
     REVOKED = "revoked"
 
 
-class ApiKey:
+@dataclass
+class ApiKey:  # pylint: disable=too-many-instance-attributes
     """API key data structure."""
 
-    def __init__(
-        self,
-        key_id: str,
-        tenant_id: str,
-        key_hash: str,
-        status: ApiKeyStatus = ApiKeyStatus.ACTIVE,
-        created_at: Optional[datetime] = None,
-        expires_at: Optional[datetime] = None,
-        last_used: Optional[datetime] = None,
-        permissions: Optional[List[str]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ):
-        self.key_id = key_id
-        self.tenant_id = tenant_id
-        self.key_hash = key_hash
-        self.status = status
-        self.created_at = created_at or datetime.utcnow()
-        self.expires_at = expires_at
-        self.last_used = last_used
-        self.permissions = permissions or []
-        self.metadata = metadata or {}
+    key_id: str
+    tenant_id: str
+    key_hash: str
+    status: ApiKeyStatus = ApiKeyStatus.ACTIVE
+    created_at: datetime = field(default_factory=datetime.utcnow)
+    expires_at: Optional[datetime] = None
+    last_used: Optional[datetime] = None
+    permissions: List[str] = field(default_factory=list)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class ApiKeyManager:
@@ -133,20 +123,20 @@ class ApiKeyManager:
 
             return key_id, raw_key
 
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError) as exc:
             logger.error(
                 "Failed to generate API key for tenant %s: %s",
                 tenant_id,
-                str(e),
+                exc,
                 extra={
                     "correlation_id": correlation_id,
                     "tenant_id": tenant_id,
-                    "error": str(e),
+                    "error": str(exc),
                 },
             )
             raise ValidationError(
-                f"Failed to generate API key: {str(e)}", correlation_id=correlation_id
-            ) from e
+                f"Failed to generate API key: {exc}", correlation_id=correlation_id
+            ) from exc
 
     def validate_api_key(self, raw_key: str) -> Optional[ApiKey]:
         """Validate an API key and return key information.
@@ -221,11 +211,11 @@ class ApiKeyManager:
 
             return api_key
 
-        except Exception as e:
+        except (ValueError, TypeError, AuthenticationError) as exc:
             logger.error(
                 "API key validation error: %s",
-                str(e),
-                extra={"correlation_id": correlation_id, "error": str(e)},
+                exc,
+                extra={"correlation_id": correlation_id, "error": str(exc)},
             )
             return None
 
@@ -240,44 +230,28 @@ class ApiKeyManager:
         """
         correlation_id = get_correlation_id()
 
-        try:
-            api_key = self._api_keys.get(key_id)
-            if not api_key:
-                logger.warning(
-                    "Cannot revoke API key: key not found",
-                    extra={"correlation_id": correlation_id, "key_id": key_id},
-                )
-                return False
-
-            # Update status
-            api_key.status = ApiKeyStatus.REVOKED
-
-            # Remove from hash index
-            self._key_hash_index.pop(api_key.key_hash, None)
-
-            logger.info(
-                "API key revoked",
-                extra={
-                    "correlation_id": correlation_id,
-                    "key_id": key_id,
-                    "tenant_id": api_key.tenant_id,
-                },
-            )
-
-            return True
-
-        except Exception as e:
-            logger.error(
-                "Failed to revoke API key %s: %s",
-                key_id,
-                str(e),
-                extra={
-                    "correlation_id": correlation_id,
-                    "key_id": key_id,
-                    "error": str(e),
-                },
+        api_key = self._api_keys.get(key_id)
+        if not api_key:
+            logger.warning(
+                "Cannot revoke API key: key not found",
+                extra={"correlation_id": correlation_id, "key_id": key_id},
             )
             return False
+
+        api_key.status = ApiKeyStatus.REVOKED
+        self._key_hash_index.pop(api_key.key_hash, None)
+
+        logger.info(
+            "API key revoked",
+            extra={
+                "correlation_id": correlation_id,
+                "key_id": key_id,
+                "tenant_id": api_key.tenant_id,
+            },
+        )
+
+        return True
+
 
     def list_tenant_keys(self, tenant_id: str) -> List[ApiKey]:
         """List all API keys for a tenant.

@@ -1,4 +1,4 @@
-"""Core orchestration functionality following SRP.
+﻿"""Core orchestration functionality following SRP.
 
 This module provides focused, single-responsibility components for detector orchestration:
 - DetectorCoordinator: Execute detectors according to routing plans
@@ -12,21 +12,30 @@ Other responsibilities are in separate modules:
 - Policy Management: ../policy/policy_manager.py
 """
 
-from .coordinator import DetectorCoordinator, RoutingPlan
+from .aggregator import ResponseAggregator
+from .coordinator import DetectorCoordinator
 from .detector_client import CustomerDetectorClient
-from .router import ContentRouter, RoutingDecision, DetectorConfig
-from .aggregator import ResponseAggregator, AggregatedOutput
+from .models import (
+    AggregatedOutput,
+    DetectorClientConfig,
+    DetectorConfig,
+    RoutingDecision,
+    RoutingPlan,
+)
+from .router import ContentRouter
 
 __all__ = [
     # Coordination
     "DetectorCoordinator",
     "RoutingPlan",
-    "CustomerDetectorClient",
     # Routing
     "ContentRouter",
     "RoutingDecision",
     "DetectorConfig",
+    "DetectorClientConfig",
     # Aggregation
     "ResponseAggregator",
     "AggregatedOutput",
+    # Clients
+    "CustomerDetectorClient",
 ]

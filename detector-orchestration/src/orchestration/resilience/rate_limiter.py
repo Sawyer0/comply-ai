@@ -4,11 +4,10 @@ This module provides ONLY rate limiting - controlling request rates per tenant/u
 Single Responsibility: Enforce rate limits to prevent abuse and ensure fair usage.
 """
 
-import asyncio
 import logging
 import time
-from typing import Dict, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+from datetime import datetime
 from enum import Enum
 
 from shared.utils.correlation import get_correlation_id
@@ -24,7 +23,7 @@ class RateLimitStrategy(str, Enum):
     TOKEN_BUCKET = "token_bucket"
 
 
-class RateLimitResult:
+class RateLimitResult:  # pylint: disable=too-few-public-methods
     """Result of rate limit check."""
 
     def __init__(
@@ -65,7 +64,7 @@ class RateLimiter:
         # Format: {key: {timestamp: count, ...}} for sliding window
         # Format: {key: (count, window_start)} for fixed window
         # Format: {key: (tokens, last_refill)} for token bucket
-        self._rate_data: Dict[str, any] = {}
+        self._rate_data: Dict[str, Any] = {}
 
         # Last cleanup time
         self._last_cleanup = time.time()
@@ -140,16 +139,16 @@ class RateLimiter:
 
             return result
 
-        except Exception as e:
+        except (ValueError, TypeError, ZeroDivisionError) as exc:
             logger.error(
                 "Rate limit check failed for key %s: %s",
                 key,
-                str(e),
+                exc,
                 extra={
                     "correlation_id": correlation_id,
                     "rate_limit_key": key,
                     "tenant_id": tenant_id,
-                    "error": str(e),
+                    "error": str(exc),
                 },
             )
             # On error, allow the request (fail open)
@@ -278,7 +277,7 @@ class RateLimiter:
             reset_time=datetime.fromtimestamp(current_time + window_seconds),
         )
 
-    async def _cleanup_expired_entries(self, current_time: float):
+    async def _cleanup_expired_entries(self, current_time: float):  # pylint: disable=too-many-branches
         """Clean up expired rate limit entries."""
 
         if current_time - self._last_cleanup < self.cleanup_interval:
@@ -324,10 +323,10 @@ class RateLimiter:
                     extra={"correlation_id": get_correlation_id()},
                 )
 
-        except Exception as e:
+        except (KeyError, ValueError, TypeError) as exc:
             logger.error(
                 "Failed to cleanup expired rate limit entries: %s",
-                str(e),
+                exc,
                 extra={"correlation_id": get_correlation_id()},
             )
 
@@ -340,24 +339,15 @@ class RateLimiter:
         Returns:
             True if reset successful, False if key not found
         """
-        try:
-            if key in self._rate_data:
-                del self._rate_data[key]
-                logger.info(
-                    "Reset rate limit for key %s",
-                    key,
-                    extra={"correlation_id": get_correlation_id()},
-                )
-                return True
-            return False
-        except Exception as e:
-            logger.error(
-                "Failed to reset rate limit for key %s: %s",
+        if key in self._rate_data:
+            del self._rate_data[key]
+            logger.info(
+                "Reset rate limit for key %s",
                 key,
-                str(e),
                 extra={"correlation_id": get_correlation_id()},
             )
-            return False
+            return True
+        return False
 
     def get_rate_limit_status(self, key: str) -> Optional[Dict[str, any]]:
         """Get current rate limit status for a key.
@@ -368,53 +358,55 @@ class RateLimiter:
         Returns:
             Dictionary with rate limit status or None if key not found
         """
-        try:
-            if key not in self._rate_data:
-                return None
-
-            data = self._rate_data[key]
-            current_time = time.time()
-
-            if self.strategy == RateLimitStrategy.SLIDING_WINDOW:
-                if isinstance(data, dict):
-                    current_count = sum(data.values())
-                    return {
-                        "strategy": self.strategy.value,
-                        "current_count": current_count,
-                        "requests": list(data.keys()),
-                    }
-
-            elif self.strategy == RateLimitStrategy.FIXED_WINDOW:
-                if isinstance(data, tuple) and len(data) == 2:
-                    count, window_start = data
-                    return {
-                        "strategy": self.strategy.value,
-                        "current_count": count,
-                        "window_start": window_start,
-                        "window_remaining": window_start
-                        + 3600
-                        - current_time,  # Assuming 1 hour window
-                    }
-
-            elif self.strategy == RateLimitStrategy.TOKEN_BUCKET:
-                if isinstance(data, tuple) and len(data) == 2:
-                    tokens, last_refill = data
-                    return {
-                        "strategy": self.strategy.value,
-                        "available_tokens": tokens,
-                        "last_refill": last_refill,
-                    }
-
-            return {"strategy": self.strategy.value, "data": str(data)}
-
-        except Exception as e:
-            logger.error(
-                "Failed to get rate limit status for key %s: %s",
-                key,
-                str(e),
-                extra={"correlation_id": get_correlation_id()},
-            )
+        if key not in self._rate_data:
             return None
+
+        data = self._rate_data[key]
+        current_time = time.time()
+
+        if (
+            self.strategy == RateLimitStrategy.SLIDING_WINDOW
+            and isinstance(data, dict)
+        ):
+            current_count = sum(data.values())
+            return {
+                "strategy": self.strategy.value,
+                "current_count": current_count,
+                "requests": list(data.keys()),
+            }
+
+        if (
+            self.strategy == RateLimitStrategy.FIXED_WINDOW
+            and isinstance(data, tuple)
+            and len(data) == 2
+        ):
+            count, window_start = data
+            window_remaining = max((window_start + 3600) - current_time, 0)
+            return {
+                "strategy": self.strategy.value,
+                "current_count": count,
+                "window_start": window_start,
+                "window_remaining": window_remaining,
+            }
+
+        if (
+            self.strategy == RateLimitStrategy.TOKEN_BUCKET
+            and isinstance(data, tuple)
+            and len(data) == 2
+        ):
+            tokens, last_refill = data
+            return {
+                "strategy": self.strategy.value,
+                "available_tokens": tokens,
+                "last_refill": last_refill,
+            }
+
+        logger.debug(
+            "Returning raw rate limit status for key %s",
+            key,
+            extra={"correlation_id": get_correlation_id()},
+        )
+        return {"strategy": self.strategy.value, "data": str(data)}
 
     def get_statistics(self) -> Dict[str, any]:
         """Get rate limiter statistics.
@@ -422,23 +414,13 @@ class RateLimiter:
         Returns:
             Dictionary with statistics
         """
-        try:
-            return {
-                "strategy": self.strategy.value,
-                "total_keys": len(self._rate_data),
-                "cleanup_interval": self.cleanup_interval,
-                "last_cleanup": self._last_cleanup,
-                "memory_usage_keys": list(self._rate_data.keys())[
-                    :10
-                ],  # Sample of keys
-            }
-        except Exception as e:
-            logger.error(
-                "Failed to get rate limiter statistics: %s",
-                str(e),
-                extra={"correlation_id": get_correlation_id()},
-            )
-            return {}
+        return {
+            "strategy": self.strategy.value,
+            "total_keys": len(self._rate_data),
+            "cleanup_interval": self.cleanup_interval,
+            "last_cleanup": self._last_cleanup,
+            "memory_usage_keys": list(self._rate_data.keys())[:10],
+        }
 
 
 # Export only the rate limiting functionality
