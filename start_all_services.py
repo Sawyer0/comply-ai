@@ -15,21 +15,14 @@ def start_service(script_name, service_name):
     """Start a service in a separate process"""
     print(f"Starting {service_name}...")
 
-    # Use the virtual environment python
-    venv_python = Path("microservices-env/Scripts/python.exe")
-    if not venv_python.exists():
-        venv_python = Path("microservices-env/bin/python")  # Unix
-
-    if venv_python.exists():
-        python_cmd = str(venv_python)
-    else:
-        python_cmd = sys.executable
+    # Use system Python (same as direct start)
+    python_cmd = sys.executable
 
     try:
         process = subprocess.Popen(
             [python_cmd, script_name],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=None,  # Show output in console (so you can see errors)
+            stderr=None,  # Show errors in console
             text=True,
         )
         print(f"✅ {service_name} started (PID: {process.pid})")

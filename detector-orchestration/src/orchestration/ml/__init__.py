@@ -11,10 +11,13 @@ from .performance_predictor import PerformancePredictor
 from .content_analyzer import ContentAnalyzer
 from .load_balancer import AdaptiveLoadBalancer
 from .routing_optimizer import RoutingOptimizer
+from .risk_scorer import RiskScore, RiskScorer
 
 __all__ = [
     "PerformancePredictor",
     "ContentAnalyzer",
     "AdaptiveLoadBalancer",
     "RoutingOptimizer",
+    "RiskScore",
+    "RiskScorer",
 ]

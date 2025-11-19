@@ -15,6 +15,7 @@ from ..interfaces.analysis import (
     RAGInsights,
     QualityMetrics,
 )
+from ..interfaces.orchestration import OrchestrationResponse
 from ..utils.correlation import get_correlation_id
 from ..exceptions.base import (
     BaseServiceException,
@@ -207,6 +208,25 @@ class AnalysisServiceClient:
             )
             raise
 
+    async def calculate_risk_from_orchestration(
+        self,
+        orchestration_response: OrchestrationResponse,
+        tenant_id: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> RiskScoringResult:
+        """Calculate risk scores directly from an orchestration response.
+
+        This helper extracts canonical_results from the OrchestrationResponse
+        canonical_outputs field and forwards them to the risk scoring endpoint.
+        """
+
+        canonical_results = orchestration_response.canonical_results_dict()
+        return await self.calculate_risk_score(
+            canonical_results=canonical_results,
+            tenant_id=tenant_id,
+            context=context,
+        )
+
     async def map_compliance(
         self,
         canonical_results: List[Dict[str, Any]],
@@ -235,6 +255,25 @@ class AnalysisServiceClient:
                 extra={"tenant_id": tenant_id, "frameworks": frameworks},
             )
             raise
+
+    async def map_compliance_from_orchestration(
+        self,
+        orchestration_response: OrchestrationResponse,
+        frameworks: List[str],
+        tenant_id: str,
+    ) -> List[ComplianceMappingResult]:
+        """Map compliance directly from an orchestration response.
+
+        This helper extracts canonical_results from the OrchestrationResponse
+        canonical_outputs field and forwards them to the compliance mapping endpoint.
+        """
+
+        canonical_results = orchestration_response.canonical_results_dict()
+        return await self.map_compliance(
+            canonical_results=canonical_results,
+            frameworks=frameworks,
+            tenant_id=tenant_id,
+        )
 
     async def rag_query(
         self,

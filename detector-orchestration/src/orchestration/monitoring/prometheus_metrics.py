@@ -17,6 +17,7 @@ from prometheus_client import (
 )
 
 from shared.utils.correlation import get_correlation_id
+from shared.interfaces.common import HealthStatus
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,13 @@ class PrometheusMetricsCollector:
             "detector_execution_duration_seconds",
             "Duration of detector executions",
             ["detector_id", "detector_type"],
+            registry=registry,
+        )
+
+        self.detector_health_status = Gauge(
+            "detector_health_status",
+            "Detector health status (0=unknown,1=healthy,2=degraded,3=unhealthy)",
+            ["detector_id"],
             registry=registry,
         )
 
@@ -271,6 +279,31 @@ class PrometheusMetricsCollector:
                 extra={"correlation_id": get_correlation_id()},
             )
 
+    def update_detector_health(self, detector_id: str, status: HealthStatus):
+        """Update detector health status gauge.
+
+        Args:
+            detector_id: Detector identifier
+            status: HealthStatus value
+        """
+
+        try:
+            value = 0
+            if status == HealthStatus.HEALTHY:
+                value = 1
+            elif status == HealthStatus.DEGRADED:
+                value = 2
+            elif status == HealthStatus.UNHEALTHY:
+                value = 3
+
+            self.detector_health_status.labels(detector_id=detector_id).set(value)
+        except Exception as e:
+            logger.error(
+                "Failed to update detector health status metric: %s",
+                str(e),
+                extra={"correlation_id": get_correlation_id()},
+            )
+
     def record_cache_operation(self, operation: str, status: str):
         """Record cache operation metrics.
 
@@ -309,7 +342,9 @@ class PrometheusMetricsCollector:
             Metrics in Prometheus text format
         """
         try:
-            return generate_latest(self.registry).decode("utf-8")
+            if self.registry is not None:
+                return generate_latest(self.registry).decode("utf-8")
+            return generate_latest().decode("utf-8")
         except Exception as e:
             logger.error(
                 "Failed to generate metrics: %s",
@@ -325,21 +360,33 @@ class PrometheusMetricsCollector:
             Dictionary with metrics summary
         """
         try:
+            request_metrics = list(self.request_total.collect())
+            detector_metrics = list(self.detector_executions_total.collect())
+            security_metrics = list(self.security_violations_total.collect())
+
+            total_requests = (
+                sum(sample.value for sample in request_metrics[0].samples)
+                if request_metrics
+                else 0.0
+            )
+            total_detector_execs = (
+                sum(sample.value for sample in detector_metrics[0].samples)
+                if detector_metrics
+                else 0.0
+            )
+            total_security_violations = (
+                sum(sample.value for sample in security_metrics[0].samples)
+                if security_metrics
+                else 0.0
+            )
+
             return {
                 "active_detectors": self.active_detectors._value._value,
                 "active_tenants": self.active_tenants._value._value,
                 "cache_hit_ratio": self.cache_hit_ratio._value._value,
-                "total_requests": sum(
-                    sample.value for sample in self.request_total.collect()[0].samples
-                ),
-                "total_detector_executions": sum(
-                    sample.value
-                    for sample in self.detector_executions_total.collect()[0].samples
-                ),
-                "total_security_violations": sum(
-                    sample.value
-                    for sample in self.security_violations_total.collect()[0].samples
-                ),
+                "total_requests": total_requests,
+                "total_detector_executions": total_detector_execs,
+                "total_security_violations": total_security_violations,
             }
         except Exception as e:
             logger.error(

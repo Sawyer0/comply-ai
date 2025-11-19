@@ -96,6 +96,7 @@ async def register_detector(service, registration: DetectorRegistrationConfig) -
             name=registration.detector_id,
             endpoint=analyze_endpoint,
             timeout=timeout_seconds,
+            max_retries=registration.max_retries,
             default_headers=registration.auth_headers or {},
             response_parser=parser,
         )

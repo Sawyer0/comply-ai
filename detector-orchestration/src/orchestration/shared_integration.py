@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -117,7 +118,7 @@ def initialize_shared_components(service_name: str = "orchestration") -> Dict[st
     }
 
 
-def get_shared_logger() -> logging.Logger:
+def get_shared_logger() -> Any:
     """Return the configured shared logger."""
 
     return get_logger(__name__)
@@ -189,14 +190,24 @@ def get_shared_idempotency_cache() -> IdempotencyCache:
     """Return the idempotency cache (Redis in production, memory in development)."""
 
     cache_backend = "redis"
-    return create_idempotency_cache(backend_type=cache_backend, ttl_seconds=3600)
+    redis_url = os.getenv("ORCHESTRATION_REDIS_URL", "redis://localhost:6379")
+    return create_idempotency_cache(
+        backend_type=cache_backend,
+        ttl_seconds=3600,
+        redis_url=redis_url,
+    )
 
 
 def get_shared_response_cache() -> ResponseCache:
     """Return the response cache (Redis in production, memory in development)."""
 
     cache_backend = "redis"
-    return create_response_cache(backend_type=cache_backend, ttl_seconds=1800)
+    redis_url = os.getenv("ORCHESTRATION_REDIS_URL", "redis://localhost:6379")
+    return create_response_cache(
+        backend_type=cache_backend,
+        ttl_seconds=1800,
+        redis_url=redis_url,
+    )
 
 
 class OPAError(BaseServiceException):

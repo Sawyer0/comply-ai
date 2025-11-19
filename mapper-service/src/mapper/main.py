@@ -17,7 +17,7 @@ from .infrastructure.health_checker import DatabaseHealthChecker
 from .security.api_key_manager import APIKeyManager
 from .security.authentication import AuthenticationService
 from .security.authorization import AuthorizationService
-from .security.rate_limiting_service import RateLimitingService
+from shared.security.rate_limiting import RateLimitingService
 from .security import SecurityManager
 from .resilience import ResilienceManager
 from .quality import QualityManager

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from shared.exceptions.base import BaseServiceException
+from shared.exceptions.base import BaseServiceException, RateLimitError
 from shared.interfaces.orchestration import OrchestrationRequest
 from shared.utils.correlation import get_correlation_id
 
@@ -58,6 +58,8 @@ async def validate_request_security(
     correlation_id = get_correlation_id()
 
     try:
+        api_key_obj = None
+
         if (
             service.components.tenant_manager
             and not service.components.tenant_manager.is_tenant_active(tenant_id)
@@ -94,6 +96,22 @@ async def validate_request_security(
                         violation_type="invalid_api_key",
                         severity="medium",
                     )
+
+        rate_limiter = getattr(service.components, "rate_limiter", None)
+        if rate_limiter:
+            api_key_id = getattr(api_key_obj, "key_id", None) if api_key_obj else None
+            result = await rate_limiter.check_rate_limit(
+                tenant_id=tenant_id,
+                api_key_id=api_key_id,
+            )
+            if not result.allowed:
+                headers = result.to_headers()
+                raise RateLimitError(
+                    message="Rate limit exceeded",
+                    details={"headers": headers},
+                    correlation_id=correlation_id,
+                    retry_after=result.retry_after,
+                )
 
         attack_detector = service.components.attack_detector
         if attack_detector:
@@ -136,6 +154,8 @@ async def validate_request_security(
 
         return True
 
+    except RateLimitError:
+        raise
     except (
         BaseServiceException,
         ValueError,

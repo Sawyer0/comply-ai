@@ -17,6 +17,7 @@ class MigrationManager:
         self.database_url = database_url
         self.migrations_dir = Path(__file__).parent / "migrations"
         self.migrations_dir.mkdir(exist_ok=True)
+        self.schema_file = Path(__file__).parent / "schema.sql"
 
     async def initialize_migration_table(self) -> None:
         """Create the migrations tracking table."""
@@ -84,18 +85,15 @@ class MigrationManager:
         # Check if we need to migrate from existing data
         applied = await self.get_applied_migrations()
 
-        if "001_initial_schema" not in applied:
-            # Read and apply the initial schema
-            schema_path = Path(__file__).parent / "schema.sql"
-            if schema_path.exists():
-                with open(schema_path, "r") as f:
-                    schema_sql = f.read()
+        if "001_initial_schema" not in applied and self.schema_file.exists():
+            with open(self.schema_file, "r", encoding="utf-8") as f:
+                schema_sql = f.read()
 
-                await self.apply_migration(
-                    "001_initial_schema",
-                    "Initial orchestration service schema",
-                    schema_sql,
-                )
+            await self.apply_migration(
+                "001_initial_schema",
+                "Initial orchestration service schema",
+                schema_sql,
+            )
 
         if "002_migrate_detector_data" not in applied:
             await self.apply_migration(
@@ -109,6 +107,67 @@ class MigrationManager:
                 "003_migrate_orchestration_data",
                 "Migrate orchestration data from monolith",
                 self._get_orchestration_migration_sql(),
+            )
+
+        if "004_detector_registry" not in applied:
+            migration_path = self.migrations_dir / "004_detector_registry.sql"
+            if not migration_path.exists():
+                raise FileNotFoundError(
+                    "Detector registry migration file is missing at "
+                    f"{migration_path}"
+                )
+            with open(migration_path, "r", encoding="utf-8") as f:
+                registry_sql = f.read()
+
+            await self.apply_migration(
+                "004_detector_registry",
+                "Create persistent detector registry schema",
+                registry_sql,
+            )
+
+        if "005_tenant_policies" not in applied:
+            migration_path = self.migrations_dir / "005_tenant_policies.sql"
+            if not migration_path.exists():
+                raise FileNotFoundError(
+                    "Tenant policies migration file is missing at " f"{migration_path}"
+                )
+            with open(migration_path, "r", encoding="utf-8") as f:
+                tenant_policies_sql = f.read()
+
+            await self.apply_migration(
+                "005_tenant_policies",
+                "Create tenant_policies table for policy data",
+                tenant_policies_sql,
+            )
+
+        if "006_risk_analysis_results" not in applied:
+            migration_path = self.migrations_dir / "006_risk_analysis_results.sql"
+            if not migration_path.exists():
+                raise FileNotFoundError(
+                    "Risk analysis results migration file is missing at " f"{migration_path}"
+                )
+            with open(migration_path, "r", encoding="utf-8") as f:
+                risk_analysis_sql = f.read()
+
+            await self.apply_migration(
+                "006_risk_analysis_results",
+                "Create risk_analysis_results table for risk scoring outcomes",
+                risk_analysis_sql,
+            )
+
+        if "007_detector_mapping_configs" not in applied:
+            migration_path = self.migrations_dir / "007_detector_mapping_configs.sql"
+            if not migration_path.exists():
+                raise FileNotFoundError(
+                    "Detector mapping configs migration file is missing at " f"{migration_path}"
+                )
+            with open(migration_path, "r", encoding="utf-8") as f:
+                detector_mapping_sql = f.read()
+
+            await self.apply_migration(
+                "007_detector_mapping_configs",
+                "Create detector_mapping_configs table for detector canonicalization",
+                detector_mapping_sql,
             )
 
     def _get_detector_migration_sql(self) -> str:
@@ -268,6 +327,8 @@ class MigrationManager:
                 "service_registry",
                 "async_jobs",
                 "orchestration_audit",
+                "risk_analysis_results",
+                "detector_mapping_configs",
             }
 
             missing_tables = required_tables - table_names

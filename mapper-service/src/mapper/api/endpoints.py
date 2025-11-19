@@ -31,9 +31,12 @@ from ..shared_integration import (
 
 from ..core.mapper import CoreMapper
 from ..schemas.models import (
-    MappingRequest,
+    MappingRequest as LegacyMappingRequest,
     BatchMappingRequest,
     BatchMappingResponse,
+)
+from ..shared_lib.interfaces.mapper import (
+    MappingRequest as CanonicalMappingRequest,
 )
 from ..security.api_key_manager import APIKeyInfo, APIKeyCreateRequest
 from ..security.authorization import Permission
@@ -214,9 +217,9 @@ class CostTrackingRequest(BaseModel):
 
 
 @router.post("/map", response_model=APIResponse)
-@track_request_metrics
+@track_request_metrics("map_detector_output")
 async def map_detector_output(
-    mapping_request: MappingRequest,
+    mapping_request: CanonicalMappingRequest,
     request: Request,
     api_key_info: APIKeyInfo = Depends(require_permission(Permission.MAP_CANONICAL)),
     mapper: CoreMapper = Depends(get_mapper),
@@ -237,7 +240,7 @@ async def map_detector_output(
     start_time = datetime.utcnow()
 
     try:
-        response = await mapper.map_detector_output(mapping_request)
+        response = await mapper.map_canonical(mapping_request)
 
         # Track usage
         processing_time = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -255,10 +258,10 @@ async def map_detector_output(
 
     except ValidationError as e:
         logger.error(
-            "Validation error in mapping request",
+            "Validation error in canonical mapping request",
             error=str(e),
             tenant_id=api_key_info.tenant_id,
-            detector=getattr(mapping_request, "detector", "unknown"),
+            detector="canonical_mapping",
             correlation_id=correlation_id,
         )
         raise HTTPException(
@@ -267,7 +270,7 @@ async def map_detector_output(
         ) from e
     except ServiceUnavailableError as e:
         logger.error(
-            "Service unavailable during mapping",
+            "Service unavailable during canonical mapping",
             error=str(e),
             tenant_id=api_key_info.tenant_id,
             detector=getattr(mapping_request, "detector", "unknown"),
@@ -279,7 +282,7 @@ async def map_detector_output(
         ) from e
     except BaseServiceException as e:
         logger.error(
-            "Service error in mapping request",
+            "Service error in canonical mapping request",
             error=str(e),
             tenant_id=api_key_info.tenant_id,
             detector=getattr(mapping_request, "detector", "unknown"),
@@ -291,7 +294,7 @@ async def map_detector_output(
         ) from e
     except Exception as e:
         logger.error(
-            "Unexpected error in mapping request",
+            "Unexpected error in canonical mapping request",
             error=str(e),
             error_type=type(e).__name__,
             tenant_id=api_key_info.tenant_id,
@@ -307,8 +310,8 @@ async def map_detector_output(
 @router.post("/map/batch", response_model=APIResponse)
 async def batch_map_detector_outputs(
     batch_request: BatchMappingRequest,
+    mapper=Depends(get_mapper),  # type: ignore[assignment]
     api_key_info: APIKeyInfo = Depends(require_permission(Permission.MAP_BATCH)),
-    mapper: CoreMapper = Depends(get_mapper),
     _rate_limit_check: APIKeyInfo = Depends(check_rate_limit),
 ) -> APIResponse:
     """
@@ -359,7 +362,7 @@ async def batch_map_detector_outputs(
 @router.get("/detectors", response_model=APIResponse)
 async def get_supported_detectors(
     api_key_info: APIKeyInfo = Depends(check_rate_limit_optional),
-    mapper: CoreMapper = Depends(get_mapper),
+    mapper=Depends(get_mapper),
 ) -> APIResponse:
     """
     Get list of supported detector types.
@@ -390,7 +393,7 @@ async def get_supported_detectors(
 @router.get("/frameworks", response_model=APIResponse)
 async def get_supported_frameworks(
     api_key_info: APIKeyInfo = Depends(check_rate_limit_optional),
-    mapper: CoreMapper = Depends(get_mapper),
+    mapper=Depends(get_mapper),
 ) -> APIResponse:
     """
     Get list of supported compliance frameworks.
@@ -424,7 +427,7 @@ async def get_supported_frameworks(
 
 
 @router.get("/health", response_model=HealthCheckResponse)
-async def health_check() -> HealthCheckResponse:
+async def health_check() -> JSONResponse:
     """
     Comprehensive health check endpoint.
 

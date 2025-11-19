@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from shared.interfaces.detector_output import CanonicalDetectorOutputs
 from shared.interfaces.orchestration import DetectorResult, PolicyViolation
 
 from ..core import (
@@ -21,12 +22,18 @@ from ..ml import (
     AdaptiveLoadBalancer,
     ContentAnalyzer,
     PerformancePredictor,
+    RiskScorer,
     RoutingOptimizer,
 )
 from ..ml.feedback_service import MLFeedbackService
 from ..monitoring import PrometheusMetricsCollector
 from ..pipelines import AsyncJobProcessor
 from ..policy import PolicyManager
+from ..repository import (
+    DetectorMappingConfigRepository,
+    DetectorRepository,
+    RiskAnalysisRepository,
+)
 from ..resilience import RateLimiter
 from ..security import ApiKeyManager, AttackDetector, InputSanitizer, RBACManager
 from ..tenancy.tenant_isolation import TenantContext, TenantIsolationManager
@@ -42,6 +49,7 @@ class OrchestrationArtifacts:
     coverage: float
     policy_violations: List[PolicyViolation]
     recommendations: List[str]
+    canonical_outputs: Optional[CanonicalDetectorOutputs] = None
 
 
 @dataclass
@@ -57,11 +65,18 @@ class AggregationContext:
 class OrchestrationConfig:
     """Configuration container for orchestration service following SRP."""
 
+    # Core feature toggles used by the new orchestration stack
     enable_health_monitoring: bool = True
     enable_service_discovery: bool = True
     enable_policy_management: bool = True
     health_check_interval: int = 30
     service_ttl_minutes: int = 30
+
+    # Rate limiting configuration used by the new orchestration stack.
+    rate_limit_enabled: bool = True
+    rate_limit_tenant_limit: int = 120
+    rate_limit_window_seconds: int = 60
+    rate_limit_tenant_overrides: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass  # pylint: disable=too-many-instance-attributes
@@ -98,6 +113,12 @@ class OrchestrationComponents:
     load_balancer: Optional[AdaptiveLoadBalancer] = None
     routing_optimizer: Optional[RoutingOptimizer] = None
     ml_feedback: Optional[MLFeedbackService] = None
+    risk_scorer: Optional[RiskScorer] = None
+
+    # Persistence components
+    detector_repository: Optional[DetectorRepository] = None
+    detector_mapping_repository: Optional[DetectorMappingConfigRepository] = None
+    risk_repository: Optional[RiskAnalysisRepository] = None
 
     # Monitoring
     metrics_collector: Optional[PrometheusMetricsCollector] = None
@@ -170,6 +191,7 @@ class DetectorRegistrationConfig:
     detector_id: str
     endpoint: str
     detector_type: str
+    tenant_id: str = "default"
     timeout_ms: int = 5000
     max_retries: int = 3
     supported_content_types: Optional[List[str]] = None

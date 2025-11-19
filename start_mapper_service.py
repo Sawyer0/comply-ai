@@ -816,5 +816,5 @@ async def batch_mapping(requests: List[MappingRequest]):
 
 
 if __name__ == "__main__":
-    print("Starting Mapper Service on http://localhost:8003")
-    uvicorn.run(app, host="0.0.0.0", port=8003, log_level="info")
+    print("Starting Mapper Service on http://localhost:8002")
+    uvicorn.run(app, host="0.0.0.0", port=8002, log_level="info")

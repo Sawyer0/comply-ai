@@ -7,14 +7,39 @@ import sys
 
 import pytest
 
-# Ensure the detector_orchestration package is importable during tests
-ROOT = Path(__file__).resolve().parents[1] / 'src'
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Ensure the orchestration package (new stack) and shared library are importable during tests
+PROJECT_ROOT = Path(__file__).resolve().parents[1] / "src"
+MONOREPO_ROOT = Path(__file__).resolve().parents[2]
 
+for path in (MONOREPO_ROOT, PROJECT_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
-from detector_orchestration.config import OrchestrationConfig, Settings
-from detector_orchestration.models import ContentType, Priority
+try:
+    # Legacy package path used by older tests
+    from detector_orchestration.config import OrchestrationConfig, Settings  # type: ignore[import]
+    from detector_orchestration.models import ContentType, Priority  # type: ignore[import]
+except ImportError:
+    # Fallback for the refactored layout using the new orchestration package
+    from dataclasses import dataclass
+    from enum import Enum
+
+    from orchestration.service.models import OrchestrationConfig  # type: ignore[no-redef]
+
+    @dataclass
+    class Settings:  # type: ignore[no-redef]
+        """Minimal Settings stub for tests in the new layout."""
+
+        config: OrchestrationConfig | None = None
+
+        def __init__(self, config: OrchestrationConfig | None = None) -> None:
+            self.config = config or OrchestrationConfig()
+
+    class ContentType(str, Enum):  # type: ignore[no-redef]
+        TEXT = "text"
+
+    class Priority(str, Enum):  # type: ignore[no-redef]
+        NORMAL = "normal"
 
 
 @pytest.fixture(scope="session")
@@ -25,14 +50,10 @@ def tests_root() -> Path:
 @pytest.fixture
 def sample_config() -> OrchestrationConfig:
     """Provide a sample orchestration config for testing."""
-    return OrchestrationConfig(
-        max_concurrent_detectors=5,
-        default_timeout_ms=3000,
-        max_retries=1,
-        response_cache_ttl_seconds=300,
-        circuit_breaker_failure_threshold=3,
-        circuit_breaker_recovery_timeout_seconds=30,
-    )
+    # The new orchestration config is intentionally minimal and focused on
+    # core toggles and rate limiting. Tests that rely on additional knobs
+    # should use explicit settings objects rather than this fixture.
+    return OrchestrationConfig()
 
 
 @pytest.fixture

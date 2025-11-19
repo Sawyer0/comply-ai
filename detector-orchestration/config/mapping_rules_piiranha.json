@@ -1,0 +1,62 @@
+{
+  "canonical_category": "pii",
+  "canonical_subcategory": "personal_information",
+  "canonical_risk_level": "high",
+  "tags": ["pii", "piiranha"],
+  "use_detector_category": false,
+  "use_detector_subcategory": false,
+  "entity_rules": [
+    {
+      "match": { "field": "type", "equals": "EMAIL" },
+      "label": "pii.email",
+      "category": "pii",
+      "subcategory": "contact",
+      "type": "email_address",
+      "severity": "medium",
+      "risk_level": "medium",
+      "text_field": "value",
+      "start_field": "start",
+      "end_field": "end",
+      "confidence_field": "confidence"
+    },
+    {
+      "match": { "field": "type", "equals": "CREDIT_CARD_NUMBER" },
+      "label": "pii.payment_card",
+      "category": "pii",
+      "subcategory": "financial",
+      "type": "credit_card_number",
+      "severity": "high",
+      "risk_level": "high",
+      "text_field": "value",
+      "start_field": "start",
+      "end_field": "end",
+      "confidence_field": "confidence"
+    },
+    {
+      "match": { "field": "type", "equals": "SOCIAL_SECURITY_NUMBER" },
+      "label": "pii.ssn",
+      "category": "pii",
+      "subcategory": "government_id",
+      "type": "ssn",
+      "severity": "high",
+      "risk_level": "high",
+      "text_field": "value",
+      "start_field": "start",
+      "end_field": "end",
+      "confidence_field": "confidence"
+    },
+    {
+      "match": { "field": "type", "equals": "PHONE_NUMBER" },
+      "label": "pii.phone",
+      "category": "pii",
+      "subcategory": "contact",
+      "type": "phone_number",
+      "severity": "medium",
+      "risk_level": "medium",
+      "text_field": "value",
+      "start_field": "start",
+      "end_field": "end",
+      "confidence_field": "confidence"
+    }
+  ]
+}

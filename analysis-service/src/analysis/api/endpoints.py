@@ -22,6 +22,7 @@ from .training import router as training_router
 from .batch import router as batch_router
 from .tenancy import router as tenancy_router
 from .plugins import router as plugins_router
+from .v1_analysis import router as v1_analysis_router
 
 # Include all routers with appropriate prefixes
 router.include_router(analysis_router, prefix="/analysis", tags=["analysis"])
@@ -31,6 +32,7 @@ router.include_router(training_router, prefix="/training", tags=["training"])
 router.include_router(batch_router, prefix="/batch", tags=["batch"])
 router.include_router(tenancy_router, prefix="/tenancy", tags=["tenancy"])
 router.include_router(plugins_router, prefix="/plugins", tags=["plugins"])
+router.include_router(v1_analysis_router, prefix="/api/v1", tags=["analysis-v1"])
 
 
 @router.get("/")

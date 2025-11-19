@@ -43,6 +43,11 @@ dependencies = [
     "tenacity>=8.2.0",
     "circuitbreaker>=1.4.0",
     
+    # ML components
+    "numpy>=1.26.0",
+    "scikit-learn>=1.3.0",
+    "joblib>=1.3.0",
+    
     # Security
     "cryptography>=41.0.0",
     "pyjwt>=2.8.0",

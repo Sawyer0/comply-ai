@@ -103,6 +103,7 @@ class RateLimitError(BaseServiceException):
         retry_after: Optional[int] = None,
     ):
         super().__init__(message, error_code, details, correlation_id)
+        self.http_status_code = 429
         if retry_after:
             self.details["retry_after"] = retry_after
 

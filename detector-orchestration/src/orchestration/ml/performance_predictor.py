@@ -8,24 +8,19 @@ This module provides ONLY performance prediction capabilities:
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-try:
-    import numpy as np
-    from sklearn.ensemble import RandomForestRegressor
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.model_selection import train_test_split
-    import joblib
-
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-    # Fallback imports for when sklearn is not available
-    np = None
+import numpy as np
+from numpy.typing import NDArray
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+import joblib
 
 logger = logging.getLogger(__name__)
+FloatArray = NDArray[np.float64]
 
 
 @dataclass
@@ -63,17 +58,10 @@ class PerformancePredictor:
         Args:
             model_path: Path to pre-trained model file
         """
-        if not SKLEARN_AVAILABLE:
-            logger.warning(
-                "scikit-learn not available, using fallback predictions only"
-            )
-            self.model = None
-            self.scaler = None
-        else:
-            self.model = RandomForestRegressor(
-                n_estimators=100, max_depth=10, random_state=42, n_jobs=-1
-            )
-            self.scaler = StandardScaler()
+        self.model: RandomForestRegressor = RandomForestRegressor(
+            n_estimators=100, max_depth=10, random_state=42, n_jobs=-1
+        )
+        self.scaler: StandardScaler = StandardScaler()
         self.is_trained = False
         self.feature_names = [
             "content_length",
@@ -122,7 +110,7 @@ class PerformancePredictor:
         }
         return content_type_mapping.get(content_type.lower(), 5)
 
-    def _extract_features(self, features: PredictionFeatures) -> np.ndarray:
+    def _extract_features(self, features: PredictionFeatures) -> FloatArray:
         """Extract feature vector from prediction features.
 
         Args:
@@ -131,18 +119,7 @@ class PerformancePredictor:
         Returns:
             Feature vector
         """
-        if not SKLEARN_AVAILABLE:
-            return [
-                features.content_length,
-                self._encode_content_type(features.content_type),
-                features.time_of_day,
-                features.day_of_week,
-                features.current_load,
-                features.historical_avg_response,
-                features.recent_error_rate,
-            ]
-
-        return np.array(
+        return np.asarray(
             [
                 features.content_length,
                 self._encode_content_type(features.content_type),
@@ -151,10 +128,11 @@ class PerformancePredictor:
                 features.current_load,
                 features.historical_avg_response,
                 features.recent_error_rate,
-            ]
+            ],
+            dtype=np.float64,
         ).reshape(1, -1)
 
-    def _prepare_training_data(self, detector_id: str) -> Tuple[np.ndarray, np.ndarray]:
+    def _prepare_training_data(self, detector_id: str) -> Tuple[FloatArray, FloatArray]:
         """Prepare training data for a specific detector.
 
         Args:
@@ -176,21 +154,11 @@ class PerformancePredictor:
         for i, metrics in enumerate(detector_metrics):
             # Calculate historical average (excluding current)
             historical_data = detector_metrics[:i] if i > 0 else [metrics]
-            if SKLEARN_AVAILABLE:
-                historical_avg = np.mean([m.response_time_ms for m in historical_data])
-            else:
-                historical_avg = sum(m.response_time_ms for m in historical_data) / len(
-                    historical_data
-                )
+            historical_avg = float(np.mean([m.response_time_ms for m in historical_data]))
 
             # Calculate recent error rate (last 10 samples)
             recent_data = detector_metrics[max(0, i - 10) : i] if i > 0 else [metrics]
-            if SKLEARN_AVAILABLE:
-                recent_error_rate = np.mean([m.error_rate for m in recent_data])
-            else:
-                recent_error_rate = sum(m.error_rate for m in recent_data) / len(
-                    recent_data
-                )
+            recent_error_rate = float(np.mean([m.error_rate for m in recent_data]))
 
             # Create features
             feature_obj = PredictionFeatures(
@@ -206,10 +174,10 @@ class PerformancePredictor:
             feature_vector = self._extract_features(feature_obj).flatten()
             features.append(feature_vector)
             targets.append(metrics.response_time_ms)
-
-        if not SKLEARN_AVAILABLE:
-            return features, targets
-        return np.array(features), np.array(targets)
+        return (
+            np.asarray(features, dtype=np.float64),
+            np.asarray(targets, dtype=np.float64),
+        )
 
     def train_model(self, detector_id: str) -> Dict[str, float]:
         """Train performance prediction model for a detector.
@@ -221,8 +189,8 @@ class PerformancePredictor:
             Training metrics
         """
         try:
-            if not SKLEARN_AVAILABLE or not self.model or not self.scaler:
-                raise ValueError("scikit-learn not available for training")
+            if not self.model or not self.scaler:
+                raise ValueError("Model not initialized")
 
             features, targets = self._prepare_training_data(detector_id)
 
@@ -266,7 +234,7 @@ class PerformancePredictor:
 
     def predict_performance(
         self, detector_id: str, features: PredictionFeatures
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[float, str]]:
         """Predict detector performance.
 
         Args:
@@ -277,34 +245,30 @@ class PerformancePredictor:
             Performance predictions
         """
         if not self.is_trained:
-            logger.warning("Model not trained, using fallback predictions")
-            return self._fallback_prediction(detector_id, features)
+            raise RuntimeError("PerformancePredictor model is not trained")
 
-        try:
-            feature_vector = self._extract_features(features)
-            feature_vector_scaled = self.scaler.transform(feature_vector)
+        feature_vector: FloatArray = self._extract_features(features)
+        feature_vector_scaled: FloatArray = np.asarray(
+            self.scaler.transform(feature_vector), dtype=np.float64
+        )
 
-            # Predict response time
-            predicted_response_time = self.model.predict(feature_vector_scaled)[0]
+        # Predict response time
+        predicted_response_time = self.model.predict(feature_vector_scaled)[0]
 
-            # Calculate confidence based on feature similarity to training data
-            confidence = self._calculate_prediction_confidence(feature_vector_scaled)
+        # Calculate confidence based on feature similarity to training data
+        confidence = self._calculate_prediction_confidence(feature_vector_scaled)
 
-            # Estimate success rate based on historical data
-            success_rate = self._estimate_success_rate(detector_id, features)
+        # Estimate success rate based on historical data
+        success_rate = self._estimate_success_rate(detector_id, features)
 
-            return {
-                "predicted_response_time_ms": max(0, predicted_response_time),
-                "confidence": confidence,
-                "estimated_success_rate": success_rate,
-                "prediction_timestamp": datetime.now().isoformat(),
-            }
+        return {
+            "predicted_response_time_ms": float(max(0, predicted_response_time)),
+            "confidence": float(confidence),
+            "estimated_success_rate": float(success_rate),
+            "prediction_timestamp": datetime.now().isoformat(),
+        }
 
-        except Exception as e:
-            logger.error("Prediction failed: %s", str(e))
-            return self._fallback_prediction(detector_id, features)
-
-    def _calculate_prediction_confidence(self, feature_vector: np.ndarray) -> float:
+    def _calculate_prediction_confidence(self, feature_vector: FloatArray) -> float:
         """Calculate confidence in prediction based on feature similarity.
 
         Args:
@@ -315,9 +279,7 @@ class PerformancePredictor:
         """
         # Simple confidence based on feature ranges
         # In production, could use more sophisticated methods
-        if not SKLEARN_AVAILABLE:
-            return 0.7  # Default confidence when sklearn not available
-        return min(1.0, max(0.1, 0.8 - np.mean(np.abs(feature_vector))))
+        return min(1.0, max(0.1, 0.8 - float(np.mean(np.abs(feature_vector)))))
 
     def _estimate_success_rate(
         self,
@@ -342,42 +304,7 @@ class PerformancePredictor:
 
         # Use recent success rates
         recent_metrics = detector_metrics[-20:]  # Last 20 samples
-        if not SKLEARN_AVAILABLE:
-            return sum(m.success_rate for m in recent_metrics) / len(recent_metrics)
-        return np.mean([m.success_rate for m in recent_metrics])
-
-    def _fallback_prediction(
-        self,
-        detector_id: str,
-        features: PredictionFeatures,  # pylint: disable=unused-argument
-    ) -> Dict[str, float]:
-        """Fallback prediction when ML model is not available.
-
-        Args:
-            detector_id: Detector ID (unused but kept for consistency)
-            features: Prediction features
-
-        Returns:
-            Fallback predictions
-        """
-        # Simple heuristic-based prediction
-        base_response_time = 100.0  # Base 100ms
-
-        # Adjust based on content length
-        content_factor = min(2.0, features.content_length / 1000.0)
-
-        # Adjust based on current load
-        load_factor = 1.0 + features.current_load
-
-        predicted_time = base_response_time * content_factor * load_factor
-
-        return {
-            "predicted_response_time_ms": predicted_time,
-            "confidence": 0.5,  # Low confidence for fallback
-            "estimated_success_rate": 0.9,
-            "prediction_timestamp": datetime.now().isoformat(),
-            "fallback": True,
-        }
+        return float(np.mean([m.success_rate for m in recent_metrics]))
 
     def save_model(self, path: str) -> None:
         """Save trained model to disk.
@@ -385,9 +312,6 @@ class PerformancePredictor:
         Args:
             path: Path to save model
         """
-        if not SKLEARN_AVAILABLE:
-            raise ValueError("Cannot save model: scikit-learn not available")
-
         if not self.is_trained:
             raise ValueError("No trained model to save")
 
@@ -407,9 +331,6 @@ class PerformancePredictor:
         Args:
             path: Path to load model from
         """
-        if not SKLEARN_AVAILABLE:
-            raise ValueError("Cannot load model: scikit-learn not available")
-
         try:
             model_data = joblib.load(path)
             self.model = model_data["model"]

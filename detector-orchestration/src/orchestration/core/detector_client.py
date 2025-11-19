@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Callable, Dict
 
@@ -14,6 +15,7 @@ from shared.exceptions.base import (
 )
 from shared.interfaces.orchestration import DetectorResult
 from shared.utils.correlation import get_correlation_id
+from shared.utils.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 from .models import DetectorClientConfig
 
@@ -32,11 +34,26 @@ class CustomerDetectorClient:
         self.name = config.name
         self.endpoint = config.endpoint
         self.timeout = config.timeout
+        self.max_retries = max(int(config.max_retries), 0)
         self._client = httpx.AsyncClient(timeout=config.timeout)
         self._default_headers = dict(config.default_headers)
         self._parser: Callable[[Dict[str, Any]], DetectorResult] = (
             config.response_parser or _default_parser
         )
+        # Circuit breaker opens after repeated transport-level failures
+        self._breaker = CircuitBreaker(
+            failure_threshold=max(self.max_retries or 1, 3),
+            recovery_timeout=60.0,
+            expected_exception=(ServiceTimeoutError, ServiceUnavailableError),
+            name=f"detector:{self.name}",
+        )
+
+    def is_available_for_request(self) -> bool:
+        """Return False when the circuit breaker is OPEN and requests should be skipped."""
+
+        state = getattr(self._breaker, "state", None)
+        # When state is None or not OPEN, allow requests
+        return getattr(state, "name", "CLOSED").upper() != "OPEN"
 
     async def analyze(self, content: str, metadata: Dict[str, Any]) -> DetectorResult:
         """Invoke the detector's `/analyze` endpoint and return a detector result."""
@@ -45,6 +62,65 @@ class CustomerDetectorClient:
             **self._default_headers,
             "X-Correlation-ID": correlation_id,
         }
+
+        last_error: Exception | None = None
+        attempts = self.max_retries + 1
+
+        for attempt in range(attempts):
+            try:
+                return await self._breaker.call(
+                    self._invoke_once,
+                    content,
+                    metadata,
+                    headers,
+                    correlation_id,
+                )
+            except (ServiceTimeoutError, ServiceUnavailableError) as exc:
+                last_error = exc
+                if attempt >= self.max_retries:
+                    raise
+                backoff = min(0.1 * (2**attempt), 1.0)
+                logger.warning(
+                    "Detector %s attempt %d/%d failed: %s; retrying in %.2fs",
+                    self.name,
+                    attempt + 1,
+                    attempts,
+                    exc,
+                    backoff,
+                    extra={"correlation_id": correlation_id},
+                )
+                await asyncio.sleep(backoff)
+            except CircuitBreakerError as exc:
+                logger.error(
+                    "Circuit breaker open for detector %s",
+                    self.name,
+                    extra={"correlation_id": correlation_id},
+                )
+                raise ServiceUnavailableError(
+                    f"Detector {self.name} circuit breaker open",
+                    correlation_id=correlation_id,
+                ) from exc
+
+        # Should be unreachable because we re-raise on final attempt
+        if last_error is not None:  # pragma: no cover - defensive
+            raise last_error
+
+        raise ServiceUnavailableError(
+            f"Detector {self.name} request failed",
+            correlation_id=correlation_id,
+        )
+
+    async def _invoke_once(
+        self,
+        content: str,
+        metadata: Dict[str, Any],
+        headers: Dict[str, str],
+        correlation_id: str,
+    ) -> DetectorResult:
+        """Perform a single HTTP invocation without retries.
+
+        This method is intended to be wrapped by the circuit breaker and retry logic.
+        """
 
         try:
             response = await self._client.post(

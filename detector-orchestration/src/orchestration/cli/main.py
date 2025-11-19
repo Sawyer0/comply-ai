@@ -18,6 +18,7 @@ from shared.exceptions.base import BaseServiceException
 from ..service import OrchestrationService
 from .detector_commands import DetectorCLI, DetectorRegistrationOptions
 from .health_commands import HealthCLI
+from .mapping_commands import MappingCLI
 from .policy_commands import PolicyCLI
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class OrchestrationCLI:
         self.detector_cli: Optional[DetectorCLI] = None
         self.policy_cli: Optional[PolicyCLI] = None
         self.health_cli: Optional[HealthCLI] = None
+        self.mapping_cli: Optional[MappingCLI] = None
 
     async def initialize_service(self) -> None:
         """Initialize orchestration service."""
@@ -45,6 +47,7 @@ class OrchestrationCLI:
         self.detector_cli = DetectorCLI(self.service)
         self.policy_cli = PolicyCLI(self.service)
         self.health_cli = HealthCLI(self.service)
+        self.mapping_cli = MappingCLI(self.service)
 
     async def cleanup_service(self) -> None:
         """Cleanup orchestration service."""
@@ -85,6 +88,7 @@ class OrchestrationCLI:
         self._add_detector_parsers(subparsers)
         self._add_policy_parsers(subparsers)
         self._add_health_parsers(subparsers)
+        self._add_mapping_parsers(subparsers)
 
         return parser
 
@@ -111,6 +115,15 @@ class OrchestrationCLI:
 
         unregister_parser = detector_subparsers.add_parser("unregister", help="Unregister detector")
         unregister_parser.add_argument("detector_id", help="Detector ID")
+
+        show_parser = detector_subparsers.add_parser("show", help="Show detector from registry")
+        show_parser.add_argument("detector_id", help="Detector ID")
+
+        update_parser = detector_subparsers.add_parser("update", help="Update detector metadata")
+        update_parser.add_argument("detector_id", help="Detector ID")
+        update_parser.add_argument("--status", help="New detector status")
+        update_parser.add_argument("--endpoint", help="New detector endpoint URL")
+        update_parser.add_argument("--content-types", nargs="+", help="Updated supported content types")
 
         health_parser = detector_subparsers.add_parser("health", help="Check detector health")
         health_parser.add_argument("--detector-id", help="Specific detector to check")
@@ -171,12 +184,90 @@ class OrchestrationCLI:
         tenants_parser = health_subparsers.add_parser("tenants", help="Tenant statistics")
         tenants_parser.add_argument("--tenant-id", help="Tenant identifier")
 
+    @staticmethod
+    def _add_mapping_parsers(subparsers: argparse._SubParsersAction) -> None:
+        mapping_parser = subparsers.add_parser(
+            "mapping", help="Detector mapping configuration management"
+        )
+        mapping_subparsers = mapping_parser.add_subparsers(dest="mapping_action")
+
+        list_parser = mapping_subparsers.add_parser("list", help="List mapping configs")
+        list_parser.add_argument("tenant_id", help="Tenant ID")
+        list_parser.add_argument("detector_type", help="Detector type")
+        list_parser.add_argument(
+            "--format",
+            choices=["table", "json", "yaml"],
+            default="table",
+            help="Output format",
+        )
+
+        active_parser = mapping_subparsers.add_parser(
+            "active", help="Show active mapping config"
+        )
+        active_parser.add_argument("tenant_id", help="Tenant ID")
+        active_parser.add_argument("detector_type", help="Detector type")
+        active_parser.add_argument(
+            "--format",
+            choices=["json", "yaml"],
+            default="json",
+            help="Output format",
+        )
+
+        create_parser = mapping_subparsers.add_parser(
+            "create", help="Create mapping config"
+        )
+        create_parser.add_argument("tenant_id", help="Tenant ID")
+        create_parser.add_argument("detector_type", help="Detector type")
+        create_parser.add_argument("version", help="Config version")
+        create_parser.add_argument("schema_version", help="Mapping schema version")
+        create_parser.add_argument(
+            "mapping_rules_path", help="Path to mapping rules JSON/YAML file"
+        )
+        create_parser.add_argument(
+            "--detector-version",
+            dest="detector_version",
+            help="Detector version",
+        )
+        create_parser.add_argument(
+            "--validation-schema-path",
+            dest="validation_schema_path",
+            help="Path to JSON/YAML validation schema",
+        )
+        create_parser.add_argument(
+            "--activate",
+            action="store_true",
+            help="Activate this version after creation",
+        )
+        create_parser.add_argument(
+            "--created-by",
+            dest="created_by",
+            help="Identifier of the creator (for audit)",
+        )
+
+        activate_parser = mapping_subparsers.add_parser(
+            "activate", help="Activate mapping version"
+        )
+        activate_parser.add_argument("tenant_id", help="Tenant ID")
+        activate_parser.add_argument("detector_type", help="Detector type")
+        activate_parser.add_argument("version", help="Version to activate")
+
+        rollback_parser = mapping_subparsers.add_parser(
+            "rollback", help="Rollback to mapping version"
+        )
+        rollback_parser.add_argument("tenant_id", help="Tenant ID")
+        rollback_parser.add_argument("detector_type", help="Detector type")
+        rollback_parser.add_argument("version", help="Version to rollback to")
+
     async def handle_detector_commands(self, args: argparse.Namespace) -> str:
         """Handle detector commands."""
 
+        detector_cli = self.detector_cli
+        if detector_cli is None:
+            return "Detector CLI not initialized"
+
         action_map: Dict[str, AsyncAction] = {
-            "list": lambda: self.detector_cli.list_detectors(args.format),
-            "register": lambda: self.detector_cli.register_detector(
+            "list": lambda: detector_cli.list_detectors(args.format),
+            "register": lambda: detector_cli.register_detector(
                 DetectorRegistrationOptions(
                     detector_id=args.detector_id,
                     endpoint=args.endpoint,
@@ -186,10 +277,17 @@ class OrchestrationCLI:
                     content_types=args.content_types,
                 )
             ),
-            "unregister": lambda: self.detector_cli.unregister_detector(args.detector_id),
-            "health": lambda: self.detector_cli.detector_health(args.detector_id),
-            "config": lambda: self.detector_cli.detector_config(args.detector_id),
-            "test": lambda: self.detector_cli.test_detector(args.detector_id, args.content),
+            "unregister": lambda: detector_cli.unregister_detector(args.detector_id),
+            "show": lambda: detector_cli.show_detector(args.detector_id),
+            "update": lambda: detector_cli.update_detector(
+                args.detector_id,
+                status=getattr(args, "status", None),
+                endpoint=getattr(args, "endpoint", None),
+                content_types=getattr(args, "content_types", None),
+            ),
+            "health": lambda: detector_cli.detector_health(args.detector_id),
+            "config": lambda: detector_cli.detector_config(args.detector_id),
+            "test": lambda: detector_cli.test_detector(args.detector_id, args.content),
         }
 
         return await self._run_cli_action(
@@ -202,12 +300,16 @@ class OrchestrationCLI:
     async def handle_policy_commands(self, args: argparse.Namespace) -> str:
         """Handle policy commands."""
 
+        policy_cli = self.policy_cli
+        if policy_cli is None:
+            return "Policy CLI not initialized"
+
         action_map: Dict[str, AsyncAction] = {
-            "list": lambda: self.policy_cli.list_policies(args.format),
-            "validate": lambda: self.policy_cli.validate_policy(args.policy_file),
-            "load": lambda: self.policy_cli.load_policy(args.policy_file, args.name),
-            "unload": lambda: self.policy_cli.unload_policy(args.policy_name),
-            "status": lambda: self.policy_cli.policy_status(args.policy_name),
+            "list": lambda: policy_cli.list_policies(args.format),
+            "validate": lambda: policy_cli.validate_policy(args.policy_file),
+            "load": lambda: policy_cli.load_policy(args.policy_file, args.name),
+            "unload": lambda: policy_cli.unload_policy(args.policy_name),
+            "status": lambda: policy_cli.policy_status(args.policy_name),
         }
 
         return await self._run_cli_action(
@@ -220,13 +322,17 @@ class OrchestrationCLI:
     async def handle_health_commands(self, args: argparse.Namespace) -> str:
         """Handle health commands."""
 
+        health_cli = self.health_cli
+        if health_cli is None:
+            return "Health CLI not initialized"
+
         action_map: Dict[str, AsyncAction] = {
-            "status": lambda: self.health_cli.service_status(args.format),
-            "check": lambda: self.health_cli.health_check(args.component),
-            "metrics": self.health_cli.metrics_summary,
-            "cache": self.health_cli.cache_status,
-            "jobs": self.health_cli.job_status,
-            "tenants": lambda: self.health_cli.tenant_stats(args.tenant_id),
+            "status": lambda: health_cli.service_status(args.format),
+            "check": lambda: health_cli.health_check(args.component),
+            "metrics": health_cli.metrics_summary,
+            "cache": health_cli.cache_status,
+            "jobs": health_cli.job_status,
+            "tenants": lambda: health_cli.tenant_stats(args.tenant_id),
         }
 
         return await self._run_cli_action(
@@ -234,6 +340,52 @@ class OrchestrationCLI:
             action_name=args.health_action,
             actions=action_map,
             namespace="health",
+        )
+
+    async def handle_mapping_commands(self, args: argparse.Namespace) -> str:
+        mapping_cli = self.mapping_cli
+        if mapping_cli is None:
+            return "Mapping CLI not initialized"
+
+        action_map: Dict[str, AsyncAction] = {
+            "list": lambda: mapping_cli.list_configs(
+                tenant_id=args.tenant_id,
+                detector_type=args.detector_type,
+                output_format=args.format,
+            ),
+            "active": lambda: mapping_cli.show_active_config(
+                tenant_id=args.tenant_id,
+                detector_type=args.detector_type,
+                output_format=args.format,
+            ),
+            "create": lambda: mapping_cli.create_config(
+                tenant_id=args.tenant_id,
+                detector_type=args.detector_type,
+                version=args.version,
+                schema_version=args.schema_version,
+                mapping_rules_path=args.mapping_rules_path,
+                detector_version=getattr(args, "detector_version", None),
+                validation_schema_path=getattr(args, "validation_schema_path", None),
+                activate=getattr(args, "activate", False),
+                created_by=getattr(args, "created_by", None),
+            ),
+            "activate": lambda: mapping_cli.activate_version(
+                tenant_id=args.tenant_id,
+                detector_type=args.detector_type,
+                version=args.version,
+            ),
+            "rollback": lambda: mapping_cli.rollback_to_version(
+                tenant_id=args.tenant_id,
+                detector_type=args.detector_type,
+                version=args.version,
+            ),
+        }
+
+        return await self._run_cli_action(
+            cli_attr="mapping_cli",
+            action_name=args.mapping_action,
+            actions=action_map,
+            namespace="mapping",
         )
 
     async def run(self, args: Optional[Sequence[str]] = None) -> int:
@@ -249,6 +401,7 @@ class OrchestrationCLI:
             "detector": self.handle_detector_commands,
             "policy": self.handle_policy_commands,
             "health": self.handle_health_commands,
+            "mapping": self.handle_mapping_commands,
         }
 
         try:

@@ -70,11 +70,20 @@ class PolicyManager:
         )
 
         # Initialize policy initialization handler
-        self.initializer = PolicyInitializer(self.policy_loader, self.opa_client)
+        self.initializer = PolicyInitializer(
+            self.policy_loader,
+            self.opa_client,
+            repository=self.repository,
+        )
 
         # Load policy templates and tenant data on initialization
         self.initializer.load_policy_templates()
         asyncio.create_task(self.initializer.load_tenant_policies_to_opa())
+
+    async def refresh_tenant_policies(self) -> bool:
+        """Refresh OPA tenant_policies data from the backing repository."""
+
+        return await self.initializer.refresh_tenant_policies_from_repository()
 
     async def decide(
         self,

@@ -5,7 +5,7 @@ This module provides monitoring capabilities following SRP:
 - PrometheusMetricsCollector: Collect and expose Prometheus metrics
 """
 
-from .health_monitor import HealthMonitor, HealthCheck, HealthStatus
+from .health_monitor import HealthMonitor, HealthCheck, HealthStatus, HTTPHealthCheckClient
 from .prometheus_metrics import PrometheusMetricsCollector
 
 __all__ = [
@@ -13,4 +13,5 @@ __all__ = [
     "HealthCheck",
     "HealthStatus",
     "PrometheusMetricsCollector",
+    "HTTPHealthCheckClient",
 ]

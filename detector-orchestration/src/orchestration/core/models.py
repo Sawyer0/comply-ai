@@ -33,6 +33,7 @@ class DetectorClientConfig:
     name: str
     endpoint: str
     timeout: float = 5.0
+    max_retries: int = 3
     default_headers: Dict[str, str] = field(default_factory=dict)
     response_parser: Callable[[Dict[str, Any]], DetectorResult] | None = None
 

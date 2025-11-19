@@ -5,17 +5,21 @@ orchestration service with all SRP-organized components.
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
+import faulthandler
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from shared.exceptions.base import BaseServiceException
+from shared.interfaces.orchestration import OrchestrationRequest
 from shared.validation.middleware import (
     ValidationMiddleware,
     TenantValidationMiddleware,
 )
-from shared.exceptions.base import BaseServiceException
+from shared.validation.schemas import default_validator
 
 from .service import OrchestrationService, OrchestrationConfig
 from .app_state import service_container
@@ -27,6 +31,15 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+DEBUG_STACK_DUMP_TIMEOUT = int(
+    os.getenv("ORCHESTRATION_DEBUG_DUMP_STACKS", "0") or "0"
+)
+if DEBUG_STACK_DUMP_TIMEOUT < 0:
+    DEBUG_STACK_DUMP_TIMEOUT = 0
+
+# Register orchestration request model with shared validator so
+# ValidationMiddleware can validate /api/v1/orchestrate payloads.
+default_validator.register_pydantic_model("OrchestrationRequest", OrchestrationRequest)
 
 
 @asynccontextmanager
@@ -35,6 +48,25 @@ async def lifespan(_app: FastAPI):
 
     # Startup
     logger.info("Starting Detector Orchestration Service")
+    if DEBUG_STACK_DUMP_TIMEOUT:
+        try:
+            faulthandler.enable()
+        except Exception:
+            logger.warning(
+                "Failed to enable faulthandler for debug stack dumps",
+                exc_info=True,
+            )
+        try:
+            faulthandler.dump_traceback_later(DEBUG_STACK_DUMP_TIMEOUT)
+            logger.info(
+                "Configured faulthandler.dump_traceback_later with timeout=%s seconds",
+                DEBUG_STACK_DUMP_TIMEOUT,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to configure faulthandler.dump_traceback_later",
+                exc_info=True,
+            )
 
     # Initialize service with configuration from settings
     config = OrchestrationConfig(
@@ -51,8 +83,15 @@ async def lifespan(_app: FastAPI):
     # Start the service
     await orchestration_service.start()
 
-    # Register some example detectors for testing
-    await _register_example_detectors()
+    # Optionally register example detectors.
+    # Disabled by default to avoid long-running external detector calls
+    # during tests or local development without backing services.
+    if os.getenv("ORCHESTRATION_REGISTER_EXAMPLE_DETECTORS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        await _register_example_detectors()
 
     logger.info("Detector Orchestration Service started successfully")
 
@@ -60,6 +99,14 @@ async def lifespan(_app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down Detector Orchestration Service")
+    if DEBUG_STACK_DUMP_TIMEOUT:
+        try:
+            faulthandler.cancel_dump_traceback_later()
+        except Exception:
+            logger.warning(
+                "Failed to cancel faulthandler traceback timer",
+                exc_info=True,
+            )
     service = service_container.get_orchestration_service()
     if service:
         await service.stop()

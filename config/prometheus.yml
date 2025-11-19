@@ -1,4 +1,4 @@
-# Prometheus configuration for Comply-AI Analysis Module
+# Prometheus configuration for Comply-AI Microservices
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -25,10 +25,27 @@ scrape_configs:
     scrape_interval: 10s
     metrics_path: '/metrics'
     
+  # Infrastructure
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    # Requires postgres_exporter to be running
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    # Requires redis_exporter to be running
+
   # System metrics (optional)
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['localhost:9100']
+
+  # Pushgateway for batch metrics
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['prometheus-pushgateway:9091']
 
 alerting:
   alertmanagers:

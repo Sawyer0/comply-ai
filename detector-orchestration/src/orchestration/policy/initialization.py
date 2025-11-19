@@ -16,6 +16,7 @@ from shared.exceptions.base import ValidationError, ServiceUnavailableError
 
 from .opa_adapter import load_policy as _opa_load_policy, load_data as _opa_load_data
 from .policy_loader import PolicyLoader, PolicyLoadError
+from .repository import PolicyRepository
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class PolicyInitializer:
     Does NOT handle: policy CRUD, evaluation, or runtime operations.
     """
 
-    def __init__(self, policy_loader: PolicyLoader, opa_client):
+    def __init__(self, policy_loader: PolicyLoader, opa_client, repository: PolicyRepository | None = None):
         """Initialize policy initializer.
         
         Args:
@@ -40,6 +41,7 @@ class PolicyInitializer:
         """
         self.policy_loader = policy_loader
         self.opa_client = opa_client
+        self.repository = repository
         self._template_status: Dict[str, Dict[str, Any]] = {}
 
     def load_policy_templates(self) -> None:
@@ -116,13 +118,24 @@ class PolicyInitializer:
     async def load_tenant_policies_to_opa(self):
         """Load tenant policy data into OPA for policy evaluation.
 
-        Single Responsibility: Initialize OPA with tenant configuration data.
+        Preference order:
+        1. PolicyRepository (DB-backed tenant_policies table)
+        2. PolicyLoader file-based tenant_policies_data.json (for bootstrap)
         """
         correlation_id = get_correlation_id()
 
         try:
-            # Load tenant policy data from policy loader
-            tenant_data = self.policy_loader.load_tenant_policy_data()
+            tenant_data: Dict[str, Any] | None = None
+
+            # Prefer DB-backed tenant_policies if repository is configured
+            loaded_from_file = False
+            if self.repository is not None:
+                tenant_data = await self.repository.load_all_tenant_policies()
+
+            # Fallback to file-based loader if DB has no data yet
+            if not tenant_data:
+                tenant_data = self.policy_loader.load_tenant_policy_data()
+                loaded_from_file = tenant_data is not None
 
             if tenant_data:
                 # Load tenant policies into OPA data store
@@ -134,6 +147,11 @@ class PolicyInitializer:
                 )
 
                 if success:
+                    # If we had to load from file, persist into repository so DB
+                    # becomes the canonical source going forward.
+                    if self.repository is not None and loaded_from_file:
+                        await self.repository.save_all_tenant_policies(tenant_data)
+
                     logger.info(
                         "Tenant policy data loaded to OPA successfully",
                         extra={
@@ -161,6 +179,51 @@ class PolicyInitializer:
                     "error": str(e),
                 },
             )
+
+    async def refresh_tenant_policies_from_repository(self) -> bool:
+        """Force-refresh tenant policy data in OPA from the repository.
+
+        This can be scheduled periodically or triggered manually.
+        """
+
+        if self.repository is None:
+            logger.warning("Policy repository not configured; refresh skipped")
+            return False
+
+        correlation_id = get_correlation_id()
+        try:
+            tenant_data = await self.repository.load_all_tenant_policies()
+            if not tenant_data:
+                logger.warning(
+                    "No tenant policy data found in repository to refresh",
+                    extra={"correlation_id": correlation_id},
+                )
+                return False
+
+            success = await _opa_load_data(
+                client=self.opa_client,
+                data_path="tenant_policies",
+                data=tenant_data,
+                correlation_id=correlation_id,
+            )
+            if success:
+                logger.info(
+                    "Tenant policy data refreshed from repository",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "tenant_count": len(tenant_data),
+                    },
+                )
+            return success
+        except (PolicyLoadError, OPAError, ValidationError, ServiceUnavailableError) as e:
+            logger.error(
+                "Failed to refresh tenant policies from repository",
+                extra={
+                    "correlation_id": correlation_id,
+                    "error": str(e),
+                },
+            )
+            return False
 
     async def reload_all_policies(self) -> bool:
         """Reload all policies from templates and tenant data.

@@ -1,13 +1,16 @@
-"""
-Rate limiting module for the Analysis Service.
+"""Analysis service adapter for the shared rate limiting primitives."""
 
-Implements token bucket algorithm for rate limiting.
-"""
+from __future__ import annotations
 
-import time
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import structlog
+
+from shared.security.rate_limiting import (
+    RateLimitConfig,
+    RateLimitStrategy,
+    RateLimitingService,
+)
 
 from .config import SecurityConfig
 from .exceptions import RateLimitError
@@ -16,109 +19,94 @@ logger = structlog.get_logger(__name__)
 
 
 class RateLimiter:
-    """Token bucket rate limiter."""
+    """Wraps the shared rate limiting service with analysis defaults."""
 
-    def __init__(self, config: SecurityConfig):
+    def __init__(self, config: SecurityConfig, redis_client: Any = None):
         self.config = config
         self.logger = logger.bind(component="rate_limiter")
-        self._rate_limit_buckets: Dict[str, Dict[str, Any]] = {}
 
-    async def check_rate_limit(self, client_id: str, endpoint: str) -> bool:
-        """
-        Check if request is within rate limits.
-
-        Args:
-            client_id: Client identifier (IP, user ID, etc.)
-            endpoint: API endpoint being accessed
-
-        Returns:
-            True if within limits, False otherwise
-
-        Raises:
-            RateLimitError: If rate limit is exceeded
-        """
-        bucket_key = f"{client_id}:{endpoint}"
-        now = time.time()
-
-        if bucket_key not in self._rate_limit_buckets:
-            self._rate_limit_buckets[bucket_key] = {
-                "tokens": self.config.rate_limit_burst_size,
-                "last_refill": now,
-            }
-
-        bucket = self._rate_limit_buckets[bucket_key]
-
-        # Refill tokens based on time elapsed
-        time_elapsed = now - bucket["last_refill"]
-        tokens_to_add = time_elapsed * (
-            self.config.rate_limit_requests_per_minute / 60.0
-        )
-        bucket["tokens"] = min(
-            self.config.rate_limit_burst_size, bucket["tokens"] + tokens_to_add
-        )
-        bucket["last_refill"] = now
-
-        # Check if request can be processed
-        if bucket["tokens"] >= 1:
-            bucket["tokens"] -= 1
-            return True
-
-        self.logger.warning(
-            "Rate limit exceeded",
-            client_id=client_id,
-            endpoint=endpoint,
-            tokens_remaining=bucket["tokens"],
-        )
-        raise RateLimitError(f"Rate limit exceeded for {client_id} on {endpoint}")
-
-    async def get_rate_limit_status(
-        self, client_id: str, endpoint: str
-    ) -> Dict[str, Any]:
-        """
-        Get current rate limit status for client and endpoint.
-
-        Args:
-            client_id: Client identifier
-            endpoint: API endpoint
-
-        Returns:
-            Rate limit status information
-        """
-        bucket_key = f"{client_id}:{endpoint}"
-
-        if bucket_key not in self._rate_limit_buckets:
-            return {
-                "tokens_remaining": self.config.rate_limit_burst_size,
-                "reset_time": time.time(),
-                "limit": self.config.rate_limit_requests_per_minute,
-            }
-
-        bucket = self._rate_limit_buckets[bucket_key]
-
-        return {
-            "tokens_remaining": int(bucket["tokens"]),
-            "reset_time": bucket["last_refill"] + 60,  # Reset every minute
-            "limit": self.config.rate_limit_requests_per_minute,
+        default_configs: Dict[str, RateLimitConfig] = {
+            "api_key": RateLimitConfig(
+                requests_per_minute=config.rate_limit_requests_per_minute,
+                burst_size=config.rate_limit_burst_size,
+                strategy=RateLimitStrategy.TOKEN_BUCKET,
+            ),
+            "ip": RateLimitConfig(
+                requests_per_minute=60,
+                burst_size=15,
+                strategy=RateLimitStrategy.TOKEN_BUCKET,
+            ),
+            "endpoint": RateLimitConfig(
+                requests_per_minute=500,
+                burst_size=100,
+                strategy=RateLimitStrategy.SLIDING_WINDOW,
+            ),
         }
 
-    def clear_rate_limits(self, client_id: str = None) -> None:
-        """
-        Clear rate limit buckets.
+        self._service = RateLimitingService(
+            redis_client=redis_client,
+            default_configs=default_configs,
+        )
 
-        Args:
-            client_id: Optional client ID to clear specific buckets
-        """
-        if client_id:
-            # Clear buckets for specific client
-            keys_to_remove = [
-                key
-                for key in self._rate_limit_buckets.keys()
-                if key.startswith(f"{client_id}:")
-            ]
-            for key in keys_to_remove:
-                del self._rate_limit_buckets[key]
-        else:
-            # Clear all buckets
-            self._rate_limit_buckets.clear()
+    async def check_rate_limit(self, client_id: str, endpoint: str) -> bool:
+        """Validate the request against configured limits."""
 
-        self.logger.info("Rate limit buckets cleared", client_id=client_id)
+        result = await self._service.manager.check_multiple_limits(
+            api_key_id=client_id or None,
+            endpoint=endpoint,
+        )
+
+        if not result.allowed:
+            self.logger.warning(
+                "Rate limit exceeded",
+                client_id=client_id,
+                endpoint=endpoint,
+                remaining=result.remaining,
+                retry_after=result.retry_after,
+            )
+            raise RateLimitError(f"Rate limit exceeded for {client_id} on {endpoint}")
+
+        return True
+
+    async def get_rate_limit_status(self, client_id: str, endpoint: str) -> Dict[str, Any]:
+        """Return the remaining allowance for the given client and endpoint."""
+
+        result = await self._service.manager.check_multiple_limits(
+            api_key_id=client_id or None,
+            endpoint=endpoint,
+        )
+
+        api_key_config = self._service.manager.default_configs.get("api_key")
+        limit = (
+            api_key_config.requests_per_minute
+            if api_key_config is not None
+            else self.config.rate_limit_requests_per_minute
+        )
+
+        return {
+            "tokens_remaining": result.remaining,
+            "reset_time": result.reset_time.isoformat(),
+            "limit": limit,
+        }
+
+    async def clear_rate_limits(self, client_id: Optional[str] = None) -> None:
+        """Shared service handles expiry; explicit clearing is not yet supported."""
+
+        self.logger.info(
+            "Rate limit reset requested but not implemented",
+            client_id=client_id,
+        )
+
+    async def get_metrics(self) -> Dict[str, Any]:
+        """Expose configured defaults for observability."""
+
+        defaults = {
+            key: {
+                "requests_per_minute": config.requests_per_minute,
+                "burst_size": config.burst_size,
+                "strategy": config.strategy.value,
+            }
+            for key, config in self._service.manager.default_configs.items()
+        }
+
+        return {"default_limits": defaults}
