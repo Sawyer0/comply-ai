@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, validator, model_validator
 
 from .base import BaseRequest, BaseResponse
-from .common import ProcessingMode, HealthStatus, Severity, JobStatus
+from .common import ProcessingMode, HealthStatus, Severity, JobStatus, RiskLevel
 from ..validation.common_validators import (
     validate_non_empty_string,
     validate_unique_list,
@@ -134,6 +134,21 @@ class PolicyViolation(BaseModel):
         return validate_non_empty_string(cls, v)
 
 
+class RiskSummary(BaseModel):
+    """Risk summary for an orchestration request."""
+
+    level: RiskLevel = Field(description="Overall risk level")
+    score: float = Field(description="Overall risk score", ge=0.0, le=1.0)
+    rules_evaluation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Rule evaluation details used to derive the risk score",
+    )
+    model_features: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Model features used when computing the risk score",
+    )
+
+
 class OrchestrationResponse(BaseResponse):
     """Response from detector orchestration."""
 
@@ -152,6 +167,41 @@ class OrchestrationResponse(BaseResponse):
     recommendations: List[str] = Field(
         default_factory=list, description="Recommendations for improvement"
     )
+    canonical_outputs: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Canonical detector outputs for this request, serialized form of "
+            "CanonicalDetectorOutputs"
+        ),
+    )
+    risk_summary: Optional[RiskSummary] = Field(
+        None,
+        description="Optional risk summary computed by the orchestration risk scorer",
+    )
+
+    def canonical_results_dict(self) -> List[Dict[str, Any]]:
+        """Extract canonical taxonomy results from canonical_outputs if present.
+
+        The canonical_outputs field is the serialized form of CanonicalDetectorOutputs.
+        This helper flattens that structure into a simple list of canonical
+        taxonomy result dicts (one per detector output), suitable for passing to
+        analysis or mapper services that expect canonical_results.
+        """
+
+        if not self.canonical_outputs:
+            return []
+
+        outputs = self.canonical_outputs.get("outputs") or []
+        canonical_results: List[Dict[str, Any]] = []
+
+        for output in outputs:
+            if not isinstance(output, dict):
+                continue
+            canonical = output.get("canonical_result")
+            if isinstance(canonical, dict):
+                canonical_results.append(canonical)
+
+        return canonical_results
 
 
 class DetectorInfo(BaseModel):

@@ -17,6 +17,7 @@ from .common import *
 from .orchestration import *
 from .analysis import *
 from .mapper import *
+from .detector_output import *
 
 __all__ = [
     "BaseRequest",
@@ -46,6 +47,10 @@ __all__ = [
     "AsyncJobRequest",
     "AsyncJobResponse",
     "AsyncJobStatus",
+    # Canonical detector outputs
+    "CanonicalDetectorEntity",
+    "CanonicalDetectorOutput",
+    "CanonicalDetectorOutputs",
     # Analysis interfaces
     "AnalysisRequest",
     "AnalysisResponse",

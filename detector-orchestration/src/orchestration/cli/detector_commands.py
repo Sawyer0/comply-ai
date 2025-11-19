@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
-from typing import Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from shared.exceptions.base import BaseServiceException
 
@@ -41,23 +41,57 @@ class DetectorCLI:
     def __init__(self, orchestration_service: OrchestrationService) -> None:
         self.service = orchestration_service
 
-    async def list_detectors(self, output_format: str = "table") -> str:
-        """List all registered detectors."""
+    async def list_detectors(
+        self,
+        output_format: str = "table",
+        *,
+        tenant_id: Optional[str] = None,
+        detector_type: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> str:
+        """List detectors from the persistent registry, with optional filters."""
 
-        router = getattr(self.service, "content_router", None)
-        if not router:
-            return "Content router not initialized"
+        records = await self.service.list_detectors(
+            tenant_id=tenant_id,
+            detector_type=detector_type,
+            status=status,
+        )
 
-        detector_names = router.get_available_detectors()
+        if not records:
+            return "No detectors found."
 
         if output_format == "json":
-            return json.dumps(detector_names, indent=2)
+            payload = [
+                {
+                    "id": r.id,
+                    "detector_name": r.detector_name,
+                    "detector_type": r.detector_type,
+                    "endpoint_url": r.endpoint_url,
+                    "status": r.status,
+                    "tenant_id": r.tenant_id,
+                }
+                for r in records
+            ]
+            return json.dumps(payload, indent=2)
 
         if output_format == "yaml":
             if yaml is None:
                 return "PyYAML not installed; use --format json instead"
-            return yaml.dump(detector_names, default_flow_style=False)  # type: ignore[arg-type]
+            payload = [
+                {
+                    "id": r.id,
+                    "detector_name": r.detector_name,
+                    "detector_type": r.detector_type,
+                    "endpoint_url": r.endpoint_url,
+                    "status": r.status,
+                    "tenant_id": r.tenant_id,
+                }
+                for r in records
+            ]
+            return yaml.dump(payload, default_flow_style=False)  # type: ignore[arg-type]
 
+        # Table output: reuse router-based formatting when available.
+        detector_names = [r.detector_name for r in records]
         return self._format_detector_table(detector_names)
 
     async def register_detector(
@@ -100,6 +134,67 @@ class DetectorCLI:
             return f"Detector '{detector_id}' not found"
 
         return f"Successfully unregistered detector '{detector_id}'"
+
+    async def show_detector(self, detector_id: str) -> str:
+        """Show detector details from the persistent registry."""
+
+        record = await self.service.get_detector(detector_id)
+        if not record:
+            return f"Detector '{detector_id}' not found"
+
+        info = {
+            "id": record.id,
+            "detector_name": record.detector_name,
+            "detector_type": record.detector_type,
+            "endpoint_url": record.endpoint_url,
+            "status": record.status,
+            "version": record.version,
+            "tenant_id": record.tenant_id,
+            "capabilities": record.capabilities,
+            "health_status": record.health_status,
+            "last_health_check": record.last_health_check,
+            "response_time_ms": record.response_time_ms,
+            "error_rate": record.error_rate,
+            "configuration": record.configuration,
+        }
+
+        return json.dumps(info, indent=2)
+
+    async def update_detector(
+        self,
+        detector_id: str,
+        *,
+        status: Optional[str] = None,
+        endpoint: Optional[str] = None,
+        content_types: Optional[Sequence[str]] = None,
+    ) -> str:
+        """Update detector metadata in the persistent registry."""
+
+        fields: Dict[str, Any] = {}
+        if status is not None:
+            fields["status"] = status
+        if endpoint is not None:
+            fields["endpoint_url"] = endpoint
+            fields["health_check_url"] = endpoint.rstrip("/") + "/health"
+        if content_types is not None:
+            fields["capabilities"] = list(content_types)
+
+        if not fields:
+            return "No fields provided to update"
+
+        record = await self.service.get_detector(detector_id)
+        if not record:
+            return f"Detector '{detector_id}' not found"
+
+        updated = await self.service.update_detector(
+            detector_id,
+            tenant_id=record.tenant_id,
+            fields=fields,
+        )
+        if not updated:
+            return f"Detector '{detector_id}' not found"
+
+        return f"Updated detector '{detector_id}'"
 
     async def detector_health(self, detector_id: Optional[str] = None) -> str:
         """Check detector health."""

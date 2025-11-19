@@ -15,6 +15,7 @@ from shared.interfaces.orchestration import (
     OrchestrationRequest,
     OrchestrationResponse,
 )
+from shared.interfaces.common import HealthStatus
 from shared.utils.correlation import get_correlation_id, set_correlation_id
 
 from ..core import (
@@ -22,7 +23,8 @@ from ..core import (
     RoutingDecision,
     RoutingPlan as CoordinatorRoutingPlan,
 )
-from ..monitoring import HealthMonitor
+from ..monitoring import HealthMonitor, HTTPHealthCheckClient
+from ..repository import DetectorRecord
 from ..tenancy.tenant_isolation import TenantContext
 from . import (
     initialization,
@@ -122,6 +124,7 @@ class OrchestrationService(BaseService):
 
         artifacts: Optional[OrchestrationArtifacts] = None
         pipeline_context: Optional[PipelineContext] = None
+        risk_score = None
 
         try:
             pipeline_context, artifacts = await pipeline.run_pipeline(
@@ -131,12 +134,34 @@ class OrchestrationService(BaseService):
                 context_input=context_input,
             )
 
+            # Compute risk score for this request if the scorer is available.
+            if self.components.risk_scorer and artifacts is not None and pipeline_context is not None:
+                try:
+                    risk_score = self.components.risk_scorer.score(
+                        detector_results=artifacts.detector_results,
+                        aggregated_output=artifacts.aggregated_output,
+                        policy_violations=artifacts.policy_violations,
+                        coverage=artifacts.coverage,
+                        canonical_outputs=artifacts.canonical_outputs,
+                    )
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.error(
+                        "Failed to compute risk score: %s",
+                        exc,
+                        extra=self._log_extra(
+                            correlation_id,
+                            tenant_id=tenant_id,
+                        ),
+                    )
+                    risk_score = None
+
             processing_time = lifecycle.get_processing_time_ms(start_time)
             response = lifecycle.build_success_response(
                 self,
                 context=pipeline_context,
                 processing_time=processing_time,
                 artifacts=artifacts,
+                risk_score=risk_score,
             )
 
             await lifecycle.cache_idempotent_response(
@@ -150,6 +175,53 @@ class OrchestrationService(BaseService):
                 processing_time=processing_time,
                 artifacts=artifacts,
             )
+
+            # Persist risk analysis for this request if a repository is configured
+            if (
+                self.components.risk_repository
+                and pipeline_context is not None
+                and artifacts is not None
+                and risk_score is not None
+            ):
+                try:
+                    detector_ids = [
+                        result.detector_id for result in artifacts.detector_results
+                    ]
+
+                    await self.components.risk_repository.create_risk_analysis(
+                        fields={
+                            "tenant_id": pipeline_context.tenant_id,
+                            "request_correlation_id": pipeline_context.correlation_id,
+                            "risk_level": risk_score.level.value,
+                            "risk_score": risk_score.score,
+                            "rules_evaluation": risk_score.rules_evaluation,
+                            "model_features": risk_score.model_features,
+                            "detector_ids": detector_ids,
+                            "requested_by": context_input.user_id,
+                            "requested_via_api_key": context_input.api_key,
+                        },
+                    )
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.error(
+                        "Failed to persist risk analysis: %s",
+                        exc,
+                        extra=self._log_extra(
+                            correlation_id,
+                            tenant_id=tenant_id,
+                        ),
+                    )
+
+            # Feed detector results back into ML components
+            if (
+                self.components.ml_feedback
+                and pipeline_context is not None
+                and artifacts is not None
+            ):
+                await self.components.ml_feedback.update_models_with_feedback(
+                    detector_results=artifacts.detector_results,
+                    routing_decision=pipeline_context.routing_decision,
+                    _content_features=pipeline_context.content_features,
+                )
             return response
 
         except BaseServiceException as exc:
@@ -172,9 +244,132 @@ class OrchestrationService(BaseService):
                 exc=exc,
             )
 
-    async def register_detector(self, registration: DetectorRegistrationConfig) -> bool:
-        """Register an external detector across discovery, routing, and client registries."""
-        return await registration_helpers.register_detector(self, registration)
+    async def register_detector(
+        self,
+        registration: Optional[DetectorRegistrationConfig] = None,
+        **kwargs: Any,
+    ) -> bool:
+        """Register an external detector across discovery, routing, and client registries.
+
+        Accepts either a DetectorRegistrationConfig instance or the individual keyword
+        arguments required to construct one. The kwargs path keeps backward compatibility
+        with older call sites that passed detector_id/endpoint directly.
+        """
+
+        if registration is None:
+            if not kwargs:
+                raise ValueError("registration details are required")
+            registration = DetectorRegistrationConfig(**kwargs)
+
+        await self._persist_detector_registration(registration)
+        success = await registration_helpers.register_detector(self, registration)
+        if success:
+            await self._register_health_client(
+                registration.detector_id,
+                registration.endpoint,
+                registration.timeout_ms,
+                health_check_url=None,
+            )
+        return success
+
+    async def unregister_detector(
+        self,
+        detector_id: str,
+        *,
+        tenant_id: Optional[str] = None,
+    ) -> bool:
+        """Remove detector from persistence and runtime components."""
+
+        repo = self.components.detector_repository
+        if not repo:
+            return False
+
+        record: Optional[DetectorRecord]
+        if tenant_id:
+            record = await repo.get_detector_by_identity(
+                tenant_id=tenant_id,
+                detector_name=detector_id,
+                detector_type=detector_id,
+            )
+            if not record:
+                record = await repo.get_detector_by_name(
+                    tenant_id=tenant_id,
+                    detector_name=detector_id,
+                )
+        else:
+            record = await repo.get_detector_by_name(
+                tenant_id="default",
+                detector_name=detector_id,
+            )
+
+        if not record:
+            existing = await repo.get_detector(detector_id)
+            record = existing
+
+        if not record:
+            return False
+
+        await self._unregister_runtime_detector(record.detector_name)
+        await repo.delete_detector(record.id)
+        return True
+
+    async def list_detectors(
+        self,
+        *,
+        tenant_id: Optional[str] = None,
+        detector_type: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> List[DetectorRecord]:
+        repo = self.components.detector_repository
+        if not repo:
+            return []
+        return await repo.list_detectors(
+            tenant_id=tenant_id,
+            detector_type=detector_type,
+            status=status,
+        )
+
+    async def get_detector(
+        self,
+        detector_id: str,
+        *,
+        tenant_id: Optional[str] = None,
+    ) -> Optional[DetectorRecord]:
+        repo = self.components.detector_repository
+        if not repo:
+            return None
+        if tenant_id:
+            record = await repo.get_detector_by_name(
+                tenant_id=tenant_id,
+                detector_name=detector_id,
+            )
+            if record:
+                return record
+        return await repo.get_detector(detector_id)
+
+    async def update_detector(
+        self,
+        detector_id: str,
+        *,
+        tenant_id: str,
+        fields: Dict[str, Any],
+    ) -> Optional[DetectorRecord]:
+        repo = self.components.detector_repository
+        if not repo:
+            return None
+
+        record = await repo.get_detector_by_name(
+            tenant_id=tenant_id,
+            detector_name=detector_id,
+        )
+        if not record:
+            return None
+
+        await repo.update_detector(record.id, fields=fields)
+        updated = await repo.get_detector(record.id)
+        if updated:
+            await self._register_runtime_from_record(updated)
+        return updated
 
     async def get_service_status(self) -> Dict[str, Any]:
         """Return a structured snapshot of service health, metrics, and enabled components."""
@@ -212,6 +407,8 @@ class OrchestrationService(BaseService):
             return
 
         logger.info("Starting orchestration service")
+
+        await self._hydrate_detectors_from_repository()
 
         if self.components.health_monitor:
             task = asyncio.create_task(self._health_check_loop())
@@ -258,11 +455,11 @@ class OrchestrationService(BaseService):
         """Background task for periodic health checks."""
         while self._is_running:
             try:
-                if isinstance(self.components.health_monitor, HealthMonitor):
-                    await self.components.health_monitor.check_all_services()
-                    await asyncio.sleep(
-                        self.components.health_monitor.health_check_interval
-                    )
+                monitor = self.components.health_monitor
+                if isinstance(monitor, HealthMonitor):
+                    checks = await monitor.check_all_services()
+                    await self._update_detector_health_from_checks(checks)
+                    await asyncio.sleep(monitor.health_check_interval)
             except asyncio.CancelledError:  # pragma: no cover - cancellation flow
                 break
             except (BaseServiceException, asyncio.TimeoutError) as exc:
@@ -365,26 +562,6 @@ class OrchestrationService(BaseService):
             processing_mode=context_input.processing_mode,
         )
 
-    async def _close_detector_clients(self) -> None:
-        tasks = [client.close() for client in self.components.detector_clients.values()]
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        self.components.detector_clients.clear()
-
-    async def _health_check_loop(self) -> None:
-        while self._is_running:
-            try:
-                if isinstance(self.components.health_monitor, HealthMonitor):
-                    await self.components.health_monitor.check_all_services()
-                    await asyncio.sleep(
-                        self.components.health_monitor.health_check_interval
-                    )
-            except asyncio.CancelledError:  # pragma: no cover - cancellation flow
-                break
-            except (BaseServiceException, asyncio.TimeoutError) as exc:
-                logger.error("Health check loop error: %s", str(exc))
-                await asyncio.sleep(5)
-
     # Compatibility wrappers for refactored helpers
     # pylint: disable=missing-function-docstring
     async def validate_request_security(
@@ -438,14 +615,20 @@ class OrchestrationService(BaseService):
 
     def _analyze_content(
         self, content: str, correlation_id: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[Any]:
         return pipeline.analyze_content(self, content, correlation_id)
 
     async def _determine_routing(
-        self, request: OrchestrationRequest, correlation_id: str
+        self,
+        request: OrchestrationRequest,
+        tenant_id: str,
+        correlation_id: str,
     ) -> Tuple[Optional[CoordinatorRoutingPlan], Optional[RoutingDecision]]:
         return await pipeline.determine_routing(
-            self, request=request, correlation_id=correlation_id
+            self,
+            request=request,
+            tenant_id=tenant_id,
+            correlation_id=correlation_id,
         )
 
     def _to_coordinator_routing_plan(
@@ -555,6 +738,170 @@ class OrchestrationService(BaseService):
             artifacts=artifacts,
             exc=exc,
         )
+    async def _persist_detector_registration(
+        self, registration: DetectorRegistrationConfig
+    ) -> None:
+        """Persist detector registration details to the detectors table.
+
+        This keeps the database as the source of truth while the runtime
+        router/service-discovery/client layers are hydrated separately.
+        """
+
+        repo = self.components.detector_repository
+        if not repo:
+            return
+
+        tenant_id = registration.tenant_id or "default"
+        config_payload: Dict[str, Any] = {
+            "analyze_path": registration.analyze_path,
+            "response_parser": registration.response_parser,
+            "auth_headers": registration.auth_headers or {},
+            "timeout_ms": registration.timeout_ms,
+            "max_retries": registration.max_retries,
+        }
+
+        existing = await repo.get_detector_by_identity(
+            tenant_id=tenant_id,
+            detector_name=registration.detector_id,
+            detector_type=registration.detector_type,
+        )
+
+        fields: Dict[str, Any] = {
+            "detector_type": registration.detector_type,
+            "detector_name": registration.detector_id,
+            "endpoint_url": registration.endpoint,
+            "health_check_url": registration.endpoint.rstrip("/") + "/health",
+            "status": "active",
+            "version": "1.0.0",
+            "capabilities": registration.supported_content_types or ["text"],
+            "configuration": config_payload,
+            "tenant_id": tenant_id,
+        }
+
+        if existing:
+            await repo.update_detector(existing.id, fields=fields)
+        else:
+            await repo.create_detector(fields=fields)
+
+    async def _register_runtime_from_record(self, record: DetectorRecord) -> bool:
+        """Hydrate routing, discovery, and client layers from a DB record."""
+
+        config = dict(record.configuration or {})
+        registration = DetectorRegistrationConfig(
+            detector_id=record.detector_name,
+            endpoint=record.endpoint_url,
+            detector_type=record.detector_type,
+            tenant_id=record.tenant_id,
+            timeout_ms=int(config.get("timeout_ms", 5000)),
+            max_retries=int(config.get("max_retries", 3)),
+            supported_content_types=record.capabilities or ["text"],
+            auth_headers=config.get("auth_headers") or {},
+            analyze_path=config.get("analyze_path", "/analyze"),
+            response_parser=config.get("response_parser"),
+        )
+
+        success = await registration_helpers.register_detector(self, registration)
+        if success:
+            timeout_ms = int(config.get("timeout_ms", 5000))
+            await self._register_health_client(
+                record.detector_name,
+                record.endpoint_url,
+                timeout_ms,
+                health_check_url=record.health_check_url,
+            )
+        return success
+
+    async def _hydrate_detectors_from_repository(self) -> None:
+        """Hydrate runtime components from all persisted detector records."""
+
+        repo = self.components.detector_repository
+        if not repo:
+            return
+
+        try:
+            records = await repo.list_detectors()
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error("Failed to hydrate detectors from repository: %s", exc)
+            return
+
+        for record in records:
+            try:
+                await self._register_runtime_from_record(record)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.error(
+                    "Failed to hydrate detector %s: %s",
+                    record.detector_name,
+                    exc,
+                )
+
+    async def _unregister_runtime_detector(self, detector_name: str) -> None:
+        """Remove detector from router, discovery, and close its client."""
+
+        router = self.components.content_router
+        if router:
+            router.unregister_detector(detector_name)
+
+        discovery = self.components.service_discovery
+        if discovery:
+            discovery.unregister_service(detector_name)
+
+        monitor = self.components.health_monitor
+        if monitor:
+            monitor.unregister_service(detector_name)
+
+        client = self.components.detector_clients.pop(detector_name, None)
+        if client:
+            try:
+                await client.close()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                logger.warning("Failed to close detector client for %s", detector_name)
+
+    async def _register_health_client(
+        self,
+        service_id: str,
+        endpoint_url: str,
+        timeout_ms: int,
+        *,
+        health_check_url: Optional[str] = None,
+    ) -> None:
+        monitor = self.components.health_monitor
+        if not monitor:
+            return
+
+        url = health_check_url or endpoint_url.rstrip("/") + "/health"
+        timeout_seconds = max(timeout_ms / 1000.0, 0.1)
+        client = HTTPHealthCheckClient(url, timeout_seconds)
+        monitor.register_service(service_id, client)
+
+    async def _update_detector_health_from_checks(self, checks: Dict[str, Any]) -> None:
+        repo = self.components.detector_repository
+        if not repo:
+            return
+
+        metrics = self.components.metrics_collector
+        healthy_count = 0
+
+        for detector_name, health_check in checks.items():
+            try:
+                if metrics:
+                    metrics.update_detector_health(detector_name, health_check.status)
+                if health_check.status == HealthStatus.HEALTHY:
+                    healthy_count += 1
+
+                await repo.update_health_by_name(
+                    detector_name,
+                    health_status=health_check.status.value,
+                    response_time_ms=health_check.response_time_ms,
+                )
+            except Exception as exc:  # pragma: no cover - defensive logging
+                logger.error(
+                    "Failed to persist health for detector %s: %s",
+                    detector_name,
+                    exc,
+                )
+
+        if metrics is not None:
+            metrics.update_active_detectors(healthy_count)
 
     # pylint: enable=missing-function-docstring
 

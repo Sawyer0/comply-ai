@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from shared.exceptions.base import BaseServiceException
+from shared.interfaces.common import Severity
 from shared.interfaces.orchestration import (
     AggregationSummary,
+    DetectorResult,
     OrchestrationResponse,
     PolicyViolation,
+    RiskSummary,
 )
+
+if TYPE_CHECKING:
+    from .models import OrchestrationArtifacts, PipelineContext
 
 
 logger = logging.getLogger(__name__)
@@ -42,21 +48,35 @@ def update_average_response_time(service, processing_time: float) -> None:
 def record_success(
     service,
     *,
-    context: PipelineContext,
+    context: "PipelineContext",
     processing_time: float,
-    artifacts: OrchestrationArtifacts,
+    artifacts: "OrchestrationArtifacts",
 ) -> None:
     service._metrics["successful_requests"] += 1  # noqa: SLF001
     update_average_response_time(service, processing_time)
 
     metrics = service.components.metrics_collector
     if metrics:
+        # Request-level metrics
         metrics.record_request(
             tenant_id=context.tenant_id,
             processing_mode=context.processing_mode,
             status="success",
             duration_seconds=processing_time / 1000.0,
         )
+
+        # Per-detector execution metrics
+        for result in artifacts.detector_results:
+            status = "success" if result.confidence > 0.0 else "failure"
+            duration_ms = getattr(result, "processing_time_ms", None)
+            duration_seconds = (duration_ms or 0) / 1000.0
+            if isinstance(result, DetectorResult):
+                metrics.record_detector_execution(
+                    detector_id=result.detector_id,
+                    detector_type=result.detector_type,
+                    status=status,
+                    duration_seconds=duration_seconds,
+                )
 
     logger.info(
         "Orchestration completed successfully in %.2fms",
@@ -75,7 +95,7 @@ def record_success(
 def record_failure(
     service,
     *,
-    context: PipelineContext,
+    context: "PipelineContext",
     processing_time: float,
     exc: BaseServiceException,
 ) -> None:
@@ -108,9 +128,10 @@ def record_failure(
 def build_success_response(
     service,
     *,
-    context: PipelineContext,
+    context: "PipelineContext",
     processing_time: float,
-    artifacts: OrchestrationArtifacts,
+    artifacts: "OrchestrationArtifacts",
+    risk_score: Optional[Any] = None,
 ) -> OrchestrationResponse:
     detector_results = artifacts.detector_results
     total_detectors = len(detector_results)
@@ -121,6 +142,41 @@ def build_success_response(
         if detector_results
         else 0.0
     )
+
+    risk_summary: Optional[RiskSummary] = None
+    if risk_score is not None:
+        # RiskScore comes from orchestration.ml.risk_scorer and is intentionally kept
+        # as a loose dependency here to avoid tight coupling between service layers.
+        try:
+            level = getattr(risk_score, "level", None)
+            score = float(getattr(risk_score, "score", 0.0))
+            rules = getattr(risk_score, "rules_evaluation", {}) or {}
+            features = getattr(risk_score, "model_features", {}) or {}
+            if level is not None:
+                risk_summary = RiskSummary(
+                    level=level,
+                    score=score,
+                    rules_evaluation=rules,
+                    model_features=features,
+                )
+        except Exception:
+            # Defensive: if anything goes wrong building risk summary,
+            # we still want to return a valid orchestration response.
+            logger.exception("Failed to build risk summary for response")
+
+    canonical_outputs_dict: Optional[dict] = None
+    if getattr(artifacts, "canonical_outputs", None) is not None:
+        canonical = artifacts.canonical_outputs
+        try:
+            # CanonicalDetectorOutputs is a Pydantic model; use model_dump when available.
+            if hasattr(canonical, "model_dump"):
+                canonical_outputs_dict = canonical.model_dump()
+            elif hasattr(canonical, "dict"):
+                canonical_outputs_dict = canonical.dict()
+            else:
+                canonical_outputs_dict = canonical  # type: ignore[assignment]
+        except Exception:
+            logger.exception("Failed to serialize canonical outputs for response")
 
     correlation_id = context.correlation_id
 
@@ -140,15 +196,17 @@ def build_success_response(
         coverage_achieved=artifacts.coverage,
         policy_violations=artifacts.policy_violations,
         recommendations=artifacts.recommendations,
+        canonical_outputs=canonical_outputs_dict,
+        risk_summary=risk_summary,
     )
 
 
 def build_failure_response(
     service,
     *,
-    context: PipelineContext,
+    context: "PipelineContext",
     processing_time: float,
-    artifacts: Optional[OrchestrationArtifacts],
+    artifacts: Optional["OrchestrationArtifacts"],
     exc: BaseServiceException,
 ) -> OrchestrationResponse:
     policy_violations = list(artifacts.policy_violations if artifacts else [])
@@ -157,7 +215,7 @@ def build_failure_response(
             policy_id="system:orchestration-error",
             violation_type="system_error",
             message=str(exc),
-            severity="high",
+            severity=Severity.HIGH,
         )
     )
 
@@ -180,18 +238,3 @@ def build_failure_response(
         policy_violations=policy_violations,
         recommendations=["Check service logs for error details"],
     )
-
-    recommendations: List[str] = []
-
-    if aggregation.coverage < 0.5:
-        recommendations.append("Low detector coverage - consider adding more detectors")
-
-    aggregated_output = aggregation.aggregated_output
-    if aggregated_output and aggregated_output.confidence_score < 0.7:
-        recommendations.append("Low confidence results - consider manual review")
-
-    failed_count = len([r for r in aggregation.detector_results if r.confidence == 0.0])
-    if failed_count > len(aggregation.detector_results) * 0.3:
-        recommendations.append("High detector failure rate - check detector health")
-
-    return recommendations

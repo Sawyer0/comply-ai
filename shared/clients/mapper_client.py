@@ -20,6 +20,7 @@ from ..interfaces.mapper import (
     ExperimentRequest,
     FeatureFlag,
     FrameworkConfig,
+    MappingMode,
     MappingRequest,
     MappingResponse,
     ModelDeploymentRequest,
@@ -33,6 +34,9 @@ from ..interfaces.mapper import (
     ValidationRequest,
     ValidationResult,
 )
+from ..interfaces.analysis import AnalysisRequest, AnalysisType
+from ..interfaces.orchestration import OrchestrationResponse
+from .analysis_client import AnalysisServiceClient, create_analysis_client
 from ..utils.correlation import get_correlation_id
 
 logger = logging.getLogger(__name__)
@@ -92,35 +96,47 @@ class MapperServiceClient:
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError:
-            error_data = {}
+            error_data: Dict[str, Any] = {}
             try:
                 error_data = response.json()
             except Exception:
                 error_data = {"message": response.text}
 
+            # Normalize common fields for type safety
+            message_val = error_data.get("message")
+            message = str(message_val) if message_val is not None else f"HTTP {response.status_code}"
+
+            error_code_val = error_data.get("error_code")
+            error_code = str(error_code_val) if error_code_val is not None else "UNKNOWN_ERROR"
+
+            correlation_id = error_data.get("correlation_id")
+
+            details_raw = error_data.get("details")
+            details = details_raw if isinstance(details_raw, dict) else None
+
             if response.status_code == 400:
                 raise ValidationError(
-                    error_data.get("message", "Bad request"),
-                    error_code=error_data.get("error_code"),
-                    details=error_data.get("details"),
-                    correlation_id=error_data.get("correlation_id"),
+                    message if message else "Bad request",
+                    error_code=error_code or "BAD_REQUEST",
+                    details=details,
+                    correlation_id=correlation_id,
                 )
             if response.status_code == 401:
                 raise AuthenticationError(
-                    error_data.get("message", "Unauthorized"),
-                    error_code=error_data.get("error_code"),
-                    correlation_id=error_data.get("correlation_id"),
+                    message if message else "Unauthorized",
+                    error_code=error_code or "UNAUTHORIZED",
+                    correlation_id=correlation_id,
                 )
             if response.status_code >= 500:
                 raise ServiceUnavailableError(
-                    error_data.get("message", "Service unavailable"),
-                    error_code=error_data.get("error_code"),
-                    correlation_id=error_data.get("correlation_id"),
+                    message if message else "Service unavailable",
+                    error_code=error_code or "SERVICE_UNAVAILABLE",
+                    correlation_id=correlation_id,
                 )
             raise BaseServiceException(
-                error_data.get("message", f"HTTP {response.status_code}"),
-                error_code=error_data.get("error_code"),
-                correlation_id=error_data.get("correlation_id"),
+                message,
+                error_code=error_code,
+                correlation_id=correlation_id,
             )
 
     async def health_check(self) -> Dict[str, Any]:
@@ -160,6 +176,76 @@ class MapperServiceClient:
                 },
             )
             raise
+
+    async def analyze_and_map_from_orchestration(
+        self,
+        orchestration_response: OrchestrationResponse,
+        tenant_id: str,
+        target_frameworks: List[str],
+        analysis_types: Optional[List[AnalysisType]] = None,
+        correlation_id: Optional[str] = None,
+        analysis_client: Optional[AnalysisServiceClient] = None,
+    ) -> MappingResponse:
+        """Run the canonical orchestration -> analysis -> mapping flow.
+
+        This helper:
+        1. Builds a shared AnalysisRequest from an OrchestrationResponse
+           (which carries canonical_outputs).
+        2. Calls the analysis-service /api/v1/analyze endpoint to obtain a
+           shared AnalysisResponse with canonical_results populated.
+        3. Builds a shared MappingRequest using that AnalysisResponse and
+           the requested target frameworks.
+        4. Calls the mapper-service /api/v1/map endpoint and returns the
+           shared MappingResponse.
+        """
+
+        own_client = False
+        if analysis_client is None:
+            analysis_client = create_analysis_client()
+            own_client = True
+
+        try:
+            # Default to risk + compliance analysis if not specified
+            if not analysis_types:
+                analysis_types = [
+                    AnalysisType.RISK,
+                    AnalysisType.COMPLIANCE,
+                ]
+
+            # Shared AnalysisRequest only carries orchestration_response,
+            # analysis_types, frameworks, include_recommendations, context.
+            analysis_request = AnalysisRequest(
+                orchestration_response=orchestration_response,
+                analysis_types=analysis_types,
+                frameworks=target_frameworks,
+                include_recommendations=True,
+                context=None,
+            )
+
+            analysis_response = await analysis_client.analyze_content(
+                request=analysis_request,
+                tenant_id=tenant_id,
+                correlation_id=correlation_id,
+            )
+
+            # Shared MappingRequest expects an AnalysisResponse plus frameworks
+            mapping_request = MappingRequest(
+                analysis_response=analysis_response,
+                target_frameworks=target_frameworks,
+                mapping_mode=MappingMode.STANDARD,
+                include_validation=True,
+                context=None,
+            )
+
+            return await self.map_content(
+                request=mapping_request,
+                tenant_id=tenant_id,
+                correlation_id=correlation_id,
+            )
+
+        finally:
+            if own_client:
+                await analysis_client.close()
 
     async def batch_map(
         self,
@@ -233,7 +319,7 @@ class MapperServiceClient:
             )
 
             data = await self._handle_response(response)
-            return [ModelVersion(**item) for item in data]
+            return [ModelVersion.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error("List models failed: %s", e, extra={"tenant_id": tenant_id})
@@ -316,7 +402,7 @@ class MapperServiceClient:
             )
 
             data = await self._handle_response(response)
-            return [TrainingJob(**item) for item in data]
+            return [TrainingJob.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error(
@@ -393,7 +479,7 @@ class MapperServiceClient:
             )
 
             data = await self._handle_response(response)
-            return [DeploymentExperiment(**item) for item in data]
+            return [DeploymentExperiment.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error(
@@ -419,7 +505,7 @@ class MapperServiceClient:
             )
 
             data = await self._handle_response(response)
-            return [Taxonomy(**item) for item in data]
+            return [Taxonomy.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error(
@@ -472,7 +558,7 @@ class MapperServiceClient:
             )
 
             data = await self._handle_response(response)
-            return [FrameworkConfig(**item) for item in data]
+            return [FrameworkConfig.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error(
@@ -500,7 +586,12 @@ class MapperServiceClient:
                 "/api/v1/cost/metrics", params=params, headers=headers
             )
 
-            return await self._handle_response(response)
+            data = await self._handle_response(response)
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict):
+                return [data]
+            return []
 
         except Exception as e:
             logger.error(
@@ -519,7 +610,7 @@ class MapperServiceClient:
             response = await self.client.get("/api/v1/feature-flags", headers=headers)
 
             data = await self._handle_response(response)
-            return [FeatureFlag(**item) for item in data]
+            return [FeatureFlag.parse_obj(item) for item in data]
 
         except Exception as e:
             logger.error(

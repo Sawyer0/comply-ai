@@ -1,0 +1,55 @@
+# Core runtime
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.12.4
+pydantic-settings==2.12.0
+python-multipart==0.0.6
+
+# Database
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.23
+alembic==1.12.1
+
+# Security & Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Observability
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-exporter-jaeger==1.21.0
+opentelemetry-exporter-otlp==1.21.0
+opentelemetry-propagator-b3==1.21.0
+prometheus-client==0.19.0
+structlog==23.2.0
+
+# HTTP Clients
+httpx==0.25.2
+aiohttp==3.9.1
+
+# Utilities
+python-dotenv==1.2.1
+click==8.1.7
+rich==13.7.0
+typer==0.9.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+
+# Development tooling
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.6.0
+
+# Optional: Model serving
+# vllm==0.2.6
+# transformers==4.36.0
+# torch==2.1.1
+
+# Optional: Redis
+# redis==5.0.1
+# aioredis==2.0.1

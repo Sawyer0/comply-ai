@@ -8,6 +8,9 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+
+import httpx
+
 from shared.utils.correlation import get_correlation_id
 from shared.interfaces.common import HealthStatus
 from ..utils.registry import run_registry_operation
@@ -329,9 +332,37 @@ class HealthMonitor:
         return list(reversed(history[-limit:]))
 
 
+class HTTPHealthCheckClient:
+    """Simple HTTP-based health check client for detector endpoints.
+
+    Single Responsibility: perform an HTTP GET against a detector health endpoint
+    and return a boolean indicating basic availability.
+    """
+
+    def __init__(self, health_check_url: str, timeout_seconds: float = 2.0) -> None:
+        self.health_check_url = health_check_url
+        self.timeout_seconds = timeout_seconds
+        self._client = httpx.AsyncClient(timeout=timeout_seconds)
+
+    async def health_check(self) -> bool:
+        """Return True if the detector health endpoint responds successfully."""
+
+        try:
+            response = await self._client.get(self.health_check_url)
+            return response.status_code < 500
+        except httpx.HTTPError:
+            return False
+
+    async def close(self) -> None:
+        """Close the underlying HTTP client."""
+
+        await self._client.aclose()
+
+
 # Export only the health monitoring functionality
 __all__ = [
     "HealthMonitor",
     "HealthCheck",
     "HealthStatus",
+    "HTTPHealthCheckClient",
 ]

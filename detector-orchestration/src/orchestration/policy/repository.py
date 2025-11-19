@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
+from shared.database.connection_manager import get_service_db
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -22,8 +23,12 @@ class PolicyRepository:
     Does NOT handle: OPA communication, template loading, health checks.
     """
 
-    def __init__(self):
-        """Initialize policy repository."""
+    def __init__(self, *, service_name: str = "orchestration"):
+        """Initialize policy repository.
+
+        Uses in-memory cache plus a backing database table for tenant_policies.
+        """
+        self._db = get_service_db(service_name)
         self.policies: Dict[str, Dict[str, Any]] = {}
         self.default_policy = {
             "max_detectors": 5,
@@ -218,3 +223,48 @@ class PolicyRepository:
         """
         self.policies.clear()
         logger.warning("All policies cleared from repository")
+
+    # --- Tenant policy data (OPA data) persistence helpers ---
+
+    async def load_all_tenant_policies(self) -> Optional[Dict[str, Any]]:
+        """Load tenant_policies JSON blob from the database.
+
+        Returns a nested mapping of tenant_id -> bundle -> policy data, or None
+        if no record is found.
+        """
+
+        query = "SELECT data FROM tenant_policies LIMIT 1"
+        try:
+            row = await self._db.fetchrow(query)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Failed to load tenant_policies from DB: %s", exc)
+            return None
+
+        if not row:
+            return None
+
+        data = row["data"]
+        if isinstance(data, dict):
+            return data
+        return None
+
+    async def save_all_tenant_policies(self, data: Dict[str, Any]) -> bool:
+        """Persist tenant_policies JSON blob into the database.
+
+        Uses a single-row table with an upsert pattern.
+        """
+
+        query = (
+            """
+            INSERT INTO tenant_policies (id, data)
+            VALUES ('default', $1)
+            ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()
+            """
+        )
+
+        try:
+            await self._db.execute(query, data)
+            return True
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error("Failed to save tenant_policies to DB: %s", exc)
+            return False

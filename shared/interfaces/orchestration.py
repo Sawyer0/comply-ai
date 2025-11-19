@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, validator, model_validator
 
 from .base import BaseRequest, BaseResponse
-from .common import ProcessingMode, HealthStatus, Severity, JobStatus
+from .common import ProcessingMode, HealthStatus, Severity, JobStatus, RiskLevel
 from ..validation.common_validators import (
     validate_non_empty_string,
     validate_unique_list,
@@ -33,7 +33,7 @@ class OrchestrationRequest(BaseRequest):
         min_length=1,
     )
     detector_types: List[str] = Field(
-        description="List of detector types to execute", min_items=1, max_items=20
+        description="List of detector types to execute"
     )
     policy_bundle: Optional[str] = Field(None, description="Policy bundle to apply")
     processing_mode: ProcessingMode = Field(
@@ -46,18 +46,18 @@ class OrchestrationRequest(BaseRequest):
         None, description="Request timeout in seconds", ge=1, le=300
     )
 
-    @classmethod
     @validator("content")
     def validate_content(cls, v):
         """Validate that content is not empty."""
         return validate_non_empty_string(cls, v)
 
-    @classmethod
     @validator("detector_types")
     def validate_detector_types(cls, v):
         """Validate detector types and remove duplicates."""
         if not v:
             raise ValueError("detector_types cannot be empty")
+        if len(v) > 20:
+            raise ValueError("detector_types cannot contain more than 20 items")
         return validate_unique_list(cls, v)
 
 
@@ -78,13 +78,11 @@ class DetectorResult(BaseModel):
         None, description="Processing time in milliseconds", ge=0
     )
 
-    @classmethod
     @validator("detector_id")
     def validate_detector_id(cls, v):
         """Validate detector ID is a non-empty string."""
         return validate_non_empty_string(cls, v)
 
-    @classmethod
     @validator("category")
     def validate_category(cls, v):
         """Validate category is a non-empty string."""
@@ -103,7 +101,6 @@ class AggregationSummary(BaseModel):
         None, description="Average confidence score", ge=0.0, le=1.0
     )
 
-    @classmethod
     @model_validator(mode='after')
     def validate_detector_counts(cls, values):
         """Validate that detector counts are consistent."""
@@ -127,11 +124,25 @@ class PolicyViolation(BaseModel):
     message: str = Field(description="Violation message")
     severity: Severity = Field(description="Violation severity")
 
-    @classmethod
     @validator("policy_id", "violation_type", "message")
     def validate_required_strings(cls, v):
         """Validate that required string fields are non-empty."""
         return validate_non_empty_string(cls, v)
+
+
+class RiskSummary(BaseModel):
+    """Risk summary for an orchestration request."""
+
+    level: RiskLevel = Field(description="Overall risk level")
+    score: float = Field(description="Overall risk score", ge=0.0, le=1.0)
+    rules_evaluation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Rule evaluation details used to derive the risk score",
+    )
+    model_features: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Model features used when computing the risk score",
+    )
 
 
 class OrchestrationResponse(BaseResponse):
@@ -152,6 +163,41 @@ class OrchestrationResponse(BaseResponse):
     recommendations: List[str] = Field(
         default_factory=list, description="Recommendations for improvement"
     )
+    canonical_outputs: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Canonical detector outputs for this request, serialized form of "
+            "CanonicalDetectorOutputs"
+        ),
+    )
+    risk_summary: Optional[RiskSummary] = Field(
+        None,
+        description="Optional risk summary computed by the orchestration risk scorer",
+    )
+
+    def canonical_results_dict(self) -> List[Dict[str, Any]]:
+        """Extract canonical taxonomy results from canonical_outputs if present.
+
+        The canonical_outputs field is the serialized form of CanonicalDetectorOutputs.
+        This helper flattens that structure into a simple list of canonical
+        taxonomy result dicts (one per detector output), suitable for passing to
+        analysis or mapper services that expect canonical_results.
+        """
+
+        if not self.canonical_outputs:
+            return []
+
+        outputs = self.canonical_outputs.get("outputs") or []
+        canonical_results: List[Dict[str, Any]] = []
+
+        for output in outputs:
+            if not isinstance(output, dict):
+                continue
+            canonical = output.get("canonical_result")
+            if isinstance(canonical, dict):
+                canonical_results.append(canonical)
+
+        return canonical_results
 
 
 class DetectorInfo(BaseModel):
@@ -168,7 +214,6 @@ class DetectorInfo(BaseModel):
     max_retries: int = Field(description="Maximum retries", ge=0)
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
-    @classmethod
     @validator("detector_id", "detector_type", "status", "endpoint_url")
     def validate_required_strings(cls, v):
         """Validate that required string fields are non-empty."""
@@ -187,7 +232,6 @@ class DetectorRegistration(BaseModel):
         None, description="Supported content types"
     )
 
-    @classmethod
     @validator("detector_type", "endpoint_url")
     def validate_required_strings(cls, v):
         """Validate that required string fields are non-empty."""
@@ -206,7 +250,6 @@ class DetectorHealthStatus(BaseModel):
     error_rate: Optional[float] = Field(None, description="Error rate", ge=0.0, le=1.0)
     error_message: Optional[str] = Field(None, description="Error message if unhealthy")
 
-    @classmethod
     @validator("detector_id")
     def validate_detector_id(cls, v):
         """Validate detector ID is a non-empty string."""
@@ -221,7 +264,6 @@ class PolicyValidationRequest(BaseModel):
         description="Detector results to validate"
     )
 
-    @classmethod
     @validator("policy_bundle")
     def validate_policy_bundle(cls, v):
         """Validate policy bundle is a non-empty string."""
@@ -240,7 +282,6 @@ class PolicyValidationResponse(BaseModel):
     )
     policy_version: str = Field(description="Policy version used")
 
-    @classmethod
     @validator("policy_version")
     def validate_policy_version(cls, v):
         """Validate policy version is a non-empty string."""
@@ -254,7 +295,6 @@ class AsyncJobRequest(BaseModel):
     job_data: Dict[str, Any] = Field(description="Job data")
     priority: int = Field(100, description="Job priority", ge=0, le=1000)
 
-    @classmethod
     @validator("job_type")
     def validate_job_type(cls, v):
         """Validate job type is a non-empty string."""
@@ -268,7 +308,6 @@ class AsyncJobResponse(BaseModel):
     status: JobStatus = Field(description="Job status")
     created_at: datetime = Field(description="Job creation timestamp")
 
-    @classmethod
     @validator("job_id")
     def validate_job_id(cls, v):
         """Validate job ID is a non-empty string."""
@@ -291,7 +330,6 @@ class AsyncJobStatus(BaseModel):
     result_data: Optional[Dict[str, Any]] = Field(None, description="Job result data")
     error_message: Optional[str] = Field(None, description="Error message if failed")
 
-    @classmethod
     @validator("job_id")
     def validate_job_id(cls, v):
         """Validate job ID is a non-empty string."""
@@ -310,7 +348,6 @@ class BatchOrchestrationRequest(BaseModel):
     batch_id: Optional[str] = Field(None, description="Optional batch identifier")
     priority: int = Field(100, description="Batch priority", ge=0, le=1000)
 
-    @classmethod
     @validator("requests")
     def validate_requests(cls, v):
         """Validate that requests list is not empty."""
@@ -336,7 +373,6 @@ class BatchOrchestrationResponse(BaseModel):
         None, description="Batch processing metadata"
     )
 
-    @classmethod
     @model_validator(mode='after')
     def validate_request_counts(cls, values):
         """Validate that request counts are consistent."""

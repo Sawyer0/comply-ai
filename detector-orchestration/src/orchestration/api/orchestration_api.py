@@ -176,7 +176,8 @@ async def orchestrate_batch(
                 "error": str(exc),
             },
         )
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        status_code = getattr(exc, "http_status_code", 500)
+        raise HTTPException(status_code=status_code, detail=exc.to_dict()) from exc
 
 
 @router.get("/jobs/{job_id}/status")

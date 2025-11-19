@@ -23,6 +23,7 @@ from ..shared_integration import (
     AnalysisResponse,
     CanonicalTaxonomyResult,
     QualityMetrics,
+    RiskScoringResult,
     ValidationError,
     AuthenticationError,
     AuthorizationError,
@@ -267,32 +268,55 @@ async def analyze_content(
             processing_time_ms=processing_time,
         )
 
-        # Prepare response
-        response_data = {
-            "request_id": result.request_id,
-            "tenant_id": x_tenant_id,
-            "analysis_type": x_analysis_type,
-            "confidence": result.confidence,
-            "results": result.result_data,
-            "processing_time_ms": result.processing_time_ms,
-            "framework": x_framework,
-            "metadata": result.metadata,
-        }
+        # Build quality metrics using shared interface
+        model_version = None
+        fallback_used = False
+        if isinstance(result.metadata, dict):
+            model_version = result.metadata.get("model_version")
+            fallback_used = bool(result.metadata.get("fallback_used", False))
 
-        # Add privacy validation info (without sensitive details)
-        if not privacy_result.is_compliant:
-            response_data["privacy_status"] = {
-                "compliant": False,
-                "violations_count": len(privacy_result.violations),
-                "warnings_count": len(privacy_result.warnings),
-                "data_sanitized": privacy_result.sanitized_data is not None,
-            }
+        quality_metrics = QualityMetrics(
+            accuracy_score=result.confidence,
+            confidence_distribution={"overall": result.confidence},
+            processing_time_ms=processing_time,
+            model_version=model_version or "unknown",
+            fallback_used=fallback_used,
+        )
 
-        # Add risk scoring data if available
+        # Map optional risk scoring data into shared RiskScoringResult
+        risk_scores = None
         if risk_score_data:
-            response_data["risk_scoring"] = risk_score_data
+            try:
+                risk_scores = RiskScoringResult(
+                    overall_risk_score=risk_score_data["composite_score"],
+                    technical_risk=risk_score_data["technical_risk"],
+                    business_risk=risk_score_data["business_risk"],
+                    regulatory_risk=risk_score_data["regulatory_risk"],
+                    temporal_risk=risk_score_data["temporal_risk"],
+                    risk_factors=[],
+                    mitigation_recommendations=[],
+                )
+            except Exception:
+                # If mapping fails, leave risk_scores as None rather than failing the request
+                risk_scores = None
 
-        return response_data
+        # For the generic /analysis/analyze endpoint we do not yet have canonical_results
+        canonical_results: List[CanonicalTaxonomyResult] = []
+
+        analysis_response = AnalysisResponse(
+            request_id=result.request_id,
+            success=True,
+            processing_time_ms=processing_time,
+            correlation_id=get_correlation_id(),
+            canonical_results=canonical_results,
+            quality_metrics=quality_metrics,
+            pattern_analysis=None,
+            risk_scores=risk_scores,
+            compliance_mappings=None,
+            rag_insights=None,
+        )
+
+        return analysis_response
 
     except HTTPException:
         raise

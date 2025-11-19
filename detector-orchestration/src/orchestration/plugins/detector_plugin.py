@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+import importlib
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from shared.interfaces.common import Severity
 from shared.interfaces.orchestration import DetectorResult
 
 from .base import PluginBase, PluginInterface
@@ -142,9 +144,95 @@ class ExampleDetectorPlugin(DetectorPlugin):
         return DetectorResult(
             detector_id=self.plugin_name,
             detector_type=self.detector_type,
-            success=True,
             confidence=0.9 if findings else 0.1,
+            category="example",
+            subcategory=None,
+            severity=Severity.MEDIUM if findings else Severity.LOW,
             findings=findings,
+            metadata=None,
+            processing_time_ms=None,
+        )
+
+
+class PiiranhaPIIDetectorPlugin(DetectorPlugin):
+    def __init__(self) -> None:
+        super().__init__(
+            name="piiranha-pii-detector",
+            version="1.0.0",
+            detector_type="piiranha-pii",
+        )
+        self._pipeline = None
+
+    def get_capabilities(self) -> DetectorCapabilities:
+        return DetectorCapabilities(
+            supported_content_types=["text"],
+            supported_languages=["en", "es", "fr", "de", "it", "nl"],
+            max_content_size=10_000,
+            processing_modes=["sync"],
+            confidence_threshold=0.5,
+        )
+
+    async def _initialize_plugin(self) -> None:
+        try:
+            transformers_module = importlib.import_module("transformers")
+            pipeline = getattr(transformers_module, "pipeline")
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            logger.error("transformers is required for PiiranhaPIIDetectorPlugin: %s", exc)
+            self._pipeline = None
+            return
+        self._pipeline = pipeline(
+            "token-classification",
+            model="iiiorg/piiranha-v1-detect-personal-information",
+            aggregation_strategy="simple",
+        )
+
+    async def _perform_detection(
+        self, content: str, metadata: Dict[str, Any]
+    ) -> DetectorResult:
+        if self._pipeline is None:
+            raise RuntimeError(
+                "PiiranhaPIIDetectorPlugin is not initialized or transformers is missing"
+            )
+
+        raw_entities = self._pipeline(content)
+        findings: List[Dict[str, Any]] = []
+
+        for entity in raw_entities:
+            entity_type = entity.get("entity_group") or entity.get("entity")
+            value = entity.get("word") or entity.get("text")
+            if not entity_type or not value:
+                continue
+            start = entity.get("start")
+            end = entity.get("end")
+            score = float(entity.get("score", 0.0))
+            findings.append(
+                {
+                    "type": str(entity_type),
+                    "value": str(value),
+                    "confidence": score,
+                    "start": start,
+                    "end": end,
+                }
+            )
+
+        has_pii = bool(findings)
+        severity = Severity.MEDIUM if has_pii else Severity.LOW
+        confidence = (
+            sum(f["confidence"] for f in findings) / len(findings)
+            if findings
+            else 0.0
+        )
+
+        return DetectorResult(
+            detector_id=self.plugin_name,
+            detector_type=self.detector_type,
+            confidence=confidence,
+            category="pii",
+            subcategory=None,
+            severity=severity,
+            findings=findings,
+            metadata={"source_model": "iiiorg/piiranha-v1-detect-personal-information"},
+            processing_time_ms=None,
         )
 
 
@@ -153,4 +241,5 @@ __all__ = [
     "DetectorPlugin",
     "DetectorCapabilities",
     "ExampleDetectorPlugin",
+    "PiiranhaPIIDetectorPlugin",
 ]

@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from shared.exceptions.base import BaseServiceException
 from shared.interfaces.base import ApiResponse, PaginatedResponse
@@ -77,12 +78,10 @@ async def register_detector(
         detector_id=registration.detector_id or registration.detector_type,
         endpoint=registration.endpoint_url,
         detector_type=registration.detector_type,
+        tenant_id=context.tenant_id,
         timeout_ms=registration.timeout_ms or 5000,
         max_retries=registration.max_retries or 3,
         supported_content_types=registration.supported_content_types or ["text"],
-        auth_headers=registration.auth_headers,
-        analyze_path=registration.analyze_path,
-        response_parser=registration.response_parser,
     )
 
     try:
@@ -117,7 +116,9 @@ async def unregister_detector(
     """Remove a detector from the orchestration service."""
 
     try:
-        was_removed = await context.service.unregister_detector(detector_id)
+        was_removed = await context.service.unregister_detector(
+            detector_id, tenant_id=context.tenant_id
+        )
     except BaseServiceException as exc:
         logger.error(
             "Detector unregistration failed",
@@ -140,44 +141,23 @@ async def unregister_detector(
     )
 
 
-def _build_detector_info(
-    detector_name: str,
-    *,
-    router_component: "ContentRouter",
-    monitor: Optional["HealthMonitor"],
-    type_filter: Optional[str],
-    status_filter: Optional[str],
-) -> Optional[DetectorInfo]:
-    """Create DetectorInfo for a registered detector if it matches filters."""
+def _record_to_detector_info(record: Any) -> DetectorInfo:
+    """Map a DetectorRecord (or similar) to DetectorInfo."""
 
-    config = router_component.get_detector_config(detector_name)
-    if not config:
-        return None
-
-    if type_filter and config.detector_type != type_filter:
-        return None
-
-    is_healthy = bool(monitor and monitor.is_service_healthy(detector_name))
-    detector_status = "active" if is_healthy else "inactive"
-
-    if status_filter and detector_status != status_filter:
-        return None
-
-    health_metadata = (
-        monitor.get_service_health(detector_name) if monitor else None
-    )
-
+    config = dict(getattr(record, "configuration", {}) or {})
     return DetectorInfo(
-        detector_id=detector_name,
-        detector_type=config.detector_type,
-        status=detector_status,
-        endpoint_url=config.endpoint,
-        supported_content_types=config.supported_content_types,
-        timeout_ms=config.timeout_ms,
-        max_retries=config.max_retries,
+        detector_id=record.detector_name,
+        detector_type=record.detector_type,
+        status=record.status,
+        endpoint_url=record.endpoint_url,
+        supported_content_types=list(record.capabilities or []),
+        timeout_ms=int(config.get("timeout_ms", 5000)),
+        max_retries=int(config.get("max_retries", 3)),
         metadata={
-            "enabled": config.enabled,
-            "last_health_check": health_metadata,
+            "tenant_id": record.tenant_id,
+            "health_status": record.health_status,
+            "last_health_check": record.last_health_check,
+            "capabilities": record.capabilities,
         },
     )
 
@@ -200,25 +180,26 @@ async def list_detectors(
 ) -> PaginatedResponse[DetectorInfo]:
     """List detectors registered with the service."""
 
-    router_component = getattr(context.service, "content_router", None)
-    if not router_component:
-        raise HTTPException(status_code=503, detail="Routing not configured")
-
-    monitor = getattr(context.service, "health_monitor", None)
-
-    detector_infos = [
-        info
-        for info in (
-            _build_detector_info(
-                detector_name,
-                router_component=router_component,
-                monitor=monitor,
-                type_filter=detector_type,
-                status_filter=status,
-            )
-            for detector_name in router_component.get_available_detectors()
+    # Fetch from persistent registry via service, then project to DetectorInfo
+    try:
+        records = await context.service.list_detectors(
+            tenant_id=context.tenant_id,
+            detector_type=detector_type,
+            status=status,
         )
-        if info is not None
+    except BaseServiceException as exc:  # pragma: no cover - defensive
+        logger.error(
+            "Detector listing failed",
+            extra={
+                "correlation_id": context.correlation_id,
+                "tenant_id": context.tenant_id,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    detector_infos: List[DetectorInfo] = [
+        _record_to_detector_info(record) for record in records
     ]
 
     paginated_items = _paginate(detector_infos, page=page, limit=limit)
@@ -237,6 +218,75 @@ async def list_detectors(
             "hasNext": (page * limit) < total_items,
             "hasPrev": page > 1,
         },
+    )
+
+
+class DetectorUpdate(BaseModel):
+    """Fields allowed to be modified via PATCH /detectors/{detector_id}."""
+
+    status: Optional[str] = Field(None, description="Detector status")
+    endpoint_url: Optional[str] = Field(
+        None, description="Detector endpoint URL (will update health check URL too)"
+    )
+    capabilities: Optional[List[str]] = Field(
+        None, description="Updated detector capabilities (supported content types)"
+    )
+
+
+@router.get("/{detector_id}", response_model=ApiResponse[DetectorInfo])
+async def get_detector(
+    detector_id: str,
+    context: DetectorRequestContext = Depends(build_detector_context),
+) -> ApiResponse[DetectorInfo]:
+    """Get a single detector from the persistent registry."""
+
+    record = await context.service.get_detector(
+        detector_id, tenant_id=context.tenant_id
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="Detector not found")
+
+    info = _record_to_detector_info(record)
+    return make_api_response(
+        data=info,
+        request_id=context.correlation_id,
+        tenant_id=context.tenant_id,
+    )
+
+
+@router.patch("/{detector_id}", response_model=ApiResponse[DetectorInfo])
+async def update_detector(
+    detector_id: str,
+    update: DetectorUpdate,
+    context: DetectorRequestContext = Depends(build_detector_context),
+) -> ApiResponse[DetectorInfo]:
+    """Patch mutable fields of a detector in the persistent registry."""
+
+    fields: Dict[str, Any] = {}
+    if update.status is not None:
+        fields["status"] = update.status
+    if update.endpoint_url is not None:
+        fields["endpoint_url"] = update.endpoint_url
+        fields["health_check_url"] = update.endpoint_url.rstrip("/") + "/health"
+    if update.capabilities is not None:
+        fields["capabilities"] = list(update.capabilities)
+
+    if not fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    updated = await context.service.update_detector(
+        detector_id,
+        tenant_id=context.tenant_id,
+        fields=fields,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Detector not found")
+
+    info = _record_to_detector_info(updated)
+    return make_api_response(
+        data=info,
+        request_id=context.correlation_id,
+        tenant_id=context.tenant_id,
     )
 
 

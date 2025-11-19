@@ -14,12 +14,7 @@ import re
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 
-try:
-    import numpy as np
-except ImportError:
-    np = None
-
-NUMPY_AVAILABLE = np is not None
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +54,6 @@ class ContentAnalyzer:
             max_content_length: Maximum content length to analyze
         """
         self.max_content_length = max_content_length
-        if not NUMPY_AVAILABLE:
-            logger.warning(
-                "Advanced ML libraries not available, using basic content analysis only"
-            )
         self.is_trained = False
 
         # Content type patterns
@@ -210,9 +201,7 @@ class ContentAnalyzer:
         factors.append(special_density)
 
         # Average complexity
-        if not NUMPY_AVAILABLE:
-            return sum(factors) / len(factors) if factors else 0.0
-        return np.mean(factors)
+        return float(np.mean(factors)) if factors else 0.0
 
     def _calculate_nesting_depth(self, content: str) -> int:
         """Calculate nesting depth for structured content.
@@ -637,13 +626,9 @@ class ContentAnalyzer:
         else:
             confidence_factors.append(0.6)
 
-        if not NUMPY_AVAILABLE:
-            return (
-                sum(confidence_factors) / len(confidence_factors)
-                if confidence_factors
-                else 0.0
-            )
-        return np.mean(confidence_factors)
+        if not confidence_factors:
+            return 0.0
+        return float(np.mean(confidence_factors))
 
     def get_analyzer_stats(self) -> Dict[str, Any]:
         """Get content analyzer statistics.

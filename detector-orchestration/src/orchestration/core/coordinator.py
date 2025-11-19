@@ -27,9 +27,10 @@ logger = logging.getLogger(__name__)
 class DetectorCoordinator:  # pylint: disable=too-few-public-methods
     """Coordinates detector execution according to routing plans."""
 
-    def __init__(self, detector_clients: Dict[str, Any]) -> None:
-        """Store the detector client registry."""
-        self.detector_clients = detector_clients
+    def __init__(self, detector_clients: Dict[str, Any], health_monitor: Optional[Any] = None) -> None:
+        """Store the detector client registry and optional health monitor."""
+        self.detector_clients: Dict[str, Any] = detector_clients
+        self.health_monitor: Optional[Any] = health_monitor
 
     async def execute_routing_plan(
         self,
@@ -174,6 +175,27 @@ class DetectorCoordinator:  # pylint: disable=too-few-public-methods
             return self._build_failure_result(detector_name, "detector_not_found", 0, "critical")
 
         detector_client = self.detector_clients[detector_name]
+
+        # Skip detectors that are marked unhealthy by the health monitor
+        if self.health_monitor is not None and not self.health_monitor.is_service_healthy(detector_name):
+            logger.warning("Skipping detector %s due to unhealthy status", detector_name)
+            return self._build_failure_result(
+                detector_name,
+                "detector_unhealthy",
+                0,
+                "high",
+            )
+
+        # Skip detectors whose circuit breaker is currently open
+        is_available = getattr(detector_client, "is_available_for_request", None)
+        if callable(is_available) and not is_available():
+            logger.warning("Skipping detector %s due to circuit breaker open", detector_name)
+            return self._build_failure_result(
+                detector_name,
+                "circuit_breaker_open",
+                0,
+                "high",
+            )
         timeout_ms = routing_plan.timeout_config.get(detector_name, 5000)
         max_retries = routing_plan.retry_config.get(detector_name, 3)
 

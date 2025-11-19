@@ -8,6 +8,7 @@ taxonomy with framework adaptation.
 
 import asyncio
 import json
+import uuid
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -42,6 +43,21 @@ from ..resilience import (
     BulkheadConfig,
     FallbackConfig,
 )
+from ..shared_lib.interfaces.mapper import (
+    MappingRequest as CanonicalMappingRequest,
+    MappingResponse as CanonicalMappingResponse,
+    MappingResult,
+    ComplianceMapping,
+    ValidationResult,
+    CostMetrics,
+    ModelMetrics,
+    ComplianceStatus,
+)
+from ..shared_lib.interfaces.analysis import (
+    CanonicalTaxonomyResult,
+    RiskLevel as CanonicalRiskLevel,
+)
+from shared.taxonomy import framework_mapping_registry, canonical_taxonomy
 
 # Use shared logger
 logger = get_shared_logger(__name__)
@@ -86,7 +102,7 @@ class CoreMapper:
             "resilience_manager": ComprehensiveResilienceManager(),
         }
 
-        self._setup_resilience_patterns()
+        self._setup_resilience_patterns()  # type: ignore[attr-defined]
 
     async def initialize(self) -> None:
         """Initialize the mapper with model server."""
@@ -121,107 +137,181 @@ class CoreMapper:
             self.model_server = None
             self.is_initialized = True
 
-    @track_request_metrics
-    async def map_detector_output(self, request: MappingRequest) -> MappingResponse:
-        """
-        Map detector output to canonical taxonomy.
+    async def map_canonical(self, request: CanonicalMappingRequest) -> CanonicalMappingResponse:
+        """Map canonical taxonomy results to compliance frameworks.
 
-        Args:
-            request: Mapping request with detector output
-
-        Returns:
-            MappingResponse: Mapped response with taxonomy and scores
+        This path operates on shared MappingRequest / MappingResponse models and
+        uses the centralized framework_mapping_registry to adapt canonical
+        taxonomy labels (category.subcategory[.type]) to framework-specific
+        controls.
         """
-        # Set correlation ID for request tracking
-        if hasattr(request, 'correlation_id') and request.correlation_id:
-            set_correlation_id(request.correlation_id)
-        
-        # Validate inputs using shared validators
-        try:
-            validate_non_empty_string(request.detector, "detector")
-            validate_non_empty_string(request.output, "output")
-            if request.confidence_threshold is not None:
-                validate_confidence_score(request.confidence_threshold)
-        except ValidationError as e:
-            logger.error("Input validation failed", error=str(e))
-            raise ValidationError(f"Invalid mapping request: {str(e)}")
-        
+
+        start_time = datetime.utcnow()
+
+        # Ensure mapper is initialized for telemetry and shared components
         if not self.is_initialized:
             await self.initialize()
 
-        context = MappingContext(
-            detector=request.detector,
-            output=request.output,
-            metadata=request.metadata,
-            tenant_id=request.tenant_id,
-            framework=request.framework,
-            confidence_threshold=request.confidence_threshold
-            or self.settings.confidence_threshold,
+        analysis_response = request.analysis_response
+        canonical_results: List[CanonicalTaxonomyResult] = (
+            analysis_response.canonical_results or []
         )
 
-        try:
-            # Try model-based mapping first
-            if self.model_server and await self.model_server.health_check():
-                response = await self._model_based_mapping(context)
+        mapping_results: List[MappingResult] = []
 
-                # Validate response using comprehensive pipeline
-                validation_result = self.components[
-                    "validation_pipeline"
-                ].validate_output(response, context.detector)
+        # Precompute canonical labels in canonical taxonomy format
+        def _canonical_label(result: CanonicalTaxonomyResult) -> str:
+            """Build a canonical taxonomy label aligned with canonical_taxonomy.
 
-                if validation_result.overall_valid:
-                    logger.info(
-                        "Model-based mapping successful",
-                        detector=context.detector,
-                        confidence=getattr(validation_result, "confidence_score", 0.0),
-                        correlation_id=get_correlation_id(),
-                    )
-                    return response
+            Prefer category.subcategory, with basic normalization to match the
+            canonical taxonomy's label set when possible. Fall back to the
+            raw category/subcategory combination if no exact match is found.
+            """
 
-                if validation_result.requires_fallback:
+            raw_category = str(result.category)
+            raw_subcategory = str(result.subcategory) if result.subcategory else None
+
+            # First try the raw combination
+            if raw_subcategory:
+                candidate = f"{raw_category}.{raw_subcategory}"
+            else:
+                candidate = raw_category
+
+            if canonical_taxonomy.is_valid_label(candidate):
+                return candidate
+
+            # Try a normalized form (e.g. PII.Contact, SECURITY.Access)
+            norm_category = raw_category.upper()
+            norm_subcategory = (
+                raw_subcategory.title() if raw_subcategory is not None else None
+            )
+            if norm_subcategory:
+                candidate2 = f"{norm_category}.{norm_subcategory}"
+            else:
+                candidate2 = norm_category
+
+            if canonical_taxonomy.is_valid_label(candidate2):
+                return candidate2
+
+            # Fallback to the original candidate if nothing matches exactly
+            return candidate
+
+        for canonical_result in canonical_results:
+            label = _canonical_label(canonical_result)
+
+            framework_mappings: List[ComplianceMapping] = []
+
+            for framework in request.target_frameworks:
+                try:
+                    mapped = framework_mapping_registry.map_to_framework([label], framework)
+                    framework_label = mapped.get(label, label)
+                except Exception as e:  # pragma: no cover - defensive
                     logger.warning(
-                        "Model mapping requires fallback",
-                        detector=context.detector,
-                        reason=validation_result.fallback_reason,
-                        errors=validation_result.output_errors,
-                        correlation_id=get_correlation_id(),
+                        "Framework mapping failed, using canonical label",
+                        framework=framework,
+                        canonical_label=label,
+                        error=str(e),
                     )
-                    # Execute fallback through validation pipeline
-                    fallback_response = self.components[
-                        "validation_pipeline"
-                    ].execute_fallback_if_needed(request, validation_result, response)
-                    if fallback_response:
-                        return fallback_response
+                    framework_label = label
 
-            # Fall back to rule-based mapping
-            logger.info("Using fallback mapping", detector=context.detector, correlation_id=get_correlation_id())
-            return self._fallback_mapping(context)
+                compliance_status = _compliance_status_from_risk(
+                    canonical_result.risk_level
+                )
 
-        except ValidationError as e:
-            logger.error(
-                "Validation error in mapping, using fallback",
-                detector=context.detector,
-                error=str(e),
-                correlation_id=get_correlation_id(),
+                framework_mappings.append(
+                    ComplianceMapping(
+                        framework=framework,
+                        control_id=framework_label,
+                        control_name=framework_label,
+                        requirement=f"Mapped from canonical label {label}",
+                        evidence_type="canonical_taxonomy",
+                        compliance_status=compliance_status,
+                        confidence=canonical_result.confidence,
+                        metadata={
+                            "canonical_label": label,
+                            "framework_label": framework_label,
+                        },
+                    )
+                )
+
+            # Derive mapping-level confidence and validation
+            confidence = (
+                max((m.confidence for m in framework_mappings), default=0.0)
+                if framework_mappings
+                else canonical_result.confidence
             )
-            return self._fallback_mapping(context)
-        except ServiceUnavailableError as e:
-            logger.error(
-                "Service unavailable during mapping, using fallback", 
-                detector=context.detector,
-                error=str(e),
-                correlation_id=get_correlation_id(),
+
+            validation_result = ValidationResult(
+                is_valid=True,
+                schema_compliance=True,
+                confidence_threshold_met=True,
+                validation_errors=[],
+                validation_warnings=[],
             )
-            return self._fallback_mapping(context)
-        except (RuntimeError, ValueError, json.JSONDecodeError) as e:
-            logger.error(
-                "Mapping failed with unexpected error, using fallback",
-                detector=context.detector,
-                error=str(e),
-                error_type=type(e).__name__,
-                correlation_id=get_correlation_id(),
+
+            mapping_results.append(
+                MappingResult(
+                    canonical_result=canonical_result,
+                    framework_mappings=framework_mappings,
+                    confidence=confidence,
+                    validation_result=validation_result,
+                    fallback_used=False,
+                )
             )
-            return self._fallback_mapping(context)
+
+        processing_time_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        overall_confidence = max(
+            (mr.confidence for mr in mapping_results), default=0.0
+        )
+
+        cost_metrics = CostMetrics(
+            tokens_processed=0,
+            inference_cost=0.0,
+            storage_cost=0.0,
+            total_cost=0.0,
+            cost_per_request=0.0,
+        )
+
+        model_metrics = ModelMetrics(
+            model_name="canonical-framework-mapper",
+            model_version="1.0.0",
+            inference_time_ms=processing_time_ms,
+            gpu_utilization=0.0,
+            memory_usage_mb=0,
+            batch_size=1,
+        )
+
+        response = CanonicalMappingResponse(
+            request_id=request.correlation_id or str(uuid.uuid4()),
+            success=True,
+            processing_time_ms=processing_time_ms,
+            correlation_id=request.correlation_id or get_correlation_id(),
+            mapping_results=mapping_results,
+            overall_confidence=overall_confidence,
+            cost_metrics=cost_metrics,
+            model_metrics=model_metrics,
+            recommendations=[],
+        )
+
+        return response
+
+
+def _compliance_status_from_risk(
+    risk_level: CanonicalRiskLevel,
+) -> ComplianceStatus:
+    """Map canonical risk level to a coarse compliance status.
+
+    This provides a simple, deterministic mapping for initial framework
+    mappings. HIGH/CRITICAL risk is treated as NON_COMPLIANT, while LOW
+    risk is treated as COMPLIANT. MEDIUM risk is conservative and also
+    treated as NON_COMPLIANT by default.
+    """
+
+    if risk_level in (CanonicalRiskLevel.CRITICAL, CanonicalRiskLevel.HIGH):
+        return ComplianceStatus.NON_COMPLIANT
+    if risk_level == CanonicalRiskLevel.MEDIUM:
+        return ComplianceStatus.NON_COMPLIANT
+    return ComplianceStatus.COMPLIANT
 
     async def _model_based_mapping(self, context: MappingContext) -> MappingResponse:
         """Perform model-based mapping using the loaded model server."""
