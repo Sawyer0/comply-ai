@@ -4,6 +4,7 @@ env/
 .venv/
 .env/
 *-venv/
+microservices-env/
 
 # Python
 __pycache__/
@@ -84,6 +85,7 @@ ersDawanDesktopprojectscomply-ai
 
 # Binary artifacts
 *.exe
+opa.exe
 
 # Project-specific directories to exclude
 cursor-chat-browser/
