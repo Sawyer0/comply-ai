@@ -80,6 +80,7 @@ AGENTS.md
 # Secrets / sensitive configs
 api_keys.json
 .env.api_keys
+ersDawanDesktopprojectscomply-ai
 
 # Binary artifacts
 *.exe
