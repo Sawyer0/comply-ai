@@ -79,6 +79,7 @@ AGENTS.md
 
 # Secrets / sensitive configs
 api_keys.json
+.env.api_keys
 
 # Binary artifacts
 *.exe
