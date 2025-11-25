@@ -1,6 +1,50 @@
-# Llama Mapper
+# Comply-AI: A Learning Project in AI Safety and Compliance
 
-Note on Mapper API request schema deprecation:
+## About This Project
+
+Comply-AI is an educational project designed to explore modern software architecture patterns, AI safety, and compliance automation. Built as a learning exercise, this project demonstrates the implementation of microservices, domain-driven design, and AI integration in a realistic but educational context.
+
+## Project Status
+
+🔍 **Learning Project** - This is an educational codebase that explores various architectural patterns. While functional, it's primarily designed for learning purposes and may contain simplified implementations or placeholders for demonstration.
+
+## Key Learning Areas
+
+- Microservices architecture with FastAPI
+- Domain-Driven Design (DDD) patterns
+- AI model serving and orchestration
+- Containerization and container orchestration
+- Testing distributed systems
+- API design and documentation
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.11+
+- Docker and Docker Compose
+- Basic understanding of microservices and AI concepts
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/comply-ai.git
+cd comply-ai
+
+# Start all services
+docker-compose up -d
+```
+
+## Project Structure
+
+- `analysis-service/` - Service for analyzing and processing AI outputs
+- `detector-orchestration/` - Coordinates multiple AI safety detectors
+- `mapper-service/` - Maps raw detector outputs to standardized taxonomy
+- `shared/` - Common utilities and libraries
+
+## Note on Mapper API Request Schema Deprecation
+
 - The /map and /map/batch endpoints now prefer the MapperPayload request shape (see docs/contracts/mapper_compliance.md and docs/release/mapper_migration.md).
 - The legacy DetectorRequest shape is still accepted during a deprecation window; responses include `Deprecation: true` and metrics count usage. Sunset: Fri, 31 Oct 2025 00:00:00 GMT. Removal targeted for 0.3.0.
 - Configure mapper payload limits and privacy checks via environment variables:
@@ -9,10 +53,13 @@ Note on Mapper API request schema deprecation:
   - MAPPER_SERVING_REJECT_ON_RAW_CONTENT (default true)
 
 Client SDK examples
+
 - See docs/clients/ for Python, JavaScript/TypeScript, Go, Java, C#, and curl examples.
 
 API request examples
+
 - Preferred (MapperPayload):
+
 ```json
 {
   "detector": "orchestrated-multi",
@@ -22,11 +69,13 @@ API request examples
     "contributing_detectors": ["deberta-toxicity", "openai-moderation"],
     "aggregation_method": "weighted_average",
     "coverage_achieved": 1.0,
-    "provenance": [{"detector":"deberta-toxicity","confidence":0.93}]
+    "provenance": [{ "detector": "deberta-toxicity", "confidence": 0.93 }]
   }
 }
 ```
+
 - Deprecated (DetectorRequest):
+
 ```json
 {
   "detector": "deberta-toxicity",
@@ -40,7 +89,7 @@ This service includes configurable rate limiting for the /map and /map/batch end
 
 - Identity precedence: API key (X-API-Key) → tenant (X-Tenant-ID) → client IP
 - Defaults: 600 req/min per API key or tenant; 120 req/min per IP; 60s window
-- Headers returned: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset and Retry-After (on 429). Legacy X-RateLimit-* headers are also supported.
+- Headers returned: RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset and Retry-After (on 429). Legacy X-RateLimit-\* headers are also supported.
 - Configuration: see docs/runbook/rate-limits.md
 - Backend: in-memory by default; set `RATE_LIMIT_BACKEND=redis` and `MAPPER_IDEMPOTENCY_REDIS_URL` to enable a Redis backend for cross-instance limits.
 
@@ -106,6 +155,7 @@ mapper validate-config --config my-config.yaml
   mapper show-config --tenant acme --environment production --format json
   ```
 - Detectors:
+
   ```bash
   # Lint detector YAMLs against taxonomy
   mapper detectors lint --data-dir ./.kiro/pillars-detectors [--format json]
@@ -198,6 +248,7 @@ src/llama_mapper/
 ## Developer Notes
 
 - Running tests without optional dependencies
+
   - This repo includes minimal stubs so the test suite can run without installing heavy/optional packages:
     - accelerate: `src/accelerate/__init__.py` exposes `__version__` to satisfy Transformers' Accelerate check.
     - hvac (Vault): `src/hvac/__init__.py` provides a minimal `Client` so tests can patch `hvac.Client`. Use the real `hvac` package in production for the Vault backend.
@@ -225,16 +276,18 @@ WSL2 Ubuntu (recommended):
 
 ```bash
 # Start server (backgrounded) in rules_only mode
-wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh start'
+# Start the rules server
+./scripts/serve_rules_only.sh start
 
 # Check status
-wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh status'
+./scripts/serve_rules_only.sh status
 
 # Stop server
-wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh stop'
+./scripts/serve_rules_only.sh stop
 ```
 
 Endpoints: http://127.0.0.1:8000
+
 - GET /health
 - POST /map
 - POST /map/batch
@@ -255,6 +308,7 @@ locust -f perf/locustfile.py --headless -u 10 -r 2 -t 30s --host http://127.0.0.
 ```
 
 Notes:
+
 - This mode uses only the rule-based FallbackMapper and the JSON schema validator.
 - It’s ideal for quick conformance checks and running HTTP client smoke tests.
 - For higher throughput, increase workers via ServingConfig or run multiple instances behind a load balancer.

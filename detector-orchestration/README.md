@@ -1,16 +1,38 @@
 # Detector Orchestration Service
 
-The Detector Orchestration Service is responsible for coordinating multiple detector executions, policy enforcement, and service discovery within the llama-mapper microservice architecture.
+A learning implementation of a service orchestrator for AI safety detectors, built to explore distributed systems and microservices architecture.
 
-## Features
+## Learning Focus
 
-- **Detector Coordination**: Manages multiple detector executions with circuit breakers and health monitoring
-- **Policy Enforcement**: OPA integration for policy validation and conflict resolution
-- **Service Discovery**: Dynamic detector discovery and configuration reloading
-- **Multi-Tenancy**: Tenant isolation, routing, and tenant-specific configurations
-- **Security**: WAF integration, RBAC, API key management, and rate limiting
-- **Monitoring**: Prometheus metrics, distributed tracing, and structured logging
-- **Resilience**: Circuit breakers, retry logic, and graceful degradation
+This service serves as an educational example of:
+
+- Service orchestration patterns
+- Circuit breaker and retry mechanisms
+- Policy-based decision making
+- Multi-tenant system design
+
+## Current Implementation Status
+
+### Implemented Features
+
+- Basic detector coordination
+- Simple policy validation
+- Core API endpoints
+- Basic health monitoring
+
+### Learning Areas
+
+- Service discovery patterns
+- Circuit breaker implementation
+- Policy as code with OPA
+- Distributed system observability
+
+## Key Components
+
+- `api/` - REST API endpoints for orchestration
+- `discovery/` - Service discovery mechanisms
+- `policy/` - Policy validation logic
+- `resilience/` - Circuit breakers and retry logic
 
 ## Quick Start
 
@@ -48,6 +70,7 @@ Configuration is managed through YAML files and environment variables:
 - Environment variables with `ORCHESTRATION_` prefix override YAML settings
 
 Key configuration sections:
+
 - `database`: PostgreSQL connection settings
 - `redis`: Redis cache configuration
 - `security`: Authentication and authorization settings
@@ -130,14 +153,6 @@ Security features include:
 - **WAF Protection**: SQL injection, XSS, and other attack prevention
 - **Rate Limiting**: Configurable rate limits per tenant/API key
 - **Audit Logging**: Comprehensive audit trails
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Write tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
 
 ## License
 

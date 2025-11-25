@@ -72,6 +72,7 @@ Configuration is managed through YAML files and environment variables:
 - Environment variables with `MAPPER_` prefix override YAML settings
 
 Key configuration sections:
+
 - `database`: PostgreSQL connection settings
 - `storage`: Model storage configuration (MinIO/S3)
 - `ml`: ML model serving configuration
@@ -105,18 +106,21 @@ API Layer (FastAPI endpoints)
 ## Core Components
 
 ### Mapping Engine
+
 - **Canonical Mapping**: Transform detector outputs to canonical taxonomy
 - **Framework Mapping**: Map canonical results to compliance frameworks
 - **Confidence Scoring**: Provide confidence metrics for all mappings
 - **Fallback Mechanisms**: Rule-based fallbacks for low-confidence predictions
 
 ### Model Serving
+
 - **vLLM Backend**: High-performance GPU inference
 - **TGI Backend**: Text Generation Inference support
 - **CPU Fallback**: CPU-based inference for non-GPU environments
 - **Model Caching**: Intelligent model caching and loading
 
 ### Training Infrastructure
+
 - **LoRA Fine-tuning**: Parameter-efficient fine-tuning
 - **Data Pipeline**: Training data preprocessing and validation
 - **Checkpoint Management**: Model versioning and checkpoint storage
@@ -125,12 +129,14 @@ API Layer (FastAPI endpoints)
 ## Model Management
 
 ### Supported Models
+
 - **Llama-3-8B**: Primary mapping model
 - **LoRA Adapters**: Domain-specific adaptations
 - **Custom Models**: Tenant-specific model support
 - **Fallback Models**: Rule-based mapping alternatives
 
 ### Model Lifecycle
+
 - **Training**: Automated training pipelines
 - **Validation**: Model quality validation
 - **Deployment**: Canary and blue-green deployments
@@ -140,12 +146,14 @@ API Layer (FastAPI endpoints)
 ## Validation System
 
 ### Input Validation
+
 - **Schema Validation**: JSON schema compliance
 - **Content Validation**: Input content validation
 - **Security Validation**: Malicious input detection
 - **Rate Limiting**: Request rate validation
 
 ### Output Validation
+
 - **Format Validation**: Output format compliance
 - **Confidence Validation**: Confidence threshold checks
 - **Schema Compliance**: Output schema validation
@@ -154,12 +162,14 @@ API Layer (FastAPI endpoints)
 ## Cost Monitoring
 
 ### Real-time Tracking
+
 - **Token Usage**: Input/output token counting
 - **Inference Costs**: Per-request cost calculation
 - **Storage Costs**: Model storage cost tracking
 - **Total Cost**: Comprehensive cost aggregation
 
 ### Optimization
+
 - **Batch Processing**: Efficient batch operations
 - **Model Caching**: Reduce redundant model loading
 - **Resource Management**: Optimal resource utilization
@@ -168,12 +178,14 @@ API Layer (FastAPI endpoints)
 ## Multi-Tenancy
 
 ### Tenant Isolation
+
 - **Data Isolation**: Tenant-specific data separation
 - **Model Isolation**: Tenant-specific model serving
 - **Resource Quotas**: Per-tenant resource limits
 - **Cost Allocation**: Tenant-specific cost tracking
 
 ### Customization
+
 - **Custom Models**: Tenant-specific model training
 - **Custom Taxonomies**: Tenant-specific taxonomy support
 - **Custom Validation**: Tenant-specific validation rules
@@ -182,18 +194,21 @@ API Layer (FastAPI endpoints)
 ## Development
 
 ### Code Quality
+
 - Type hints for all functions
 - Comprehensive error handling
 - Structured logging with correlation IDs
 - Performance optimization
 
 ### Testing
+
 - Unit tests for core logic
 - Integration tests for API endpoints
 - Performance tests for model serving
 - Load tests for scalability
 
 ### Documentation
+
 - API documentation with OpenAPI
 - Code documentation with docstrings
 - Architecture decision records
@@ -219,12 +234,14 @@ Key environment variables:
 - `MAPPER_GPU_ENABLED`: Enable GPU acceleration
 
 ### Scaling Strategies
+
 - **Horizontal Scaling**: Multiple service instances
 - **Model Sharding**: Distribute models across instances
 - **Load Balancing**: Intelligent request routing
 - **Auto-scaling**: Dynamic scaling based on load
 
 ### Deployment Patterns
+
 - **Blue-Green**: Zero-downtime deployments
 - **Canary**: Gradual rollout with monitoring
 - **A/B Testing**: Model performance comparison
@@ -233,18 +250,21 @@ Key environment variables:
 ## Monitoring & Observability
 
 ### Metrics
+
 - **Request Metrics**: Request count, latency, errors
 - **Model Metrics**: Inference time, GPU utilization
 - **Cost Metrics**: Token usage, inference costs
 - **Quality Metrics**: Confidence scores, accuracy
 
 ### Tracing
+
 - **Distributed Tracing**: Request flow across services
 - **Correlation IDs**: Request correlation tracking
 - **Performance Tracing**: Detailed performance analysis
 - **Error Tracing**: Error propagation tracking
 
 ### Alerting
+
 - **Performance Alerts**: Latency and error rate alerts
 - **Cost Alerts**: Budget threshold notifications
 - **Quality Alerts**: Model performance degradation
@@ -253,12 +273,14 @@ Key environment variables:
 ## Security
 
 ### Authentication & Authorization
+
 - **API Key Authentication**: Service-to-service auth
 - **JWT Tokens**: User authentication
 - **RBAC**: Role-based access control
 - **Multi-Factor Auth**: Enhanced security
 
 ### Data Protection
+
 - **Encryption**: Data encryption at rest and in transit
 - **Privacy Controls**: PII detection and handling
 - **Audit Logging**: Comprehensive audit trails
@@ -267,12 +289,14 @@ Key environment variables:
 ## Performance Optimization
 
 ### Inference Optimization
+
 - **Batch Processing**: Efficient batch inference
 - **Model Quantization**: Reduced model size
 - **Caching**: Intelligent response caching
 - **GPU Optimization**: Optimal GPU utilization
 
 ### Resource Management
+
 - **Memory Management**: Efficient memory usage
 - **Connection Pooling**: Database connection optimization
 - **Load Balancing**: Optimal request distribution

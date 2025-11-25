@@ -1,16 +1,38 @@
 # Analysis Service
 
-The Analysis Service provides advanced analysis capabilities including pattern recognition, risk scoring, compliance intelligence, and RAG-enhanced insights within the llama-mapper microservice architecture.
+A learning implementation of an analysis service for AI safety and compliance, built to explore microservices architecture and AI integration patterns.
 
-## Features
+## Learning Focus
 
-- **Pattern Recognition**: Temporal, frequency, correlation, and anomaly detection
-- **Risk Scoring**: Multi-dimensional risk assessment with ML enhancement
-- **Compliance Intelligence**: Framework mapping for SOC2, ISO27001, HIPAA, GDPR
-- **RAG System**: Regulatory knowledge base with retrieval-augmented generation
-- **Quality Monitoring**: Automated quality evaluation and degradation detection
-- **Privacy Controls**: Metadata-only logging and content scrubbing
-- **ML Models**: Phi-3 model serving with vLLM/TGI backends
+This service serves as an educational example of:
+
+- Building analytical microservices in Python
+- Implementing pattern recognition and risk scoring
+- Working with AI/ML models in production-like environments
+- Designing for privacy and compliance
+
+## Current Implementation Status
+
+### Implemented Features
+
+- Basic pattern recognition (temporal/frequency analysis)
+- Core risk scoring framework
+- Basic API endpoints for analysis
+- Integration with ML models
+
+### Learning Areas
+
+- Microservices communication patterns
+- Asynchronous processing with FastAPI
+- Containerized ML model serving
+- Testing distributed systems
+
+## Key Components
+
+- `api/` - FastAPI endpoints for analysis operations
+- `engines/` - Core analysis engines (pattern recognition, risk scoring)
+- `ml/` - Machine learning model integration
+- `monitoring/` - Basic observability setup
 
 ## Quick Start
 
@@ -48,6 +70,7 @@ Configuration is managed through YAML files and environment variables:
 - Environment variables with `ANALYSIS_` prefix override YAML settings
 
 Key configuration sections:
+
 - `database`: PostgreSQL connection settings
 - `clickhouse`: ClickHouse analytics database
 - `ml`: ML model configuration
@@ -84,18 +107,21 @@ API Layer (FastAPI endpoints)
 ## Analysis Engines
 
 ### Pattern Recognition
+
 - **Temporal Analysis**: Time-based pattern detection
 - **Frequency Analysis**: Occurrence pattern analysis
 - **Correlation Analysis**: Cross-pattern correlation
 - **Anomaly Detection**: Statistical anomaly identification
 
 ### Risk Scoring
+
 - **Technical Risk**: System and security risks
 - **Business Risk**: Business impact assessment
 - **Regulatory Risk**: Compliance risk evaluation
 - **Temporal Risk**: Time-sensitive risk factors
 
 ### Compliance Intelligence
+
 - **Framework Mapping**: Automatic compliance framework mapping
 - **Gap Analysis**: Compliance gap identification
 - **Evidence Generation**: Audit evidence creation
@@ -104,12 +130,14 @@ API Layer (FastAPI endpoints)
 ## ML Components
 
 ### Model Serving
+
 - **Phi-3 Model**: Analysis-specific language model
 - **Embeddings**: Sentence transformers for similarity
 - **vLLM Backend**: High-performance GPU inference
 - **CPU Fallback**: Fallback for non-GPU environments
 
 ### Training Pipeline
+
 - **Data Preparation**: Training data preprocessing
 - **Model Fine-tuning**: LoRA adaptation for domain-specific tasks
 - **Evaluation**: Model performance evaluation
@@ -118,12 +146,14 @@ API Layer (FastAPI endpoints)
 ## RAG System
 
 ### Knowledge Base
+
 - **Regulatory Documents**: Compliance framework documents
 - **Best Practices**: Industry best practices
 - **Case Studies**: Real-world examples
 - **Updates**: Automatic knowledge base updates
 
 ### Retrieval
+
 - **Semantic Search**: Vector-based document retrieval
 - **Ranking**: Relevance-based result ranking
 - **Context Building**: Context-aware response generation
@@ -132,12 +162,14 @@ API Layer (FastAPI endpoints)
 ## Quality Monitoring
 
 ### Automated Evaluation
+
 - **Model Performance**: Continuous model evaluation
 - **Drift Detection**: Data and concept drift monitoring
 - **Quality Metrics**: Comprehensive quality scoring
 - **Alerting**: Automated quality alerts
 
 ### Weekly Evaluation
+
 - **Scheduled Evaluation**: Regular quality assessments
 - **Trend Analysis**: Performance trend monitoring
 - **Report Generation**: Automated quality reports
@@ -146,12 +178,14 @@ API Layer (FastAPI endpoints)
 ## Privacy & Security
 
 ### Privacy Controls
+
 - **Metadata-Only Logging**: No raw content persistence
 - **Content Scrubbing**: Automatic PII removal
 - **Data Minimization**: Minimal data retention
 - **Encryption**: Field-level encryption for sensitive data
 
 ### Security Features
+
 - **Authentication**: Multi-factor authentication
 - **Authorization**: Fine-grained access control
 - **Audit Trails**: Comprehensive audit logging
@@ -160,12 +194,14 @@ API Layer (FastAPI endpoints)
 ## Development
 
 ### Code Organization
+
 - Domain-driven design with clear boundaries
 - Dependency injection for testability
 - Interface segregation for modularity
 - Clean architecture principles
 
 ### Testing Strategy
+
 - Unit tests for business logic
 - Integration tests for API endpoints
 - Performance tests for ML models
@@ -193,12 +229,14 @@ Key environment variables:
 ## Monitoring
 
 ### Metrics
+
 - Request/response metrics
 - Model performance metrics
 - Quality metrics
 - Resource utilization metrics
 
 ### Observability
+
 - Distributed tracing
 - Structured logging
 - Health checks

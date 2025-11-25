@@ -28,6 +28,7 @@
 ## Common Commands
 
 ### Development Setup
+
 ```bash
 # Install in development mode
 pip install -e .
@@ -47,6 +48,7 @@ isort src/ tests/
 ```
 
 ### CLI Operations
+
 ```bash
 # Validate configuration
 mapper validate-config --config config.yaml
@@ -70,6 +72,7 @@ orch policy validate
 ```
 
 ### Docker Operations
+
 ```bash
 # Build image
 docker build -t llama-mapper .
@@ -78,7 +81,7 @@ docker build -t llama-mapper .
 docker-compose -f docker-compose.prometheus.yml up
 
 # Performance testing (rules-only mode)
-wsl.exe -e bash -lc '/mnt/c/Users/Dawan/comply-ai/scripts/serve_rules_only.sh start'
+./scripts/serve_rules_only.sh start
 
 # Detector orchestration service
 cd detector-orchestration
@@ -87,6 +90,7 @@ docker-compose -f docker-compose.dev.yaml up
 ```
 
 ### Testing
+
 ```bash
 # Unit tests
 python -m pytest tests/unit/ -v
@@ -114,18 +118,21 @@ python -m pytest --cov=src/llama_mapper --cov-report=html
 ## Enhanced Architecture Patterns
 
 ### Observability & Monitoring
+
 - **Distributed Tracing**: OpenTelemetry with Jaeger for request flow tracking
 - **Business Metrics**: Domain-specific metrics beyond technical monitoring
 - **Anomaly Detection**: ML-based performance monitoring with automated alerting
 - **Correlation IDs**: Request tracking across all services and logs
 
 ### Security Enhancements
+
 - **Automated Secrets Rotation**: HashiCorp Vault integration with scheduled rotation
 - **Multi-Layer Input Sanitization**: Comprehensive protection against injection attacks
 - **Service Mesh Security**: Istio with mTLS and authorization policies
 - **Field-Level Encryption**: Protect sensitive data with automatic encryption/decryption
 
 ### Scalability Patterns
+
 - **Event Sourcing**: Immutable audit trail with event projections for compliance
 - **CQRS**: Separate read/write models for optimal performance
 - **Stream Processing**: Apache Kafka for real-time compliance analysis
