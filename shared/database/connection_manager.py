@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional, List
 from contextlib import asynccontextmanager
 
 from .connection_pool import DatabaseConfig
-from .service_registry import DatabaseServiceRegistry
+from .service_registry import ServiceRegistry
 from .health_checker import DatabaseHealthChecker
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class DatabaseConnectionManager:
     """
 
     def __init__(self):
-        self.service_registry = DatabaseServiceRegistry()
+        self.service_registry = ServiceRegistry()
         self.health_checker = DatabaseHealthChecker(self.service_registry.pools)
         self._initialized = False
 

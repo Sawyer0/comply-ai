@@ -31,7 +31,6 @@ from ..shared_integration import (
 
 from ..core.mapper import CoreMapper
 from ..schemas.models import (
-    MappingRequest as LegacyMappingRequest,
     BatchMappingRequest,
     BatchMappingResponse,
 )
@@ -216,6 +215,73 @@ class CostTrackingRequest(BaseModel):
 # =============================================================================
 
 
+def _handle_canonical_mapping_exception(
+    exc: Exception,
+    mapping_request: CanonicalMappingRequest,
+    api_key_info: APIKeyInfo,
+    correlation_id: str,
+) -> None:
+    """Translate canonical mapping errors into HTTP exceptions with logging.
+
+    Keeps HTTP status codes and logging centralized in the API layer while
+    treating CoreMapper as an application service.
+    """
+
+    detector_name = getattr(mapping_request, "detector", "unknown")
+
+    if isinstance(exc, ValidationError):
+        logger.error(
+            "Validation error in canonical mapping request",
+            error=str(exc),
+            tenant_id=api_key_info.tenant_id,
+            detector="canonical_mapping",
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Validation error: {str(exc)}",
+        ) from exc
+
+    if isinstance(exc, ServiceUnavailableError):
+        logger.error(
+            "Service unavailable during canonical mapping",
+            error=str(exc),
+            tenant_id=api_key_info.tenant_id,
+            detector=detector_name,
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Service temporarily unavailable: {str(exc)}",
+        ) from exc
+
+    if isinstance(exc, BaseServiceException):
+        logger.error(
+            "Service error in canonical mapping request",
+            error=str(exc),
+            tenant_id=api_key_info.tenant_id,
+            detector=detector_name,
+            correlation_id=correlation_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Service error: {str(exc)}",
+        ) from exc
+
+    logger.error(
+        "Unexpected error in canonical mapping request",
+        error=str(exc),
+        error_type=type(exc).__name__,
+        tenant_id=api_key_info.tenant_id,
+        detector=detector_name,
+        correlation_id=correlation_id,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"Unexpected error occurred: {str(exc)}",
+    ) from exc
+
+
 @router.post("/map", response_model=APIResponse)
 @track_request_metrics("map_detector_output")
 async def map_detector_output(
@@ -256,55 +322,14 @@ async def map_detector_output(
             },
         )
 
-    except ValidationError as e:
-        logger.error(
-            "Validation error in canonical mapping request",
-            error=str(e),
-            tenant_id=api_key_info.tenant_id,
-            detector="canonical_mapping",
+    except Exception as exc:  # pragma: no cover - handled by helper
+        _handle_canonical_mapping_exception(
+            exc=exc,
+            mapping_request=mapping_request,
+            api_key_info=api_key_info,
             correlation_id=correlation_id,
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Validation error: {str(e)}",
-        ) from e
-    except ServiceUnavailableError as e:
-        logger.error(
-            "Service unavailable during canonical mapping",
-            error=str(e),
-            tenant_id=api_key_info.tenant_id,
-            detector=getattr(mapping_request, "detector", "unknown"),
-            correlation_id=correlation_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service temporarily unavailable: {str(e)}",
-        ) from e
-    except BaseServiceException as e:
-        logger.error(
-            "Service error in canonical mapping request",
-            error=str(e),
-            tenant_id=api_key_info.tenant_id,
-            detector=getattr(mapping_request, "detector", "unknown"),
-            correlation_id=correlation_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Service error: {str(e)}",
-        ) from e
-    except Exception as e:
-        logger.error(
-            "Unexpected error in canonical mapping request",
-            error=str(e),
-            error_type=type(e).__name__,
-            tenant_id=api_key_info.tenant_id,
-            detector=getattr(mapping_request, "detector", "unknown"),
-            correlation_id=correlation_id,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error occurred: {str(e)}",
-        ) from e
+        raise  # Unreachable, but helps type checkers
 
 
 @router.post("/map/batch", response_model=APIResponse)

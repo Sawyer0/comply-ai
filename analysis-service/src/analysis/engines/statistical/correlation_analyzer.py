@@ -6,6 +6,8 @@ analysis module, providing sophisticated correlation detection for security data
 """
 
 import logging
+import math
+import importlib
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import numpy as np
@@ -24,7 +26,7 @@ class CorrelationAnalyzer:
     - Temporal correlation patterns
     """
 
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.min_data_points = self.config.get("min_data_points", 5)
         self.correlation_threshold = self.config.get("correlation_threshold", 0.7)
@@ -73,12 +75,16 @@ class CorrelationAnalyzer:
 
             logger.info(
                 "Correlation analysis completed",
-                features=len(feature_data),
-                patterns_found=len(patterns),
+                extra={
+                    "features": len(feature_data),
+                    "patterns_found": len(patterns),
+                },
             )
 
         except Exception as e:
-            logger.error("Correlation analysis failed", error=str(e))
+            logger.error(
+                "Correlation analysis failed", extra={"error": str(e)}
+            )
 
         return patterns
 
@@ -177,7 +183,7 @@ class CorrelationAnalyzer:
             if np.isnan(correlation):
                 correlation = 0.0
 
-            # Calculate p-value (simplified approximation)
+            # Calculate p-value using a t-distribution based approach.
             n = len(values1)
             if n > 2:
                 # t-statistic for correlation
@@ -187,10 +193,22 @@ class CorrelationAnalyzer:
                     else float("inf")
                 )
 
-                # Approximate p-value using t-distribution
-                # This is a simplified calculation - in production would use scipy.stats
-                p_value = self._approximate_p_value(abs(t_stat), n - 2)
+                # Prefer a high-quality implementation from scipy.stats if
+                # available, otherwise fall back to an analytical
+                # approximation based on the normal distribution.
+                p_value = 1.0
+                try:
+                    stats_module = importlib.import_module("scipy.stats")
+                except Exception:
+                    stats_module = None
+
+                if stats_module is not None:
+                    df = n - 2
+                    p_value = float(2.0 * stats_module.t.sf(abs(t_stat), df=df))
+                else:
+                    p_value = self._approximate_p_value(abs(t_stat), n - 2)
             else:
+                t_stat = 0.0
                 p_value = 1.0
 
             # Determine significance
@@ -213,23 +231,34 @@ class CorrelationAnalyzer:
             }
 
     def _approximate_p_value(self, t_stat: float, degrees_of_freedom: int) -> float:
-        """Approximate p-value for t-statistic (simplified calculation)."""
+        """Approximate two-sided p-value for a t-statistic.
+
+        Uses a smooth approximation based on the normal distribution, with a
+        small-sample correction for low degrees of freedom. This avoids the
+        need for heavy statistical dependencies while remaining numerically
+        stable for common analysis ranges.
+        """
         try:
-            # Very simplified approximation - in production would use proper t-distribution
             if degrees_of_freedom <= 0:
                 return 1.0
 
-            # Rough approximation based on t-statistic magnitude
-            if t_stat > 3.0:
-                return 0.001
-            elif t_stat > 2.5:
-                return 0.01
-            elif t_stat > 2.0:
-                return 0.05
-            elif t_stat > 1.5:
-                return 0.1
+            df = float(degrees_of_freedom)
+            abs_t = float(abs(t_stat))
+
+            # Adjust the statistic for low degrees of freedom to better match
+            # the heavier tails of the t-distribution.
+            if df < 30.0 and df > 2.0:
+                adjusted_t = abs_t * math.sqrt((df - 2.0) / df)
             else:
-                return 0.2
+                adjusted_t = abs_t
+
+            # Two-sided p-value using the complementary error function for the
+            # standard normal distribution.
+            z = adjusted_t
+            p = 2.0 * (1.0 - 0.5 * (1.0 + math.erf(z / math.sqrt(2.0))))
+
+            # Clamp to [0, 1] to protect against numerical noise.
+            return max(0.0, min(1.0, p))
 
         except Exception:
             return 1.0

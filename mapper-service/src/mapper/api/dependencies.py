@@ -26,8 +26,17 @@ from ..main import (
 )
 from ..core.mapper import CoreMapper
 from ..config.settings import MapperSettings
+from ..infrastructure.taxonomy_adapter import (
+    SharedCanonicalTaxonomyAdapter,
+    SharedFrameworkMappingAdapter,
+)
+from ..infrastructure.model_inference_adapter import SharedModelInferenceAdapter
 from ..security.api_key_manager import APIKeyInfo
 from ..security.authorization import Permission, Scope
+from ..tenancy.tenant_manager import MapperTenantManager
+from ..tenancy.cost_tracker import MapperCostTracker
+from ..tenancy.billing_manager import BillingManager
+from ..tenancy.resource_manager import ResourceManager
 
 logger = structlog.get_logger(__name__)
 
@@ -39,10 +48,10 @@ class _DependencyState:
     def __init__(self):
         self.mapper_instance: Optional[CoreMapper] = None
         self.settings_instance: Optional[MapperSettings] = None
-        self.tenant_manager = None
-        self.cost_tracker = None
-        self.billing_manager = None
-        self.resource_manager = None
+        self.tenant_manager: Optional[MapperTenantManager] = None
+        self.cost_tracker: Optional[MapperCostTracker] = None
+        self.billing_manager: Optional[BillingManager] = None
+        self.resource_manager: Optional[ResourceManager] = None
 
 
 _state = _DependencyState()
@@ -188,7 +197,7 @@ async def get_tenant_manager():
 
         # Get the underlying asyncpg pool from database manager
         if hasattr(database_manager, "_pool") and database_manager._pool:
-            from ..tenancy import MapperTenantManager
+            from ..tenancy.tenant_manager import MapperTenantManager
 
             _state.tenant_manager = MapperTenantManager(database_manager._pool)
         else:
@@ -197,7 +206,7 @@ async def get_tenant_manager():
     return _state.tenant_manager
 
 
-async def get_cost_tracker():
+async def get_cost_tracker() -> MapperCostTracker:
     """
     Get cost tracker instance.
 
@@ -212,7 +221,7 @@ async def get_cost_tracker():
 
         # Get the underlying asyncpg pool from database manager
         if hasattr(database_manager, "_pool") and database_manager._pool:
-            from ..tenancy import MapperCostTracker
+            from ..tenancy.cost_tracker import MapperCostTracker
 
             _state.cost_tracker = MapperCostTracker(database_manager._pool)
         else:
@@ -221,7 +230,7 @@ async def get_cost_tracker():
     return _state.cost_tracker
 
 
-async def get_billing_manager():
+async def get_billing_manager() -> BillingManager:
     """
     Get billing manager instance.
 
@@ -236,7 +245,7 @@ async def get_billing_manager():
 
         # Get the underlying asyncpg pool from database manager
         if hasattr(database_manager, "_pool") and database_manager._pool:
-            from ..tenancy import BillingManager
+            from ..tenancy.billing_manager import BillingManager
 
             tenant_manager = await get_tenant_manager()
             cost_tracker = await get_cost_tracker()
@@ -252,7 +261,7 @@ async def get_billing_manager():
     return _state.billing_manager
 
 
-async def get_resource_manager():
+async def get_resource_manager() -> ResourceManager:
     """
     Get resource manager instance.
 
@@ -267,7 +276,7 @@ async def get_resource_manager():
 
         # Get the underlying asyncpg pool from database manager
         if hasattr(database_manager, "_pool") and database_manager._pool:
-            from ..tenancy import ResourceManager
+            from ..tenancy.resource_manager import ResourceManager
 
             tenant_manager = await get_tenant_manager()
 
@@ -294,8 +303,12 @@ async def get_mapper() -> CoreMapper:
                 status_code=500, detail="Database manager not available"
             )
 
-        # CoreMapper constructor takes only settings parameter
-        _state.mapper_instance = CoreMapper(settings)
+        _state.mapper_instance = CoreMapper(
+            settings,
+            canonical_taxonomy_port=SharedCanonicalTaxonomyAdapter(),
+            framework_mapping_port=SharedFrameworkMappingAdapter(),
+            model_inference_port=SharedModelInferenceAdapter(settings),
+        )
         await _state.mapper_instance.initialize()
 
     return _state.mapper_instance

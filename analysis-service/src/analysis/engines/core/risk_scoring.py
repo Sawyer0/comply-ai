@@ -12,7 +12,9 @@ from typing import Any, Dict, List
 
 from ...schemas.analysis_schemas import AnalysisRequest, AnalysisResult
 from ...taxonomy.risk_taxonomy import RiskTaxonomy
+from ...shared_integration import RiskScoringResult
 from ..statistical import CompoundRiskCalculator
+from ..statistical.compound_risk_calculator import RiskPattern
 from ..optimization import RiskFactorAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,8 @@ class RiskScoringEngine:
         Returns:
             AnalysisResult with comprehensive risk assessment
         """
+        start_time = datetime.now(timezone.utc)
+
         try:
             # Extract risk factors from request
             risk_factors = self._extract_risk_factors(request)
@@ -125,31 +129,112 @@ class RiskScoringEngine:
             # Calculate confidence
             confidence = self._calculate_confidence(risk_factors, risk_breakdown)
 
-            # Create comprehensive result
+            # Analyze individual risk factors for mitigation recommendations
+            risk_data: Dict[str, Any] = {
+                "technical": technical_risk,
+                "business": business_risk,
+                "regulatory": regulatory_risk,
+                "temporal": temporal_risk,
+                "compound": compound_risk,
+            }
+
+            historical_data = request.metadata.get("historical_risk_data")
+            factor_analyses = await self.risk_factor_analyzer.analyze_risk_factors(
+                risk_data=risk_data, historical_data=historical_data
+            )
+
+            raw_recommendations = [
+                recommendation
+                for analysis in factor_analyses
+                for recommendation in analysis.recommendations
+            ]
+
+            # De-duplicate recommendations while preserving order
+            seen_recommendations = set()
+            mitigation_recommendations: List[str] = []
+            for rec in raw_recommendations:
+                if rec not in seen_recommendations:
+                    seen_recommendations.add(rec)
+                    mitigation_recommendations.append(rec)
+
+            mitigation_recommendations = mitigation_recommendations[:10]
+
+            # Build shared RiskScoringResult payload
+            risk_scores_model = RiskScoringResult(
+                overall_risk_score=composite_score,
+                technical_risk=technical_risk.get("score", 0.0),
+                business_risk=business_risk.get("score", 0.0),
+                regulatory_risk=regulatory_risk.get("score", 0.0),
+                temporal_risk=temporal_risk.get("score", 0.0),
+                risk_factors=[
+                    {
+                        "dimension": "technical",
+                        "score": technical_risk.get("score", 0.0),
+                        "components": technical_risk.get("components", {}),
+                        "contributing_factors": technical_risk.get(
+                            "contributing_factors", []
+                        ),
+                    },
+                    {
+                        "dimension": "business",
+                        "score": business_risk.get("score", 0.0),
+                        "components": business_risk.get("components", {}),
+                        "contributing_factors": business_risk.get(
+                            "contributing_factors", []
+                        ),
+                    },
+                    {
+                        "dimension": "regulatory",
+                        "score": regulatory_risk.get("score", 0.0),
+                        "components": regulatory_risk.get("components", {}),
+                        "contributing_factors": regulatory_risk.get(
+                            "contributing_factors", []
+                        ),
+                    },
+                    {
+                        "dimension": "temporal",
+                        "score": temporal_risk.get("score", 0.0),
+                        "components": temporal_risk.get("components", {}),
+                        "contributing_factors": temporal_risk.get(
+                            "contributing_factors", []
+                        ),
+                    },
+                ],
+                mitigation_recommendations=mitigation_recommendations,
+            )
+
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+            # Create comprehensive result aligned with shared interfaces
             result = AnalysisResult(
                 analysis_type="risk_scoring",
                 confidence=confidence,
-                risk_score={
-                    "composite_score": composite_score,
-                    "risk_level": risk_level,
-                    "breakdown": risk_breakdown,
-                    "compound_factors": compound_risk,
-                },
+                canonical_results=[],
+                quality_metrics=None,
+                pattern_analysis=None,
+                risk_scores=risk_scores_model,
+                compliance_mappings=None,
+                rag_insights=None,
                 evidence=self._create_evidence(risk_factors, risk_breakdown),
+                recommendations=[],
                 metadata=self._create_metadata(composite_score, risk_level),
+                processing_time=processing_time,
+                data_quality_score=None,
             )
 
             logger.info(
                 "Risk scoring completed",
-                composite_score=composite_score,
-                risk_level=risk_level,
-                confidence=confidence,
+                extra={
+                    "composite_score": composite_score,
+                    "risk_level": risk_level,
+                    "confidence": confidence,
+                },
             )
 
             return result
 
         except (ValueError, KeyError, AttributeError) as e:
-            logger.error("Risk scoring failed", error=str(e))
+            logger.error("Risk scoring failed", extra={"error": str(e)})
             return self._create_error_result(str(e))
 
     async def _calculate_technical_risk(
@@ -208,7 +293,7 @@ class RiskScoringEngine:
             }
 
         except (ValueError, KeyError, ZeroDivisionError) as e:
-            logger.error("Technical risk calculation failed", error=str(e))
+            logger.error("Technical risk calculation failed", extra={"error": str(e)})
             return {"score": 0.5, "error": str(e)}
 
     async def _calculate_business_risk(
@@ -252,7 +337,7 @@ class RiskScoringEngine:
             }
 
         except (ValueError, KeyError) as e:
-            logger.error("Business risk calculation failed", error=str(e))
+            logger.error("Business risk calculation failed", extra={"error": str(e)})
             return {"score": 0.5, "error": str(e)}
 
     async def _calculate_regulatory_risk(
@@ -299,7 +384,7 @@ class RiskScoringEngine:
             }
 
         except (ValueError, KeyError) as e:
-            logger.error("Regulatory risk calculation failed", error=str(e))
+            logger.error("Regulatory risk calculation failed", extra={"error": str(e)})
             return {"score": 0.5, "error": str(e)}
 
     async def _calculate_temporal_risk(
@@ -351,7 +436,7 @@ class RiskScoringEngine:
             }
 
         except (ValueError, KeyError, AttributeError) as e:
-            logger.error("Temporal risk calculation failed", error=str(e))
+            logger.error("Temporal risk calculation failed", extra={"error": str(e)})
             return {"score": 0.5, "error": str(e)}
 
     async def _calculate_compound_risk(
@@ -363,11 +448,101 @@ class RiskScoringEngine:
     ) -> Dict[str, Any]:
         """Calculate compound risk using sophisticated algorithms."""
         try:
-            # Use the sophisticated compound risk calculator
+            # Convert risk dimension summaries into compound risk patterns.
+            patterns: List[RiskPattern] = []
+
+            dimension_data = [
+                ("technical", technical_risk),
+                ("business", business_risk),
+                ("regulatory", regulatory_risk),
+                ("temporal", temporal_risk),
+            ]
+
+            for name, data in dimension_data:
+                score = float(data.get("score", 0.0) or 0.0)
+                components = data.get("components", {}) or {}
+
+                # Focus on the components that contribute meaningfully to risk.
+                contributing_factors: List[str] = []
+                for component_name, value in components.items():
+                    try:
+                        numeric_value = float(value)
+                    except (TypeError, ValueError):
+                        continue
+
+                    if numeric_value >= 0.2:
+                        contributing_factors.append(f"{name}:{component_name}")
+
+                if not contributing_factors and score > 0.0:
+                    contributing_factors.append(f"{name}:overall")
+
+                if not contributing_factors:
+                    continue
+
+                if score >= 0.8:
+                    interaction_type = "exponential"
+                elif score >= 0.5:
+                    interaction_type = "multiplicative"
+                else:
+                    interaction_type = "additive"
+
+                patterns.append(
+                    RiskPattern(
+                        pattern_id=f"{name}_risk_pattern",
+                        risk_factors=contributing_factors,
+                        interaction_type=interaction_type,
+                        amplification_factor=max(0.1, score),
+                    )
+                )
+
+            # Build interaction relationships between risk dimensions.
+            pattern_relationships: List[Dict[str, Any]] = []
+            for i, (name_i, data_i) in enumerate(dimension_data):
+                score_i = float(data_i.get("score", 0.0) or 0.0)
+                for j, (name_j, data_j) in enumerate(dimension_data[i + 1 :], i + 1):
+                    score_j = float(data_j.get("score", 0.0) or 0.0)
+                    avg_score = (score_i + score_j) / 2.0
+                    if avg_score <= 0.0:
+                        continue
+
+                    if avg_score >= 0.8:
+                        rel_type = "exponential"
+                    elif avg_score >= 0.5:
+                        rel_type = "multiplicative"
+                    else:
+                        rel_type = "additive"
+
+                    pattern_relationships.append(
+                        {
+                            "type": rel_type,
+                            "strength": avg_score,
+                            "dimensions": [name_i, name_j],
+                        }
+                    )
+
+            # Context for compound risk adjustment: environment and sensitivity
+            business_score = float(business_risk.get("score", 0.0) or 0.0)
+            temporal_score = float(temporal_risk.get("score", 0.0) or 0.0)
+
+            if business_score >= 0.8:
+                sensitivity = "critical"
+            elif business_score >= 0.6:
+                sensitivity = "high"
+            elif business_score >= 0.3:
+                sensitivity = "medium"
+            else:
+                sensitivity = "low"
+
+            context_data: Dict[str, Any] = {
+                "time_sensitive": temporal_score >= 0.6,
+                "environment": self.risk_config.get("environment", "production"),
+                "data_sensitivity": sensitivity,
+            }
+
             compound_result = await self.compound_calculator.calculate_compound_risk(
-                patterns=[],  # Would convert risk factors to patterns in production
-                pattern_relationships=[],
-                context_data=None,  # Would create appropriate context in production
+                patterns=patterns,
+                pattern_relationships=pattern_relationships,
+                context_data=context_data,
             )
 
             # Extract compound factors
@@ -382,14 +557,15 @@ class RiskScoringEngine:
             return {
                 "amplification_factor": risk_amplification,
                 "correlation_factor": risk_correlation,
-                "compound_score": compound_result.get("risk_level", "medium"),
+                "compound_score": float(compound_result.get("compound_score", 0.0)),
+                "risk_level": compound_result.get("risk_level", "medium"),
                 "interaction_effects": self._analyze_risk_interactions(
                     technical_risk, business_risk, regulatory_risk, temporal_risk
                 ),
             }
 
         except (ValueError, KeyError, AttributeError) as e:
-            logger.error("Compound risk calculation failed", error=str(e))
+            logger.error("Compound risk calculation failed", extra={"error": str(e)})
             return {
                 "amplification_factor": 1.0,
                 "correlation_factor": 0.0,
@@ -525,20 +701,13 @@ class RiskScoringEngine:
 
     def _extract_risk_factors(self, request: AnalysisRequest) -> Dict[str, Any]:
         """Extract risk factors from analysis request."""
+        coverage_gaps = self._build_coverage_gaps(request)
+        last_assessment_time = self._extract_last_assessment_time(request)
+
         return {
             "high_severity_hits": request.high_sev_hits,
             "detector_errors": request.detector_errors,
-            "coverage_gaps": [
-                {
-                    "detector": detector,
-                    "observed": observed,
-                    "required": request.required_coverage.get(detector, 0.0),
-                    "impact": max(
-                        0.0, request.required_coverage.get(detector, 0.0) - observed
-                    ),
-                }
-                for detector, observed in request.observed_coverage.items()
-            ],
+            "coverage_gaps": coverage_gaps,
             "sensitive_data_types": self._extract_sensitive_data_types(request),
             "affected_business_processes": self._extract_business_processes(request),
             "compliance_requirements": self._extract_compliance_requirements(request),
@@ -546,9 +715,45 @@ class RiskScoringEngine:
             "audit_findings": self._extract_audit_findings(request),
             "recent_incidents": self._extract_recent_incidents(request),
             "trend_direction": self._analyze_trend_direction(request),
-            "last_assessment_time": datetime.now(timezone.utc)
-            - timedelta(days=1),  # Mock data
+            "last_assessment_time": last_assessment_time,
         }
+
+    def _build_coverage_gaps(self, request: AnalysisRequest) -> List[Dict[str, Any]]:
+        """Build structured coverage gap information from observed vs required coverage."""
+        gaps: List[Dict[str, Any]] = []
+
+        for detector, observed in request.observed_coverage.items():
+            required = request.required_coverage.get(detector, 0.0)
+            gaps.append(
+                {
+                    "detector": detector,
+                    "observed": observed,
+                    "required": required,
+                    "impact": max(0.0, required - observed),
+                }
+            )
+
+        return gaps
+
+    def _extract_last_assessment_time(self, request: AnalysisRequest) -> datetime:
+        """Extract last assessment time from context/metadata with sensible fallback."""
+
+        context = request.context or {}
+        raw_value = context.get("last_assessment_time") or request.metadata.get(
+            "last_assessment_time"
+        )
+
+        if isinstance(raw_value, datetime):
+            return raw_value
+
+        if isinstance(raw_value, str):
+            try:
+                return datetime.fromisoformat(raw_value)
+            except ValueError:
+                pass
+
+        # Fallback: treat as assessed 1 day ago to preserve previous behavior
+        return datetime.now(timezone.utc) - timedelta(days=1)
 
     def _extract_sensitive_data_types(self, request: AnalysisRequest) -> List[str]:
         """Extract sensitive data types from request."""
@@ -565,49 +770,200 @@ class RiskScoringEngine:
     def _extract_business_processes(self, request: AnalysisRequest) -> List[str]:
         """Extract affected business processes from request."""
         # Mock implementation - would analyze request context in production
-        return (
-            ["data_processing", "user_authentication"] if request.high_sev_hits else []
-        )
+
+        processes: set = set()
+
+        # Prefer explicit business process metadata when available
+        context = request.context or {}
+        for key in ("business_processes", "affected_processes", "processes"):
+            value = context.get(key)
+            if isinstance(value, (list, tuple)):
+                for item in value:
+                    if isinstance(item, str) and item.strip():
+                        processes.add(item.strip())
+            elif isinstance(value, str) and value.strip():
+                processes.add(value.strip())
+
+        # Derive processes from high severity hit metadata
+        for hit in request.high_sev_hits:
+            for field in ("business_process", "process", "service"):
+                val = hit.get(field)
+                if isinstance(val, str) and val.strip():
+                    processes.add(val.strip())
+
+            category = str(hit.get("category", "")).lower()
+            if "auth" in category or "login" in category:
+                processes.add("user_authentication")
+            if "payment" in category or "billing" in category:
+                processes.add("payments")
+            if "storage" in category or "database" in category:
+                processes.add("data_storage")
+
+        return sorted(processes)
 
     def _extract_compliance_requirements(self, request: AnalysisRequest) -> List[str]:
         """Extract compliance requirements from request."""
         # Mock implementation - would analyze request context in production
-        requirements = []
+        requirements: set = set()
+
+        # Explicit frameworks requested for analysis
+        for framework in request.frameworks:
+            if isinstance(framework, str) and framework.strip():
+                requirements.add(framework.strip().lower())
+
+        # Context-provided compliance requirements
+        context = request.context or {}
+        ctx_requirements = context.get("compliance_requirements") or context.get(
+            "required_frameworks"
+        )
+        if isinstance(ctx_requirements, (list, tuple)):
+            for fw in ctx_requirements:
+                if isinstance(fw, str) and fw.strip():
+                    requirements.add(fw.strip().lower())
+
+        # Infer frameworks from high severity findings
         if any(
             "pii" in hit.get("detector", "").lower() for hit in request.high_sev_hits
         ):
-            requirements.extend(["gdpr", "hipaa"])
-        return requirements
+            requirements.update({"gdpr", "hipaa"})
+
+        if any(
+            "credit" in str(hit.get("category", "")).lower()
+            or "card" in str(hit.get("category", "")).lower()
+            for hit in request.high_sev_hits
+        ):
+            requirements.add("pci_dss")
+
+        if any(
+            "health" in hit.get("detector", "").lower()
+            or any(
+                isinstance(tag, str) and "phi" in tag.lower()
+                for tag in hit.get("tags", [])
+            )
+            for hit in request.high_sev_hits
+        ):
+            requirements.add("hipaa")
+
+        return sorted(requirements)
 
     def _extract_framework_violations(
         self, request: AnalysisRequest
     ) -> Dict[str, List[str]]:
         """Extract framework violations from request."""
         # Mock implementation - would analyze findings against frameworks in production
-        violations = {}
-        if request.high_sev_hits:
-            violations["gdpr"] = ["data_processing_violation"]
+        violations: Dict[str, List[str]] = {}
+
+        # Prefer explicit violations supplied in context
+        context = request.context or {}
+        explicit_violations = context.get("framework_violations")
+        if isinstance(explicit_violations, dict):
+            for framework, value in explicit_violations.items():
+                key = str(framework).lower()
+                if isinstance(value, list):
+                    violations[key] = [str(v) for v in value]
+                else:
+                    violations[key] = [str(value)]
+
+        coverage_gaps = self._build_coverage_gaps(request)
+        has_coverage_gap = any(gap.get("impact", 0.0) > 0 for gap in coverage_gaps)
+        has_high_sev = bool(request.high_sev_hits)
+        has_detector_errors = bool(request.detector_errors)
+
+        # Derive additional violations from risk context for each relevant framework
+        for framework in self._extract_compliance_requirements(request):
+            key = framework.lower()
+            if key not in violations:
+                framework_violations: List[str] = []
+                if has_high_sev:
+                    framework_violations.append("high_severity_findings")
+                if has_coverage_gap:
+                    framework_violations.append("coverage_gaps")
+                if has_detector_errors:
+                    framework_violations.append("detector_errors")
+
+                if framework_violations:
+                    violations[key] = framework_violations
+
         return violations
 
     def _extract_audit_findings(self, request: AnalysisRequest) -> List[str]:
         """Extract audit findings from request."""
         # Mock implementation - would analyze audit context in production
-        return ["access_control_gap"] if len(request.detector_errors) > 2 else []
+        findings: List[str] = []
+
+        context = request.context or {}
+        ctx_findings = context.get("audit_findings")
+        if isinstance(ctx_findings, list):
+            findings.extend(str(f).strip() for f in ctx_findings if str(f).strip())
+
+        meta_findings = request.metadata.get("audit_findings")
+        if isinstance(meta_findings, list):
+            findings.extend(str(f).strip() for f in meta_findings if str(f).strip())
+
+        if not findings and len(request.detector_errors) > 2:
+            findings.append("access_control_gap")
+
+        return sorted(set(findings))
 
     def _extract_recent_incidents(
         self, request: AnalysisRequest
     ) -> List[Dict[str, Any]]:
         """Extract recent incidents from request."""
         # Mock implementation - would analyze incident history in production
-        return (
-            [{"type": "security_alert", "timestamp": datetime.now(timezone.utc)}]
-            if request.high_sev_hits
-            else []
+        incidents: List[Dict[str, Any]] = []
+
+        context = request.context or {}
+        ctx_incidents = context.get("recent_incidents") or context.get(
+            "incident_history"
         )
+        if isinstance(ctx_incidents, list):
+            for item in ctx_incidents:
+                if isinstance(item, dict):
+                    incidents.append(item)
+
+        meta_incidents = request.metadata.get("recent_incidents")
+        if isinstance(meta_incidents, list):
+            for item in meta_incidents:
+                if isinstance(item, dict):
+                    incidents.append(item)
+
+        if not incidents and request.high_sev_hits:
+            incidents.append(
+                {
+                    "type": "security_alert",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+        return incidents
 
     def _analyze_trend_direction(self, request: AnalysisRequest) -> str:
         """Analyze trend direction from request."""
         # Mock implementation - would analyze historical trends in production
+        context = request.context or {}
+        explicit_trend = context.get("trend_direction") or request.metadata.get(
+            "trend_direction"
+        )
+        if isinstance(explicit_trend, str) and explicit_trend.strip():
+            return explicit_trend.strip().lower()
+
+        # Infer from historical risk scores if available
+        history = context.get("historical_risk_scores") or request.metadata.get(
+            "historical_risk_scores"
+        )
+        if isinstance(history, list) and len(history) >= 2:
+            try:
+                first = float(history[0])
+                last = float(history[-1])
+                delta = last - first
+                if delta > 0.1:
+                    return "increasing"
+                if delta < -0.1:
+                    return "decreasing"
+            except (TypeError, ValueError):
+                # Fall back to heuristic below if parsing fails
+                pass
+
         if len(request.high_sev_hits) > 3:
             return "increasing"
         if len(request.high_sev_hits) == 0:
@@ -649,18 +1005,31 @@ class RiskScoringEngine:
 
     def _create_error_result(self, error_message: str) -> AnalysisResult:
         """Create error result when risk scoring fails."""
+        fallback_risk_scores = RiskScoringResult(
+            overall_risk_score=0.5,
+            technical_risk=0.5,
+            business_risk=0.5,
+            regulatory_risk=0.5,
+            temporal_risk=0.5,
+            risk_factors=[{"dimension": "error", "details": error_message}],
+            mitigation_recommendations=[],
+        )
+
         return AnalysisResult(
             analysis_type="risk_scoring",
             confidence=0.0,
-            risk_score={
-                "composite_score": 0.5,
-                "risk_level": "medium",
-                "breakdown": {"error": error_message},
-                "compound_factors": {"error": error_message},
-            },
+            canonical_results=[],
+            quality_metrics=None,
+            pattern_analysis=None,
+            risk_scores=fallback_risk_scores,
+            compliance_mappings=None,
+            rag_insights=None,
             evidence=[{"type": "error", "message": error_message}],
+            recommendations=[],
             metadata={
                 "error": error_message,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
+            processing_time=None,
+            data_quality_score=None,
         )

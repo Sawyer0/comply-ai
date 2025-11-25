@@ -18,8 +18,8 @@ from enum import Enum
 import asyncpg
 from decimal import Decimal
 import json
+import importlib
 import psutil
-import GPUtil
 
 from .tenant_manager import MapperTenantManager, MapperResourceType
 
@@ -236,13 +236,15 @@ class ResourceManager:
         gpu_usage = 0.0
         gpu_memory_usage = 0.0
         try:
-            gpus = GPUtil.getGPUs()
+            gputil_module = importlib.import_module("GPUtil")
+            gpus = gputil_module.getGPUs()
             if gpus:
                 gpu = gpus[0]  # Use first GPU
                 gpu_usage = gpu.load * 100
                 gpu_memory_usage = gpu.memoryUtil * 100
         except Exception:
-            pass  # GPU monitoring not available
+            # GPU monitoring not available or GPUtil not installed
+            pass
 
         # Get tenant-specific metrics from database
         tenant_metrics = await self._get_tenant_specific_metrics(tenant_id)
@@ -256,8 +258,8 @@ class ResourceManager:
             gpu_memory_usage_percent=gpu_memory_usage,
             disk_usage_percent=disk.percent,
             network_io_mbps=tenant_metrics.get("network_io_mbps", 0.0),
-            active_requests=tenant_metrics.get("active_requests", 0),
-            queue_length=tenant_metrics.get("queue_length", 0),
+            active_requests=int(tenant_metrics.get("active_requests", 0) or 0),
+            queue_length=int(tenant_metrics.get("queue_length", 0) or 0),
             response_time_ms=tenant_metrics.get("response_time_ms", 0.0),
             error_rate_percent=tenant_metrics.get("error_rate_percent", 0.0),
         )
@@ -469,15 +471,54 @@ class ResourceManager:
         return priority_map.get(tier, 1)
 
     async def _get_tenant_specific_metrics(self, tenant_id: str) -> Dict[str, float]:
-        """Get tenant-specific metrics from application layer"""
-        # This would integrate with the actual application metrics
-        # For now, return mock data
+        """Get tenant-specific metrics using recorded telemetry data."""
+
+        latest_metrics_query = """
+            SELECT network_io_mbps,
+                   active_requests,
+                   queue_length,
+                   response_time_ms,
+                   error_rate_percent
+            FROM resource_metrics
+            WHERE tenant_id = $1
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+
+        async with self.db_pool.acquire() as conn:
+            latest_metrics = await conn.fetchrow(latest_metrics_query, tenant_id)
+
+        if latest_metrics:
+            return {
+                "network_io_mbps": float(latest_metrics["network_io_mbps"] or 0.0),
+                "active_requests": int(latest_metrics["active_requests"] or 0),
+                "queue_length": int(latest_metrics["queue_length"] or 0),
+                "response_time_ms": float(latest_metrics["response_time_ms"] or 0.0),
+                "error_rate_percent": float(latest_metrics["error_rate_percent"] or 0.0),
+            }
+
+        fallback_window = datetime.utcnow() - timedelta(minutes=15)
+        fallback_query = """
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'running') AS active_requests,
+                COUNT(*) FILTER (WHERE status IN ('pending')) AS queue_length,
+                AVG(processing_time_ms) AS response_time_ms,
+                CASE WHEN COUNT(*) = 0 THEN 0
+                     ELSE (COUNT(*) FILTER (WHERE status = 'failed')::float / COUNT(*)) * 100
+                END AS error_rate_percent
+            FROM mapping_requests
+            WHERE tenant_id = $1 AND started_at >= $2
+        """
+
+        async with self.db_pool.acquire() as conn:
+            fallback = await conn.fetchrow(fallback_query, tenant_id, fallback_window)
+
         return {
-            "network_io_mbps": 10.5,
-            "active_requests": 25,
-            "queue_length": 5,
-            "response_time_ms": 150.0,
-            "error_rate_percent": 0.5,
+            "network_io_mbps": 0.0,
+            "active_requests": int(fallback["active_requests"] or 0),
+            "queue_length": int(fallback["queue_length"] or 0),
+            "response_time_ms": float(fallback["response_time_ms"] or 0.0),
+            "error_rate_percent": float(fallback["error_rate_percent"] or 0.0),
         }
 
     async def _store_resource_allocation(self, allocation: ResourceAllocation) -> None:

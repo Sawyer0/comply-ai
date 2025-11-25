@@ -11,6 +11,7 @@ import asyncio
 import json
 
 from ..shared_integration import get_shared_logger
+from ..ml import ModelServer as MLModelServer
 
 logger = get_shared_logger(__name__)
 
@@ -57,11 +58,14 @@ class ModelServer:
 
     def __init__(self, config: ModelConfig):
         self.config = config
-        self.logger = logger.bind(component="model_server", model=config.model_name)
+        self.logger: Any = logger.bind(
+            component="model_server", model=config.model_name
+        )
+
+        # Underlying unified ML model server
+        self._ml_server: Optional[MLModelServer] = None
 
         # Model state
-        self.model = None
-        self.tokenizer = None
         self.is_loaded = False
         self.load_time = None
 
@@ -75,16 +79,17 @@ class ModelServer:
         try:
             start_time = datetime.utcnow()
 
-            self.logger.info("Loading model", model_path=self.config.model_path)
+            self.logger.info(
+                "Initializing ML model server", model_path=self.config.model_path
+            )
 
-            # Simulate model loading (in production, would load actual model)
-            await asyncio.sleep(2)  # Simulate loading time
+            # Build ML server configuration from the serving model config
+            ml_config = self._build_ml_config()
 
-            # In production, this would be:
-            # from transformers import AutoTokenizer, AutoModelForCausalLM
-            # self.tokenizer = AutoTokenizer.from_pretrained(self.config.model_path)
-            # self.model = AutoModelForCausalLM.from_pretrained(self.config.model_path)
+            ml_server = MLModelServer(ml_config)
+            await ml_server.initialize()
 
+            self._ml_server = ml_server
             self.is_loaded = True
             self.load_time = datetime.utcnow()
 
@@ -108,8 +113,7 @@ class ModelServer:
             self.logger.info("Unloading model")
 
             # Clear model references
-            self.model = None
-            self.tokenizer = None
+            self._ml_server = None
             self.is_loaded = False
             self.load_time = None
 
@@ -140,24 +144,23 @@ class ModelServer:
             temperature = request.temperature or self.config.temperature
             top_p = request.top_p or self.config.top_p
 
-            # Simulate model inference (in production, would use actual model)
-            await asyncio.sleep(0.5)  # Simulate processing time
+            if not self._ml_server:
+                raise RuntimeError("ML model server not initialized")
 
-            # Generate mock response based on prompt
-            generated_text = self._generate_mock_response(request.prompt)
-            tokens_used = len(generated_text.split())  # Rough token count
+            # Delegate generation to the unified ML model server
+            ml_result = await self._ml_server.generate_analysis(
+                request.prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p,
+                stop=request.stop_sequences,
+            )
 
-            # In production, this would be:
-            # inputs = self.tokenizer.encode(request.prompt, return_tensors="pt")
-            # outputs = self.model.generate(
-            #     inputs,
-            #     max_length=max_tokens,
-            #     temperature=temperature,
-            #     top_p=top_p,
-            #     do_sample=True,
-            #     pad_token_id=self.tokenizer.eos_token_id
-            # )
-            # generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            generated_text = ml_result.get("generated_text", "")
+            tokens_used = int(
+                ml_result.get("tokens_generated")
+                or len(generated_text.split())
+            )
 
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds() * 1000
@@ -172,11 +175,12 @@ class ModelServer:
                 tokens_used=tokens_used,
                 processing_time_ms=processing_time,
                 model_name=self.config.model_name,
-                confidence=0.85,  # Mock confidence score
+                confidence=None,
                 metadata={
                     "temperature": temperature,
                     "top_p": top_p,
                     "max_tokens": max_tokens,
+                    "backend_metadata": ml_result.get("metadata", {}),
                 },
             )
 
@@ -250,32 +254,35 @@ class ModelServer:
             },
         }
 
-    def _generate_mock_response(self, prompt: str) -> str:
-        """Generate mock response for testing (replace with actual model in production)."""
-        # Simple mock responses based on prompt content
-        prompt_lower = prompt.lower()
+    def _build_ml_config(self) -> Dict[str, Any]:
+        """Build configuration dictionary for the unified ML ModelServer.
 
-        if "risk" in prompt_lower:
-            return "Based on the analysis, the risk level is moderate. Key factors include data sensitivity and access patterns. Recommend implementing additional monitoring and access controls."
+        This maps the serving-level ModelConfig into the generic ML
+        configuration structure used by analysis.ml.model_server.ModelServer
+        without changing the external serving API.
+        """
 
-        elif "compliance" in prompt_lower:
-            return "The compliance assessment indicates partial adherence to requirements. Areas for improvement include documentation, access logging, and data retention policies."
+        ml_section: Dict[str, Any] = {
+            "model_name": self.config.model_name,
+            # Use CPU backend by default; more advanced backends (vLLM/TGI)
+            # can be enabled via the ML configuration in the future.
+            "preferred_backend": "cpu",
+            "fallback_backends": ["cpu"],
+            "max_length": self.config.max_tokens,
+            "temperature": self.config.temperature,
+            "do_sample": True,
+            # Preserve path so future backends can use it for loading.
+            "model_path": self.config.model_path,
+        }
 
-        elif "pattern" in prompt_lower:
-            return "Pattern analysis reveals recurring access anomalies during off-hours. This suggests potential unauthorized access attempts or legitimate but unusual usage patterns."
-
-        elif "recommendation" in prompt_lower:
-            return "Recommended actions: 1) Implement multi-factor authentication, 2) Enhance monitoring capabilities, 3) Review access permissions quarterly, 4) Conduct security awareness training."
-
-        else:
-            return "Analysis completed. The system has processed the provided data and generated insights based on current risk assessment models and compliance frameworks."
+        return {"ml": ml_section}
 
 
 class ModelManager:
     """Manages multiple model servers."""
 
     def __init__(self):
-        self.logger = logger.bind(component="model_manager")
+        self.logger: Any = logger.bind(component="model_manager")
         self.servers: Dict[str, ModelServer] = {}
 
     async def add_model(self, name: str, config: ModelConfig) -> bool:

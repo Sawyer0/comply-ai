@@ -15,6 +15,11 @@ import click
 
 from ..core.mapper import CoreMapper
 from ..config.settings import MapperSettings
+from ..infrastructure.taxonomy_adapter import (
+    SharedCanonicalTaxonomyAdapter,
+    SharedFrameworkMappingAdapter,
+)
+from ..infrastructure.model_inference_adapter import SharedModelInferenceAdapter
 from ..schemas.models import MappingRequest
 
 
@@ -73,28 +78,36 @@ def map_detector_output(
     """
 
     async def _map():
+        mapper: Optional[CoreMapper] = None
         try:
             # Load settings
             settings = MapperSettings()
             settings.confidence_threshold = confidence_threshold
 
             # Initialize mapper
-            mapper = CoreMapper(settings)
+            mapper = CoreMapper(
+                settings,
+                canonical_taxonomy_port=SharedCanonicalTaxonomyAdapter(),
+                framework_mapping_port=SharedFrameworkMappingAdapter(),
+                model_inference_port=SharedModelInferenceAdapter(settings),
+            )
             await mapper.initialize()
 
-            # Parse input data
+            # Load raw detector output
             if Path(input_data).exists():
                 with open(input_data, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    raw_output = f.read()
             else:
-                data = json.loads(input_data)
+                raw_output = input_data
 
             # Create mapping request
             request = MappingRequest(
                 detector=detector,
-                output=data,
+                output=raw_output,
                 framework=framework,
                 metadata={"cli_request": True},
+                tenant_id=None,
+                confidence_threshold=confidence_threshold,
             )
 
             # Perform mapping
@@ -102,7 +115,7 @@ def map_detector_output(
             response = await mapper.map_detector_output(request)
 
             # Format output
-            result = response.to_dict()
+            result = response.dict()
             if output_format == "json":
                 output_text = json.dumps(result, indent=2)
             elif output_format == "yaml":
@@ -139,7 +152,7 @@ def map_detector_output(
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
         finally:
-            if "mapper" in locals():
+            if mapper is not None:
                 await mapper.shutdown()
 
     asyncio.run(_map())
@@ -186,6 +199,7 @@ def batch(
     """
 
     async def _batch():
+        mapper: Optional[CoreMapper] = None
         try:
             # Note: parallel parameter is currently unused - future enhancement
             _ = parallel  # Acknowledge unused parameter
@@ -194,7 +208,12 @@ def batch(
             settings = MapperSettings()
 
             # Initialize mapper
-            mapper = CoreMapper(settings)
+            mapper = CoreMapper(
+                settings,
+                canonical_taxonomy_port=SharedCanonicalTaxonomyAdapter(),
+                framework_mapping_port=SharedFrameworkMappingAdapter(),
+                model_inference_port=SharedModelInferenceAdapter(settings),
+            )
             await mapper.initialize()
 
             # Load batch requests
@@ -204,9 +223,15 @@ def batch(
             requests = [
                 MappingRequest(
                     detector=req["detector"],
-                    output=req["output"],
+                    output=(
+                        json.dumps(req["output"])
+                        if not isinstance(req.get("output"), str)
+                        else req["output"]
+                    ),
                     framework=req.get("framework"),
                     metadata={"cli_batch": True, "batch_index": i},
+                    tenant_id=req.get("tenant_id"),
+                    confidence_threshold=req.get("confidence_threshold"),
                 )
                 for i, req in enumerate(requests_data)
             ]
@@ -220,8 +245,10 @@ def batch(
             output_path = Path(output_dir) if output_dir else Path.cwd()
             output_path.mkdir(parents=True, exist_ok=True)
 
+            output_file: Optional[Path] = None
+
             if output_format == "json":
-                results = [response.to_dict() for response in responses]
+                results = [response.dict() for response in responses]
                 output_file = output_path / "batch_results.json"
                 with open(output_file, "w", encoding="utf-8") as f:
                     json.dump(results, f, indent=2)
@@ -229,12 +256,15 @@ def batch(
                 output_file = output_path / "batch_results.jsonl"
                 with open(output_file, "w", encoding="utf-8") as f:
                     for response in responses:
-                        f.write(json.dumps(response.to_dict()) + "\n")
+                        f.write(json.dumps(response.dict()) + "\n")
 
-            click.echo(
-                f"✓ Batch processing completed. Results saved to {output_file}",
-                err=True,
-            )
+            if output_file is not None:
+                click.echo(
+                    f"✓ Batch processing completed. Results saved to {output_file}",
+                    err=True,
+                )
+            else:
+                click.echo("✓ Batch processing completed.", err=True)
 
             # Show summary
             successful = sum(1 for r in responses if r.confidence > 0.5)
@@ -246,7 +276,7 @@ def batch(
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
         finally:
-            if "mapper" in locals():
+            if mapper is not None:
                 await mapper.shutdown()
 
     asyncio.run(_batch())
@@ -262,9 +292,15 @@ def validate(detector: Optional[str], framework: Optional[str]):
     """
 
     async def _validate():
+        mapper: Optional[CoreMapper] = None
         try:
             settings = MapperSettings()
-            mapper = CoreMapper(settings)
+            mapper = CoreMapper(
+                settings,
+                canonical_taxonomy_port=SharedCanonicalTaxonomyAdapter(),
+                framework_mapping_port=SharedFrameworkMappingAdapter(),
+                model_inference_port=SharedModelInferenceAdapter(settings),
+            )
 
             click.echo("Validating mapper configuration...", err=True)
 
@@ -297,7 +333,7 @@ def validate(detector: Optional[str], framework: Optional[str]):
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
         finally:
-            if "mapper" in locals():
+            if mapper is not None:
                 await mapper.shutdown()
 
     asyncio.run(_validate())

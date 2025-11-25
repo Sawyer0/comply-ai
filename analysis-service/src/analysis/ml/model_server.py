@@ -236,17 +236,21 @@ class ModelServer:
         try:
             # TGI client configuration
             tgi_config = self.ml_config.get("tgi", {})
-            base_url = tgi_config.get("base_url", "http://localhost:3000")
+            base_url = tgi_config.get("base_url", "http://localhost:3000").rstrip("/")
+            url = tgi_config.get("url", base_url)
 
-            # Create TGI client (would use actual TGI client in production)
+            # Create TGI client configuration
             client = {
                 "type": "tgi",
-                "base_url": base_url,
+                "url": url,
                 "timeout": tgi_config.get("timeout", 30),
                 "max_tokens": tgi_config.get("max_tokens", 1024),
+                "health_endpoint": tgi_config.get(
+                    "health_endpoint", f"{url}/health"
+                ),
             }
 
-            # Test connection
+            # Test connection to ensure backend is healthy at initialization time
             await self._test_tgi_connection(client)
 
             return client
@@ -258,17 +262,55 @@ class ModelServer:
     async def _initialize_cpu_backend(self):
         """Initialize CPU fallback backend."""
         try:
-            # CPU backend using transformers (simplified implementation)
-            cpu_config = {
+            # Base CPU backend configuration
+            cpu_config: Dict[str, Any] = {
                 "type": "cpu",
                 "model_name": self.model_name,
                 "max_length": self.ml_config.get("max_length", 1024),
                 "temperature": self.ml_config.get("temperature", 0.7),
                 "do_sample": self.ml_config.get("do_sample", True),
+                "mode": "rule_based",
+                "pipeline": None,
             }
 
-            # In production, would initialize actual transformers model here
-            logger.info("CPU backend configured", model=self.model_name)
+            # Attempt to initialize a real transformers-based text-generation
+            # pipeline on CPU. If transformers or the model are unavailable,
+            # we fall back to the existing rule-based implementation.
+            try:
+                from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+                model_name_or_path = self.ml_config.get(
+                    "cpu_model_name", self.model_name
+                )
+
+                text_gen_pipeline = pipeline(
+                    "text-generation",
+                    model=model_name_or_path,
+                    tokenizer=model_name_or_path,
+                    device=-1,  # CPU
+                )
+
+                cpu_config["pipeline"] = text_gen_pipeline
+                cpu_config["mode"] = "transformers"
+
+                logger.info(
+                    "CPU backend configured with transformers",
+                    model=model_name_or_path,
+                )
+
+            except ImportError:
+                # transformers not installed; keep rule-based fallback
+                logger.warning(
+                    "transformers not available, CPU backend will use rule-based fallback",
+                    model=self.model_name,
+                )
+            except Exception as e:
+                # Any other error during model initialization -> rule-based
+                logger.error(
+                    "Failed to initialize transformers CPU backend, using rule-based fallback",
+                    model=self.model_name,
+                    error=str(e),
+                )
 
             return cpu_config
 
@@ -400,12 +442,53 @@ class ModelServer:
     ) -> Dict[str, Any]:
         """Generate using CPU fallback backend."""
         try:
-            # In production, would use actual transformers model
-            # For now, provide rule-based fallback
+            mode = backend_instance.get("mode", "rule_based")
 
-            await asyncio.sleep(0.2)  # Simulate processing time
+            # Preferred path: use a real transformers-based CPU pipeline if
+            # it was successfully initialized.
+            if mode == "transformers" and backend_instance.get("pipeline") is not None:
+                pipe = backend_instance["pipeline"]
 
-            # Rule-based analysis fallback
+                max_tokens = kwargs.get(
+                    "max_tokens", backend_instance.get("max_length", 512)
+                )
+                temperature = kwargs.get(
+                    "temperature", backend_instance.get("temperature", 0.7)
+                )
+                top_p = kwargs.get("top_p", 0.9)
+
+                generation_kwargs: Dict[str, Any] = {
+                    "max_new_tokens": max_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "do_sample": backend_instance.get("do_sample", True),
+                }
+
+                # Note: handling arbitrary stop sequences is backend-specific
+                # and not supported by all pipelines; we ignore them here to
+                # keep the implementation backend-agnostic.
+
+                loop = asyncio.get_running_loop()
+                results = await loop.run_in_executor(
+                    None, lambda: pipe(prompt, **generation_kwargs)
+                )
+
+                if not results:
+                    raise RuntimeError("No results from CPU transformers generation")
+
+                first = results[0] if isinstance(results, list) else results
+                generated_text = first.get("generated_text") or first.get("text") or ""
+
+                return {
+                    "generated_text": generated_text,
+                    "finish_reason": "stop",
+                    "tokens_generated": len(generated_text.split()),
+                    "backend": "cpu_transformers",
+                }
+
+            # Fallback path: use the existing rule-based analysis
+            await asyncio.sleep(0.2)  # Simulate minimal processing time
+
             analysis_result = self._generate_rule_based_analysis(prompt)
 
             return {
@@ -464,8 +547,8 @@ class ModelServer:
     async def _health_check_tgi(self, backend_instance: Dict[str, Any]) -> bool:
         """Health check for TGI backend."""
         try:
-            # In production, would ping TGI health endpoint
-            return True  # Simplified for now
+            await self._test_tgi_connection(backend_instance)
+            return True
         except Exception:
             return False
 
@@ -503,8 +586,31 @@ class ModelServer:
 
     async def _test_tgi_connection(self, client: Dict[str, Any]):
         """Test TGI connection."""
-        # In production, would test actual TGI connection
-        pass
+        try:
+            import aiohttp
+
+            health_url = client.get("health_endpoint") or f"{client.get('url')}/health"
+            timeout = client.get("timeout", 30)
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    health_url, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as response:
+                    if response.status != 200:
+                        text = await response.text()
+                        raise RuntimeError(
+                            f"TGI health check failed: {response.status} {text}"
+                        )
+
+            logger.info("TGI health check succeeded", url=health_url)
+
+        except Exception as e:
+            logger.error(
+                "TGI health check failed",
+                url=client.get("url"),
+                error=str(e),
+            )
+            raise
 
     def _update_performance_metrics(self, latency: float, success: bool):
         """Update performance tracking metrics."""

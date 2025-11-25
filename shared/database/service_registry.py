@@ -223,3 +223,6 @@ class ServiceRegistry:
         """Close Redis connection."""
         if self.redis_client:
             await self.redis_client.close()
+
+
+DatabaseServiceRegistry = ServiceRegistry

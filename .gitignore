@@ -71,10 +71,17 @@ AGENTS.md
 .vscode/
 .idea/
 .cursor/
+.windsurf/
 .cursorignore
 *.swp
 *.swo
 *~
+
+# Secrets / sensitive configs
+api_keys.json
+
+# Binary artifacts
+*.exe
 
 # Project-specific directories to exclude
 cursor-chat-browser/
@@ -106,6 +113,7 @@ logs/
 
 # Linting output files
 pylint_output*.txt
+pylint_report.txt
 
 # Temporary files
 *.tmp

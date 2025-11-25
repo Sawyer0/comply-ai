@@ -14,6 +14,11 @@ import click
 
 from ..core.mapper import CoreMapper
 from ..config.settings import MapperSettings
+from ..infrastructure.taxonomy_adapter import (
+    SharedCanonicalTaxonomyAdapter,
+    SharedFrameworkMappingAdapter,
+)
+from ..infrastructure.model_inference_adapter import SharedModelInferenceAdapter
 from ..monitoring import HealthMonitor, MetricsCollector, PerformanceTracker
 
 
@@ -47,7 +52,12 @@ def health(output_format: str, component: Optional[str]):
     async def _health():
         try:
             settings = MapperSettings()
-            mapper = CoreMapper(settings)
+            mapper = CoreMapper(
+                settings,
+                canonical_taxonomy_port=SharedCanonicalTaxonomyAdapter(),
+                framework_mapping_port=SharedFrameworkMappingAdapter(),
+                model_inference_port=SharedModelInferenceAdapter(settings),
+            )
 
             # Get health status
             health_status = await mapper.health_check()

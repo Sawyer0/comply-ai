@@ -6,6 +6,7 @@ that arise from interactions between multiple risk factors.
 """
 
 import logging
+import math
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 
@@ -82,7 +83,9 @@ class CompoundRiskCalculator:
             }
 
         except Exception as e:
-            logger.error("Compound risk calculation failed", error=str(e))
+            logger.error(
+                "Compound risk calculation failed", extra={"error": str(e)}
+            )
             return {"risk_level": "medium", "compound_score": 0.5, "error": str(e)}
 
     def _calculate_base_compound_score(self, patterns: List[RiskPattern]) -> float:
@@ -90,13 +93,36 @@ class CompoundRiskCalculator:
         if not patterns:
             return 0.0
 
-        # Simple aggregation for now - would be more sophisticated in production
-        total_amplification = sum(pattern.amplification_factor for pattern in patterns)
-        pattern_count = len(patterns)
+        # Weighted aggregation that accounts for interaction type and number of factors
+        weighted_sum = 0.0
+        total_weight = 0.0
 
-        # Normalize and apply diminishing returns
-        base_score = min(1.0, (total_amplification / pattern_count) * 0.8)
-        return base_score
+        for pattern in patterns:
+            model = self.interaction_models.get(
+                pattern.interaction_type, self.interaction_models["additive"]
+            )
+
+            # Heavier weight for patterns with more contributing factors and
+            # higher interaction strength.
+            factor_weight = max(1.0, float(len(pattern.risk_factors)))
+            interaction_weight = float(model.get("factor", 1.0))
+            weight = factor_weight * interaction_weight
+
+            weighted_sum += float(pattern.amplification_factor) * weight
+            total_weight += weight
+
+        if total_weight <= 0.0:
+            return 0.0
+
+        # Average amplification across patterns.
+        avg_amplification = weighted_sum / total_weight
+
+        # Map average amplification to a bounded risk score using a smooth
+        # saturation function. This provides diminishing returns for
+        # extremely large amplification values while remaining sensitive
+        # in the typical range [0, 2].
+        base_score = 1.0 - math.exp(-max(0.0, avg_amplification))
+        return max(0.0, min(1.0, base_score))
 
     def _calculate_interaction_effects(
         self, patterns: List[RiskPattern], relationships: List[Dict[str, Any]]

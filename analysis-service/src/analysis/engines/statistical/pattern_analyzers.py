@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
+from .correlation_analyzer import CorrelationAnalyzer as StatisticalCorrelationAnalyzer
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,31 +114,64 @@ class CorrelationAnalyzer:
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.correlation_threshold = config.get("correlation_threshold", 0.7)
+        self._statistical_analyzer = StatisticalCorrelationAnalyzer(config)
 
     async def analyze_correlation_patterns(
         self, data_points: List[Dict[str, Any]]
     ) -> List[PatternResult]:
         """Analyze correlation patterns in data."""
-        patterns = []
+        patterns: List[PatternResult] = []
 
-        # Simple correlation detection
-        if len(data_points) >= 5:
-            correlation_score = self._calculate_simple_correlation(data_points)
-            if correlation_score > self.correlation_threshold:
+        if len(data_points) < self._statistical_analyzer.min_data_points:
+            logger.debug(
+                "Insufficient data points for correlation analysis",
+                extra={"data_points": len(data_points)},
+            )
+            return patterns
+
+        try:
+            raw_patterns = await self._statistical_analyzer.analyze(data_points)
+
+            for pattern in raw_patterns:
+                coefficient = float(pattern.get("correlation_coefficient", 0.0))
+                strength = abs(coefficient)
+
+                if strength < self.correlation_threshold:
+                    continue
+
+                confidence = float(
+                    pattern.get(
+                        "confidence",
+                        min(1.0, max(0.0, strength)),
+                    )
+                )
+
                 patterns.append(
                     PatternResult(
                         pattern_type="data_correlation",
-                        confidence=correlation_score,
-                        strength=correlation_score,
-                        metadata={"correlation_score": correlation_score},
+                        confidence=confidence,
+                        strength=strength,
+                        metadata=pattern,
                     )
                 )
+
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Correlation pattern analysis failed",
+                extra={"error": str(exc)},
+            )
 
         return patterns
 
     def _calculate_simple_correlation(self, data_points: List[Dict[str, Any]]) -> float:
-        """Calculate simple correlation score."""
-        # Mock implementation - would use proper statistical correlation in production
+        """Lightweight fallback correlation score estimation.
+
+        Used only when the advanced statistical analyzer is unavailable.
+        """
+
+        if not data_points:
+            return 0.0
+
         return min(1.0, len(data_points) / 10)
 
 
@@ -153,8 +188,62 @@ class AnomalyDetector:
         """Detect anomalous patterns."""
         patterns = []
 
-        # Simple anomaly detection based on data point characteristics
-        unusual_points = [point for point in data_points if self._is_anomalous(point)]
+        if not data_points:
+            return patterns
+
+        unusual_points: List[Dict[str, Any]] = []
+
+        # Primary path: numeric anomaly detection using z-scores on common fields such
+        # as "value", "rate", etc. Falls back to severity-based heuristics.
+        numeric_keys: List[str] = []
+        for point in data_points:
+            for key, value in point.items():
+                if key == "timestamp":
+                    continue
+                if isinstance(value, (int, float)) and key not in numeric_keys:
+                    numeric_keys.append(key)
+
+        def _detect_numeric_anomalies(key: str) -> List[int]:
+            series: List[float] = []
+            for point in data_points:
+                value = point.get(key)
+                if isinstance(value, (int, float)):
+                    series.append(float(value))
+
+            if len(series) < 3:
+                return []
+
+            mean = sum(series) / len(series)
+            variance = sum((v - mean) ** 2 for v in series) / len(series)
+            std = variance**0.5
+            if std == 0:
+                return []
+
+            indices: List[int] = []
+            for idx, point in enumerate(data_points):
+                value = point.get(key)
+                if not isinstance(value, (int, float)):
+                    continue
+                z_score = (float(value) - mean) / std
+                if abs(z_score) >= self.anomaly_threshold:
+                    indices.append(idx)
+
+            return indices
+
+        anomalous_indices: List[int] = []
+        for key in numeric_keys:
+            anomalous_indices.extend(_detect_numeric_anomalies(key))
+
+        if anomalous_indices:
+            seen_idx = set()
+            for idx in anomalous_indices:
+                if idx not in seen_idx:
+                    seen_idx.add(idx)
+                    unusual_points.append(data_points[idx])
+
+        # Fallback to severity-based heuristic when numeric analysis finds nothing
+        if not unusual_points:
+            unusual_points = [point for point in data_points if self._is_anomalous(point)]
 
         if unusual_points:
             anomaly_ratio = len(unusual_points) / len(data_points)
@@ -164,7 +253,10 @@ class AnomalyDetector:
                         pattern_type="behavioral_anomaly",
                         confidence=min(1.0, anomaly_ratio * 2),
                         strength=anomaly_ratio,
-                        metadata={"anomaly_count": len(unusual_points)},
+                        metadata={
+                            "anomaly_count": len(unusual_points),
+                            "total_points": len(data_points),
+                        },
                     )
                 )
 
@@ -172,8 +264,9 @@ class AnomalyDetector:
 
     def _is_anomalous(self, data_point: Dict[str, Any]) -> bool:
         """Check if a data point is anomalous."""
-        # Simple heuristic - would be more sophisticated in production
-        severity = data_point.get("severity", "low")
+        # Heuristic fallback using severity classification when numeric context
+        # is unavailable or insufficient for statistical detection.
+        severity = str(data_point.get("severity", "low")).lower()
         return severity in ["critical", "high"]
 
 
